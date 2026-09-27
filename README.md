@@ -30,6 +30,23 @@ Extract your browser ZIP before loading it, or build it from source below.
 Keep the unpacked directory in a permanent location. Chrome/Brave load its files
 from that folder. Minimum Chromium version: 109.
 
+### Updating an unpacked Chrome / Brave install
+
+1. Replace the files in the existing extension folder with the new browser ZIP's contents.
+2. Open `chrome://extensions` or `brave://extensions` and click **Reload** on
+   **Minimum Views Filter**. Check that the displayed version matches the download.
+3. Reload X and YouTube tabs, then reopen the popup and save your settings.
+
+**Reloading only the website is insufficient after replacing extension files.**
+Chromium can load the new popup while still injecting cached content scripts.
+The popup and page filter can then disagree about the settings they understand.
+[Chrome's reload requirements](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#when_to_reload_the_extension)
+require both an extension reload and a host-page reload for content-script changes.
+
+If X still behaves as though the minimum is 1,000 after you save 10,000, perform
+both reloads above before investigating count parsing. Check that X Home is
+selected and the post author is not whitelisted.
+
 ### Firefox
 
 1. Open `about:debugging#/runtime/this-firefox`.
