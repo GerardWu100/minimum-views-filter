@@ -1,3 +1,1 @@
-[data-minimum-views-hidden] {
-  display: none !important;
-}
+html[data-minimum-views-active] [data-minimum-views-hidden] { display: none !important; }

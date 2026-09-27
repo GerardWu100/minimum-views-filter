@@ -1,13 +1,14 @@
 {
   "name": "minimum-views-filter",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "Filter low-view X Home posts and YouTube Home/watch recommendations locally.",
   "scripts": {
     "test": "node --test tests/*.test.cjs",
     "build": "node scripts/build.cjs",
     "lint:firefox": "web-ext lint --source-dir dist/firefox --warnings-as-errors",
-    "check": "npm test && npm run build && npm run lint:firefox"
+    "check": "npm test && npm run build && npm run lint:firefox",
+    "benchmark": "node scripts/benchmark.cjs"
   },
   "engines": {
     "node": ">=22"

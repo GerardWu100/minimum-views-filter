@@ -22,6 +22,8 @@
   const VIEW_WORD = '(?:views?|vues?)';
   const COUNT_TOKEN = '(?:no|aucune|[0-9][0-9.,\\s\\u00a0\\u202f]*(?:[kmb]|thousand|million|billion)?)';
 
+  const VIEW_COUNT_PATTERN = new RegExp(`(?<![\\p{L}\\p{N}.,+\\-])(${COUNT_TOKEN})\\s+${VIEW_WORD}(?![\\p{L}])`, 'giu');
+
   /**
    * Parse a displayed English or French view count without guessing separators.
    *
@@ -76,6 +78,11 @@
     return false;
   }
 
+  /** Return the raw card selector used to route mutations to their owning card. */
+  function getCardSelector(site) {
+    return site === 'x' ? X_CARD_SELECTOR : site === 'youtube' ? YOUTUBE_CARD_SELECTOR : null;
+  }
+
   /**
    * Find independently hideable cards, choosing outer wrappers over nested cards.
    *
@@ -85,9 +92,11 @@
    *   short-form player elements are excluded; recommendations remain eligible.
    */
   function getCards(document, site) {
-    const selector = site === 'x' ? X_CARD_SELECTOR : site === 'youtube' ? YOUTUBE_CARD_SELECTOR : null;
+    const selector = getCardSelector(site);
     if (!selector || !document?.querySelectorAll) return [];
-    const candidates = Array.from(document.querySelectorAll(selector)).filter((card) => {
+    const matches = Array.from(document.querySelectorAll(selector));
+    if (document.matches?.(selector)) matches.unshift(document);
+    const candidates = matches.filter((card) => {
       if (site === 'x') return !isQuoteDescendant(card, null);
       return !card.closest('ytd-shorts, ytd-reel-video-renderer, #shorts-player')
         && !card.closest(YOUTUBE_AD_SELECTOR) && !card.querySelector(YOUTUBE_AD_SELECTOR)
@@ -131,8 +140,7 @@
 
   function labeledCounts(text, locale) {
     if (!text) return [];
-    const matcher = new RegExp(`(?<![\\p{L}\\p{N}.,+\\-])(${COUNT_TOKEN})\\s+${VIEW_WORD}(?![\\p{L}])`, 'giu');
-    return Array.from(text.matchAll(matcher), (match) => parseViewCount(match[0], { locale }));
+    return Array.from(text.matchAll(VIEW_COUNT_PATTERN), (match) => parseViewCount(match[0], { locale }));
   }
 
   function statusId(href) {
@@ -319,7 +327,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCards, getViewCount, getCreatorIdentifiers, getHideTarget };
+  const core = { parseViewCount, isSupportedPage, getCardSelector, getCards, getViewCount, getCreatorIdentifiers, getHideTarget };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);

@@ -29,22 +29,33 @@ channel/byline metadata. The settings normalizer canonicalizes X handles without
 Unknown creators return an empty array; quoted authors, mentions, repost context,
 and arbitrary title/body links cannot establish an exemption.
 
-`content.js` merges local settings with any changes that arrived during startup,
-then reconciles hideable DOM nodes. It selects `xMinimumViews`/`xWhitelist` or
-`youtubeMinimumViews`/`youtubeWhitelist` by host. Whitelisted creators bypass
-both low-count and unknown-count rules, using current links on every scan so
-recycled nodes cannot inherit an exemption. It marks low-count nodes with
-`data-minimum-views-hidden`; `content.css` makes them `display:none!important`.
-X uses a `cellInnerDiv` wrapper only when it contains exactly one tweet/article.
-The next pass removes obsolete marks, including when a node is reused, its
-count rises, the route changes, or filtering is disabled. Detached nodes leave
-the Set. Nothing records IDs across visits.
+`content.js` selects `xMinimumViews`/`xWhitelist` or the YouTube counterparts
+by host, merging any settings changes that arrive during startup. The whitelist
+Set is rebuilt only when relevant settings change. Creator and count metadata
+are read fresh for each affected card, so reused nodes cannot inherit a decision.
 
-A MutationObserver coalesces relevant page mutations into one pass with an
-80 ms throttle. Its own hiding attribute is excluded from observation. A
-one-second timer checks only the URL for single-page navigation without a DOM
-event; it does not poll counts or make requests. No timer exists outside the
-open matching page. Storage failure leaves the page unfiltered.
+The observer routes mutations through `getCardSelector` to the owning outer
+card or X cell. Added subtrees are inspected locally; unrelated sidebar/player
+changes are discarded. Overlapping scopes merge, and more than 32 pending scopes
+collapse into a full pass. An 80 ms throttle batches changes. `getCards` includes
+a matching Element root as well as descendants, so standalone inserted cards work.
+Startup, navigation, relevant settings, language changes and tab resume use full
+passes. X shared cells, lost card identities and quote-role changes reconcile their
+old hiding marks before wrappers can be reused.
+
+Hiding attributes are the durable state; no collection retains hidden DOM nodes
+between passes. Each scope compares existing marks with desired targets and only
+writes changed attributes. The `html[data-minimum-views-active]` CSS gate prevents
+a detached, previously marked node from hiding when reinserted on an excluded or
+disabled page. Foreign styles, classes, hidden attributes and player state remain
+untouched. Pending element references are cleared on each scan or suspension.
+
+Hidden tabs and back-forward cache suspension disconnect the observer, clear the
+queue and stop the URL timer. Returning visible performs one full reconciliation.
+Disabled sites and excluded routes disconnect DOM observation, while retaining
+one visible-page URL check per second so silent navigation into Home can resume
+filtering. This timer never fetches counts or scans the DOM. Storage failure and
+unload remove the active flag, restore connected marks, and release listeners.
 
 `popup.js` loads and validates the two thresholds, two whitelists, and three
 boolean switches defined in `settings.js`, then saves to extension local storage.
@@ -60,11 +71,15 @@ ID; its minimum version is 142. Signing is an external distribution step.
 
 Validation on 2026-09-27:
 
-- 68 tests passed: 28 parser/adapter, 34 runtime/popup, and 6 settings tests.
+- 87 tests passed: 28 parser/adapter, 53 runtime/popup, and 6 settings tests.
 - Threshold tests cover site independence, defaults, invalid values, and zero.
   Whitelist tests cover known/unknown counts, editing/removal, changing creators,
   foreign hiding rules, quoted/mentioned X accounts, modern/classic YouTube
   metadata, Unicode handles, case-sensitive channel IDs, and invalid URLs.
+- Performance/lifecycle regressions cover unrelated mutation noise, one-card
+  changes, bounded large bursts, background changes and settings, first load in a
+  hidden tab, detached/reinserted nodes, shared X cells, lost card identity, quote
+  roles, locale changes, back-forward cache, and teardown before storage resolves.
 - Scope regressions cover X search/profiles/Lists, YouTube search/subscriptions/
   channels/playlists, low and unknown counts on excluded pages, watch-page
   recommendations beside/below the player, and navigation with retained cards.
@@ -92,12 +107,26 @@ uses hidden counters and a pre-existing foreign hiding rule. Its test shim
 dispatches both platform adapters on localhost; it is not in either package.
 Stop the temporary server when finished.
 
+## Performance measurement
+
+`npm run benchmark` runs production scripts against synthetic X Home and YouTube
+watch cards in jsdom. It counts adapter reads, document scans, callbacks, active
+observers/timers, and illustrative synchronous runtime time. The fixture creates
+real DOM mutations and validates every expected hiding mark after each batch.
+Throttle waits, fixture writes, DOM setup and assertions are excluded from timing.
+See [docs/performance.md](docs/performance.md) for the saved comparison and limits.
+No claim is made about measured total Brave/Firefox RAM or live browser CPU.
+
+Runtime fixtures dispatch pagehide before closing jsdom, matching actual browser
+teardown. Use attribute selectors for repeated YouTube IDs in tests; this jsdom
+version can miss duplicate IDs with optimized compound ID selectors.
+
 ## Release and project location
 
 The local checkout lives under `one-time-projects/minimum-views-filter` in the
 existing projects root. Relative build and test paths keep relocation safe.
 
-GitHub release `v1.0.2` distributes the browser ZIPs, a source ZIP, installation
+GitHub release `v1.0.3` distributes the browser ZIPs, a source ZIP, installation
 instructions, and SHA-256 checksums. Runtime artifacts are generated from the
 tagged source and remain ignored by Git. The private repository requires an
 authorized signed-in account to download release assets. Publishing a GitHub
@@ -133,12 +162,22 @@ Do not bypass that policy via another URL, browser surface, raw protocol command
 or browser profile files. For this report, the user performed the extension reload;
 the agent verified Home-page count/hiding markers afterwards.
 
-## Open issues and verification limits
+## YouTube compact-counter report
 
+On 2026-09-27 the user reported a visible 511-view Home card after the extension
+reload for X. A fresh YouTube Home tab showed the exact same video at 538 views,
+with a readable `aria-label="538 views"`, this extension's hiding mark and computed
+`display:none`. The shortened visible label retained its accessible count, so no
+parser change was needed. Existing YouTube tabs must also be refreshed after an
+extension reload. Regression fixtures cover this modern compact metadata on Home
+and watch pages, including restoration at 1.2 thousand views. The diagnostic tab
+was closed; no installed extension or other extension setting was changed.
+
+## Open issues and verification limits
 
 - **Permanent Firefox installation remains unsigned.** Code, package, and lint
   are complete. No Mozilla account/signing workflow was used. Next step: submit
-  `dist/minimum-views-filter-firefox-1.0.2.zip` for unlisted signing, then test
+  `dist/minimum-views-filter-firefox-1.0.3.zip` for unlisted signing, then test
   the returned XPI in release Firefox. Do not weaken signature settings.
 - **Full live-feed coexistence remains a manual installation check.** No browser
   settings or other extension settings were changed. The page DOM observations

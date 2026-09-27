@@ -23,6 +23,11 @@ the platform through negative-feedback actions.
   setting can hide unknown-count video/post cards.
 - Read existing DOM text and accessibility labels even when CSS hides them.
   Prefer exact accessibility counts to rounded visible counts.
+- Reduce CPU work and memory allocation without changing filtering behavior.
+  Route mutations to affected cards; avoid whole-page scans for sidebar/player
+  changes. Suspend work in hidden tabs, disconnect DOM observation on excluded
+  or disabled pages, bound pending queues, and do not retain hidden DOM nodes.
+  Measure representative workloads before making performance or RAM claims.
 - Handle new cards, changed counts, recycled DOM nodes, and navigation without
   requiring full-page reloads. Never fetch counts or run background collection.
 - Coexist with the user's extensions. Add/remove only this extension's own

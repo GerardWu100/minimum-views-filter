@@ -16,6 +16,7 @@ const fixtureSite = card => card.matches('article') ? "x" : "youtube";
 globalThis.MinimumViewsCore = {
   ...fixtureCore,
   isSupportedPage: () => true,
+  getCardSelector: () => fixtureCore.getCardSelector("x") + "," + fixtureCore.getCardSelector("youtube"),
   getCards: root => [...fixtureCore.getCards(root, "x"), ...fixtureCore.getCards(root, "youtube")],
   getViewCount: (card, _site, locale) => fixtureCore.getViewCount(card, fixtureSite(card), locale),
   getHideTarget: card => fixtureCore.getHideTarget(card, fixtureSite(card)),

@@ -10,10 +10,10 @@ shows an item with enough views, it becomes eligible again.
 
 ## Install
 
-Download version 1.0.2 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.0.2):
+Download version 1.0.3 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.0.3):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.2/minimum-views-filter-chrome-brave-1.0.2.zip)
-- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.2/minimum-views-filter-firefox-1.0.2.zip)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.3/minimum-views-filter-chrome-brave-1.0.3.zip)
+- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.3/minimum-views-filter-firefox-1.0.3.zip)
 
 The repository and downloads are private; sign in with an account that has access.
 Extract your browser ZIP before loading it, or build it from source below.
@@ -117,6 +117,21 @@ Enter one creator per line, or separate entries with commas, then click **Save**
 Handles are case-insensitive; YouTube channel IDs retain their exact case.
 [YouTube's handle documentation](https://support.google.com/youtube/answer/11585688?hl=en)
 distinguishes unique handles from display names and documents Unicode handles.
+
+## Performance
+
+Changed cards are reconsidered individually. Sidebar/player updates do not rescan
+the feed, and hidden tabs pause observation and URL checks until you return.
+Disabled sites and excluded pages do not observe DOM changes. The filter keeps
+no long-lived collection of hidden page elements; pending work is bounded.
+
+In a synthetic 200-card feed, 20 single-card count changes required **20 count
+reads instead of 4,000**. Unrelated mutations required **zero instead of 4,000**.
+Both X and YouTube produced the same results. These measure extension work in
+jsdom, not total browser CPU or RAM. Hidden cards remain in the site's DOM; the
+extension does not control YouTube/X's own memory use or media loading.
+
+See [the measured workloads and reproduction command](docs/performance.md).
 
 ## Existing extensions
 
