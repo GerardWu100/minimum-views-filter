@@ -1,11 +1,13 @@
 # Minimum Views Filter
 
-**Stop training the algorithm for free.**
+**Stop training the algorithm. Stop being its guinea pig.**
 
-Your X and YouTube feeds are full of posts almost nobody watched. The usual fix
-is clicking “Not interested” on each one, which hands the platform free labels
-about what is good and what is not. This extension skips that job: it quietly
-hides anything below a view count you choose, right in your browser.
+X and YouTube try out new, unproven posts on a sample of viewers to see how they
+perform, and your feed fills with things almost nobody watched. The usual fix is
+clicking “Not interested” on each one, which gives the platform free labels
+about what is good. This extension does neither: it quietly hides anything
+below a view count you choose, so you only see posts that have already earned
+an audience.
 
 - **One rule: views.** Below your minimum (default 1,000) is hidden; at or above
   is shown, however new the post. Nothing else is judged.
