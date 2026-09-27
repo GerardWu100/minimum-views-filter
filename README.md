@@ -1,13 +1,25 @@
 # Minimum Views Filter
 
-A small extension for **Chrome/Brave and Firefox** that hides X posts and
-YouTube videos below separate configurable view counts. Both default to **1,000**.
-Each site also has a creator whitelist, which you can add to by right-clicking
-a post or video. Settings sync through your Chrome or Firefox account.
+**Stop training the algorithm for free.**
 
-It only changes the page in your browser. It never clicks “Not interested,”
-sends feedback, or stores a blacklist of posts or videos. If the site later
-shows an item with enough views, it becomes eligible again.
+Your X and YouTube feeds are full of posts almost nobody watched. The usual fix
+is clicking “Not interested” on each one, which hands the platform free labels
+about what is good and what is not. This extension skips that job: it quietly
+hides anything below a view count you choose, right in your browser.
+
+- **One rule: views.** Below your minimum (default 1,000) is hidden; at or above
+  is shown, however new the post. Nothing else is judged.
+- **No feedback, ever.** It never clicks, likes, dismisses, mutes, or reports
+  anything, and makes no network requests.
+- **Your feeds only.** X Home (For You and Following), YouTube Home, and the
+  recommendations beside a video. Search, profiles, and channels stay untouched.
+- **Separate X and YouTube minimums**, plus creator whitelists you can add to by
+  right-clicking a post or video.
+- **Nothing is blacklisted.** If an item later shows enough views, it comes back.
+- **Chrome, Brave, and Firefox.** Light on CPU: only changed cards are rechecked.
+
+Hiding a post in your browser cannot stop the site from logging that it showed
+it to you. What it does guarantee is that you never click a feedback button.
 
 ## Install
 
@@ -16,7 +28,6 @@ Download version 1.5.0 from the [GitHub release](https://github.com/GerardWu100/
 - [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.0/minimum-views-filter-chrome-brave-1.5.0.zip)
 - [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.0/minimum-views-filter-firefox-1.5.0.zip)
 
-The repository and downloads are private; sign in with an account that has access.
 Extract your browser ZIP before loading it, or build it from source below.
 
 ### Chrome / Brave

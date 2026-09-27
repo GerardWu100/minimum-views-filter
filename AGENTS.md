@@ -63,7 +63,8 @@ Do not modify, disable, or reset those extensions to make this one work. Read
 
 ## Project workflow
 
-- Repository: `GerardWu100/minimum-views-filter`, private unless explicitly changed.
+- Repository: `GerardWu100/minimum-views-filter`, public under the MIT License
+  (the user requested publication on 2026-09-27).
 - Keep the local checkout under `one-time-projects/minimum-views-filter` within the existing projects root.
 - Publish downloadable browser ZIPs as GitHub release assets, not committed build files.
   Label Firefox packages unsigned until Mozilla signing is complete.

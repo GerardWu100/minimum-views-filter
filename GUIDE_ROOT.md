@@ -170,8 +170,8 @@ existing projects root. Relative build and test paths keep relocation safe.
 
 GitHub release `v1.5.0` distributes the browser ZIPs, a source ZIP, installation
 instructions, and SHA-256 checksums. Runtime artifacts are generated from the
-tagged source and remain ignored by Git. The private repository requires an
-authorized signed-in account to download release assets. Publishing a GitHub
+tagged source and remain ignored by Git. The repository is public under the
+MIT License, so release assets download without signing in. Publishing a GitHub
 release does not submit to either browser store or sign the Firefox package.
 
 For future releases: run `npm run check`, commit and push the release source,
