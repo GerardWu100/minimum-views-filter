@@ -107,8 +107,8 @@ Validation on 2026-09-27:
 
 - 105 tests passed: 29 parser/adapter, 64 runtime/popup, 8 settings, and 4
   background tests. Menu tests cover card authors versus mentions, two posts in
-  one X cell, links outside
-  cards, excluded pages, missing/one-shot right-click state, duplicate and
+  one X cell, links outside cards, excluded pages, missing/one-shot right-click
+  state, duplicate and
   over-quota additions, frames without a content script, and badge restoration.
   Transfer tests cover round trips, alternate spellings, and rejected text.
 - Threshold tests cover site independence, defaults, invalid values, and zero.
