@@ -1,27 +1,25 @@
 # Minimum Views Filter
 
-**Stop training the algorithm. Stop being its guinea pig.**
+**Stop being the algorithm's test audience.**
 
-X and YouTube try out new, unproven posts on a sample of viewers to see how they
-perform, and your feed fills with things almost nobody watched. The usual fix is
-clicking “Not interested” on each one, which gives the platform free labels
-about what is good. This extension does neither: it quietly hides anything
-below a view count you choose, so you only see posts that have already earned
-an audience.
+X and YouTube show new posts to a small group of people first to see how they
+do, and your feed fills up with posts that have a few dozen views. Clicking
+"Not interested" on each one just gives the platform more feedback to work with.
 
-- **One rule: views.** Below your minimum (default 1,000) is hidden; at or above
-  is shown, however new the post. Nothing else is judged.
-- **No feedback, ever.** It never clicks, likes, dismisses, mutes, or reports
-  anything, and makes no network requests.
-- **Your feeds only.** X Home (For You and Following), YouTube Home, and the
-  recommendations beside a video. Search, profiles, and channels stay untouched.
-- **Separate X and YouTube minimums**, plus creator whitelists you can add to by
-  right-clicking a post or video.
-- **Nothing is blacklisted.** If an item later shows enough views, it comes back.
-- **Chrome, Brave, and Firefox.** Light on CPU: only changed cards are rechecked.
+This extension hides posts and videos below a view count you pick (1,000 by
+default). Views are the only thing it checks: a post with 6,000 views five
+minutes after it went up still shows. It never clicks anything and makes no
+network requests. Nothing is blocked for good either. If a hidden post later
+passes your minimum, it comes back.
 
-Hiding a post in your browser cannot stop the site from logging that it showed
-it to you. What it does guarantee is that you never click a feedback button.
+It filters X Home (For You and Following), YouTube Home, and the
+recommendations next to a video you're watching. Search, profiles, channels,
+and every other page are left alone. X and YouTube each have their own minimum
+and their own creator whitelist, and you can right-click a post to always show
+that creator. Works in Chrome, Brave, and Firefox.
+
+One limit: hiding a post in your browser doesn't stop the site from logging
+that it showed it to you.
 
 ## Install
 
