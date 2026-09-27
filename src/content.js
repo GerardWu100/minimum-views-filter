@@ -19,9 +19,12 @@
     subtree: true,
     characterData: true,
     attributes: true,
-    // Ignore style/player state and our own marks. Role/testid can change whether
-    // a subtree represents a quoted post; class can establish YouTube metadata.
-    attributeFilter: ["aria-label", "title", "href", "class", "data-testid", "role", "lang"],
+    // Ignore style/player state and our own marks. X: role/testid can change
+    // whether a subtree is a quoted post; its hover restyles only toggle class,
+    // which the X adapter never reads. YouTube: class and title establish metadata.
+    attributeFilter: SITE === "x"
+      ? ["aria-label", "href", "data-testid", "role", "lang"]
+      : ["aria-label", "title", "href", "class", "lang"],
   };
   let settings = normalizeSettings();
   let whitelist = new Set();
@@ -92,6 +95,8 @@
       return;
     }
     if (fullScanRequired) return;
+    // Text/attribute bursts often repeat one target; route each target once.
+    const routedTargets = new Set();
     for (const record of records) {
       const element = record.target.nodeType === 1 ? record.target : record.target.parentElement;
       if (!element?.isConnected) continue;
@@ -99,15 +104,20 @@
         if (element === document.documentElement) scheduleScan(true);
         continue;
       }
+      // Quote role changes and child lists carry more than their target element.
+      const routesByTargetOnly = record.type === "characterData"
+        || (record.type === "attributes" && record.attributeName !== "role" && record.attributeName !== "data-testid");
+      if (routesByTargetOnly) {
+        if (routedTargets.has(element)) continue;
+        routedTargets.add(element);
+      }
+      // A formerly hidden wrapper may have lost its card; reconcile its mark
+      // before it is reused for another kind of content.
       const scope = cardScope(element) || element.closest(HIDDEN_SELECTOR)
         || (SITE === "x" && record.type === "childList" ? element.closest('[data-testid="cellInnerDiv"]') : null);
       if (scope) {
         queueRoot(scope);
       } else if (record.type === "childList") {
-        // A formerly hidden wrapper may have lost its card. Reconcile its mark
-        // before it is reused for another kind of content.
-        const markedAncestor = element.closest(HIDDEN_SELECTOR);
-        if (markedAncestor) queueRoot(markedAncestor);
         for (const node of record.addedNodes) {
           if (node.nodeType === 1 && containsCardOrMark(node)) queueRoot(cardScope(node) || node);
         }

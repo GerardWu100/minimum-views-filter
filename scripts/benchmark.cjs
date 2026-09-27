@@ -28,6 +28,7 @@ const {JSDOM} = require('jsdom');
 const DEFAULT_CARD_COUNT = 200;
 const DEFAULT_BATCH_COUNT = 20;
 const NEW_CARDS_PER_BATCH = 4;
+const HOVER_RESTYLES_PER_BATCH = 5;
 const MAX_FLUSH_ROUNDS = 100;
 const SETTLED_CHECKPOINTS = 3;
 const HIDDEN_ATTRIBUTE = 'data-minimum-views-hidden';
@@ -213,6 +214,15 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
       }
     });
     await scenario('unrelated-sidebar-player-noise', () => noise());
+    await scenario('card-hover-restyles', async () => {
+      // Hover effects rewrite one element's class several times per batch.
+      for (let batch = 0; batch < batchCount; batch++) {
+        const hovered = document.querySelector(`#card-${batch % cardCount} ${site === 'x' ? '[data-testid="tweetText"]' : '#metadata-line'}`);
+        for (let step = 0; step < HOVER_RESTYLES_PER_BATCH; step++) hovered.className = `hover-${step}`;
+        await flush();
+        assertMarks();
+      }
+    });
     await scenario('one-card-count-changes', async () => {
       for (let batch = 0; batch < batchCount; batch++) {
         const count = batch % 2 === 0 ? 2000 : 100;

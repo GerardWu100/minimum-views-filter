@@ -515,6 +515,19 @@ for (const site of ['x', 'youtube']) {
     assert.deepEqual(work, before);
   });
 
+  test(`${site}: repeated hover restyles ${site === 'x' ? 'do not reread' : 'reread one'} card`, async (t) => {
+    const {window, document, work} = openContent(t, {url, html: Array.from({length: 10}, (_, index) => card(index, '800')).join('')});
+    await wait();
+    const before = {...work};
+    const target = document.querySelector(site === 'x' ? '#post-1 [data-testid="tweetText"]' : '#video-1 [id="metadata-line"]');
+    for (let index = 0; index < 5; index++) target.className = 'hover-' + index;
+    await wait();
+    // X never reads class; YouTube metadata classes can establish a count.
+    assert.equal(work.getViewCount - before.getViewCount, site === 'x' ? 0 : 1);
+    assert.equal(work.documentScans, before.documentScans);
+    assertVisible(window, selector + '1', false);
+  });
+
   test(`${site}: a count change rereads one card and new cards avoid a document scan`, async (t) => {
     const {window, document, work} = openContent(t, {url, html: Array.from({length: 40}, (_, index) => card(index, '800')).join('')});
     await wait();

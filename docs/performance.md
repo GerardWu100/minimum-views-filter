@@ -1,30 +1,37 @@
 # Performance measurements
 
 Measured 2026-09-27 with Node.js v22.17.0 and jsdom 29.1.1.
-Baseline: v1.0.2 runtime at commit 2e885100. Updated: v1.0.3.
+Baseline: v1.0.3 runtime at commit 2e9c83c4. Updated: working tree after v1.0.3.
 [Full measured results](performance-results.json) include illustrative callback timings.
+The v1.0.2 → v1.0.3 change had already removed whole-document scans from these
+mutation scenarios (for example, one changed card: 4,000 count reads → 20).
 
 ## Workload and results
 
 Each platform starts with 200 synthetic cards. Each scenario delivers
-20 separate mutation batches. New-card batches add 4 cards each.
+20 separate mutation batches. New-card batches add 4 cards each; hover batches
+rewrite one card element's `class` five times, as hover styling does.
 A nonempty whitelist exercises creator parsing alongside count parsing. The
 benchmark checks expected hiding marks on every card after each batch/scenario.
 
-| Site | Scenario | Count reads before | Count reads after | Whole-document scans |
+| Site | Scenario | Count reads before | Count reads after | Observer callbacks |
 | --- | --- | ---: | ---: | --- |
-| X | unrelated-sidebar-player-noise | 4000 | 0 | 20 → 0 |
-| X | one-card-count-changes | 4000 | 20 | 20 → 0 |
-| X | new-card-batches | 4840 | 80 | 20 → 0 |
-| X | hidden-tab-noise | 5600 | 0 | 20 → 0 |
-| YouTube | unrelated-sidebar-player-noise | 4000 | 0 | 20 → 0 |
-| YouTube | one-card-count-changes | 4000 | 20 | 20 → 0 |
-| YouTube | new-card-batches | 4840 | 80 | 20 → 0 |
-| YouTube | hidden-tab-noise | 5600 | 0 | 20 → 0 |
+| X | unrelated-sidebar-player-noise | 0 | 0 | 20 → 20 |
+| X | card-hover-restyles | 20 | 0 | 20 → 0 |
+| X | one-card-count-changes | 20 | 20 | 20 → 20 |
+| X | new-card-batches | 80 | 80 | 20 → 20 |
+| YouTube | unrelated-sidebar-player-noise | 0 | 0 | 20 → 20 |
+| YouTube | card-hover-restyles | 20 | 20 | 20 → 20 |
+| YouTube | one-card-count-changes | 20 | 20 | 20 → 20 |
+| YouTube | new-card-batches | 80 | 80 | 20 → 20 |
 
-Creator-read counts match the count-read columns in this workload. Changing one
-card now reads only that card, a 99.5% reduction across the 200-card fixture.
-The new-card scenario inspects the 80 added cards, not the existing feed again.
+No scenario above performs a whole-document scan. The observer attribute list is
+now site-specific. The X adapter never reads `class` or `title`, so X's hover
+restyles no longer wake the extension or reread the hovered post. YouTube keeps
+`class` because metadata classes can establish a count, so a hover restyle still
+rereads that one card. Within one observer callback, repeated text/attribute
+records for the same element are routed once; this saves ancestor lookups but
+does not change the count-read column, which was already deduplicated.
 Full scans still occur when their scope is necessary: startup, navigation, settings,
 language changes and returning to a visible tab. Resume checks all 280 current cards.
 

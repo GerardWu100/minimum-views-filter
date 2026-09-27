@@ -34,11 +34,12 @@ by host, merging any settings changes that arrive during startup. The whitelist
 Set is rebuilt only when relevant settings change. Creator and count metadata
 are read fresh for each affected card, so reused nodes cannot inherit a decision.
 
-The observer routes mutations through `getCardSelector` to the owning outer
-card or X cell. Added subtrees are inspected locally; unrelated sidebar/player
-changes are discarded. Overlapping scopes merge, and more than 32 pending scopes
-collapse into a full pass. An 80 ms throttle batches changes. `getCards` includes
-a matching Element root as well as descendants, so standalone inserted cards work.
+The observer watches site-specific attributes (X omits `class`/`title`, which its
+adapter never reads, so hover restyles are ignored) and routes mutations through
+`getCardSelector` to the owning outer card or X cell. Added subtrees are
+inspected locally; unrelated sidebar/player changes are discarded.
+Overlapping scopes merge, and more than 32 pending scopes collapse into a full
+pass. An 80 ms throttle batches changes. `getCards` includes a matching Element root as well as descendants, so standalone inserted cards work.
 Startup, navigation, relevant settings, language changes and tab resume use full
 passes. X shared cells, lost card identities and quote-role changes reconcile their
 old hiding marks before wrappers can be reused.
@@ -71,13 +72,13 @@ ID; its minimum version is 142. Signing is an external distribution step.
 
 Validation on 2026-09-27:
 
-- 87 tests passed: 28 parser/adapter, 53 runtime/popup, and 6 settings tests.
+- 89 tests passed: 28 parser/adapter, 55 runtime/popup, and 6 settings tests.
 - Threshold tests cover site independence, defaults, invalid values, and zero.
   Whitelist tests cover known/unknown counts, editing/removal, changing creators,
   foreign hiding rules, quoted/mentioned X accounts, modern/classic YouTube
   metadata, Unicode handles, case-sensitive channel IDs, and invalid URLs.
-- Performance/lifecycle regressions cover unrelated mutation noise, one-card
-  changes, bounded large bursts, background changes and settings, first load in a
+- Performance/lifecycle regressions cover unrelated mutation noise, hover restyles,
+  one-card changes, bounded large bursts, background changes and settings, first load in a
   hidden tab, detached/reinserted nodes, shared X cells, lost card identity, quote
   roles, locale changes, back-forward cache, and teardown before storage resolves.
 - Scope regressions cover X search/profiles/Lists, YouTube search/subscriptions/
