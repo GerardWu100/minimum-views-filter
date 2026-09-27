@@ -9,10 +9,10 @@ shows an item with enough views, it becomes eligible again.
 
 ## Install
 
-Download version 1.0.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.0.0):
+Download version 1.0.1 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.0.1):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.0/minimum-views-filter-chrome-brave-1.0.0.zip)
-- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.0/minimum-views-filter-firefox-1.0.0.zip)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.1/minimum-views-filter-chrome-brave-1.0.1.zip)
+- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.1/minimum-views-filter-firefox-1.0.1.zip)
 
 The repository and downloads are private; sign in with an account that has access.
 Extract your browser ZIP before loading it, or build it from source below.
@@ -63,14 +63,18 @@ Official instructions: [Chrome unpacked extensions](https://developer.chrome.com
 to zero allows every known count. Each site can be disabled separately. Saving
 settings updates open supported pages automatically.
 
-X scope: **Home** (For You/Following) and **Lists**. Opened conversations,
-profiles, search, notifications, and messages are not filtered.
+X scope: **Home only** (For You/Following). Search, profiles, Lists, opened
+conversations, notifications, messages, and all other pages stay unfiltered.
 
-YouTube scope: recognized desktop video cards on Home, search, subscriptions,
-channel pages, and recommendations beside a video. Recognized Shorts cards can
-be filtered when they expose counts. The active player, vertical Shorts player,
-playlists, channels, and known ad containers are not filtering targets. Live
+YouTube scope: **Home and recommendations beside or below a video you are
+watching**. Search, subscriptions, channel pages, history, playlists, the vertical
+Shorts player, and all other pages stay unfiltered. The active video player is
+never a filtering target. Recognized Shorts cards on Home/watch pages can be
+filtered when they expose counts; known ad containers are excluded. Live
 concurrent viewers are not interpreted as total views.
+
+When you navigate away from Home or a YouTube watch page, this extension removes
+its hiding marks from retained cards. Other extensions' hiding rules remain intact.
 
 ## Existing extensions
 

@@ -47,15 +47,15 @@ test('malformed, unsafe, unrelated and ambiguous counts fail open', () => {
   ]) assert.equal(core.parseViewCount(text), null, text);
 });
 
-test('supported paths restrict X to home and list timelines', () => {
-  for (const path of ['/home', '/home/', '/i/lists/1234']) assert.equal(core.isSupportedPage('x', path), true);
-  for (const path of ['/user/status/123', '/search', '/notifications', '/i/lists/123/members', '/']) {
+test('supported paths allow only X Home and YouTube Home/watch recommendations', () => {
+  for (const path of ['/home', '/home/']) assert.equal(core.isSupportedPage('x', path), true);
+  for (const path of ['/user/status/123', '/search', '/notifications', '/i/lists/1234', '/i/lists/123/members', '/user', '/explore', '/messages', '/']) {
     assert.equal(core.isSupportedPage('x', path), false);
   }
-  for (const path of ['/', '/watch', '/results', '/feed/subscriptions', '/playlist']) {
+  for (const path of ['/', '/watch', '/watch/']) {
     assert.equal(core.isSupportedPage('youtube', path), true);
   }
-  for (const path of ['/shorts/123', '/shorts', '/embed/123', '/live/123']) {
+  for (const path of ['/results', '/feed/subscriptions', '/feed/history', '/playlist', '/@creator', '/@creator/videos', '/channel/creator', '/shorts/123', '/shorts', '/embed/123', '/live/123', '/watch/other']) {
     assert.equal(core.isSupportedPage('youtube', path), false);
   }
   assert.equal(core.isSupportedPage('unknown', '/'), false);

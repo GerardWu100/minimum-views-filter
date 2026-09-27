@@ -5,6 +5,14 @@ surfaces, installation, and privacy limits.
 
 ## Runtime flow
 
+`isSupportedPage` allows only X `/home` and YouTube `/` or `/watch`. URL query
+parameters do not affect this pathname check. Other routes are unfiltered even
+when the unknown-count option is enabled. Watch-page card selectors target
+recommendations beside/below the active player; the player is not a card.
+Content scripts still match the whole site so navigation from an excluded page
+to Home works without reloading. Each reconciliation checks the current route
+and removes obsolete hiding marks when navigating to an excluded page.
+
 The Manifest V3 content script loads `filter-core.js`, `settings.js`, and
 `content.js`, plus the single scoped CSS rule. There is no background worker,
 page-world injection, network request, or dependency in the installed package.
@@ -43,13 +51,16 @@ ID; its minimum version is 142. Signing is an external distribution step.
 
 Validation on 2026-09-27:
 
-- 21 parser/adapter tests and 20 runtime/popup integration tests passed.
+- 21 parser/adapter tests and 26 runtime/popup integration tests passed.
+- Scope regressions cover X search/profiles/Lists, YouTube search/subscriptions/
+  channels/playlists, low and unknown counts on excluded pages, watch-page
+  recommendations beside/below the player, and navigation with retained cards.
 - Browser and Chrome API namespace mocks both passed. Tests run actual scripts
   in jsdom and cover storage-startup races, changing/recycled/new cards,
   navigation, threshold/settings changes, missing metadata, and foreign styles.
 - `npm run build` produced both 12-file packages.
 - Firefox `web-ext lint --warnings-as-errors`: 0 errors, 0 notices, 0 warnings.
-- Brave ran `tests/browser-fixture.html` using production scripts and synthetic
+- The initial build was checked in Brave using `tests/browser-fixture.html` and synthetic
   DOM: low cards hidden even with hidden counters, 1,000 kept, unknown kept,
   1,500 restored, a newly inserted 25-view card hidden, and disable preserved
   the foreign `display:none!important` rule and concealed counters.
@@ -73,7 +84,7 @@ Stop the temporary server when finished.
 The local checkout lives under `one-time-projects/minimum-views-filter` in the
 existing projects root. Relative build and test paths keep relocation safe.
 
-GitHub release `v1.0.0` distributes the browser ZIPs, a source ZIP, installation
+GitHub release `v1.0.1` distributes the browser ZIPs, a source ZIP, installation
 instructions, and SHA-256 checksums. Runtime artifacts are generated from the
 tagged source and remain ignored by Git. The private repository requires an
 authorized signed-in account to download release assets. Publishing a GitHub
@@ -89,7 +100,7 @@ reporting success.
 
 - **Permanent Firefox installation remains unsigned.** Code, package, and lint
   are complete. No Mozilla account/signing workflow was used. Next step: submit
-  `dist/minimum-views-filter-firefox-1.0.0.zip` for unlisted signing, then test
+  `dist/minimum-views-filter-firefox-1.0.1.zip` for unlisted signing, then test
   the returned XPI in release Firefox. Do not weaken signature settings.
 - **Full live-feed coexistence remains a manual installation check.** No browser
   settings or other extension settings were changed. The page DOM observations

@@ -43,7 +43,7 @@ function build(browser) {
     manifest_version: 3,
     name: "Minimum Views Filter",
     version: VERSION,
-    description: "Hide X posts and YouTube videos below your minimum view count, locally and without feedback or a permanent blacklist.",
+    description: "Hide low-view posts on X Home and videos on YouTube Home/watch recommendations. Local filtering without feedback or blacklists.",
     permissions: ["storage"],
     host_permissions: MATCHES,
     icons,

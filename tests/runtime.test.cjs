@@ -93,7 +93,7 @@ test('X count metadata changing in place restores the hidden wrapper', async (t)
   assertVisible(window, '#cell-1', true);
 });
 
-test('navigation restores cards outside X timelines and filters again on return', async (t) => {
+test('navigation restores cards outside X Home and filters again on return', async (t) => {
   const {window} = openContent(t, {html: xCard(1, '100')});
   await wait();
   assertVisible(window, '#cell-1', false);
@@ -101,7 +101,7 @@ test('navigation restores cards outside X timelines and filters again on return'
   window.dispatchEvent(new window.PopStateEvent('popstate'));
   await wait();
   assertVisible(window, '#cell-1', true);
-  window.history.pushState({}, '', '/i/lists/123');
+  window.history.pushState({}, '', '/home');
   window.dispatchEvent(new window.PopStateEvent('popstate'));
   await wait();
   assertVisible(window, '#cell-1', false);
@@ -111,7 +111,7 @@ test('SPA route changes without DOM mutations or navigation events restore exclu
   const {window} = openContent(t, {url: 'https://www.youtube.com/', html: youtubeCard(1, '100')});
   await wait();
   assertVisible(window, '#video-1', false);
-  window.history.pushState({}, '', '/shorts/example');
+  window.history.pushState({}, '', '/results?search_query=example');
   await wait(1100);
   assertVisible(window, '#video-1', true);
 });
@@ -136,7 +136,7 @@ test('settings changes apply threshold, site enablement, and unknown-count polic
 });
 
 test('YouTube respects its own enable toggle independently of X', async (t) => {
-  const {window, storage} = openContent(t, {url: 'https://www.youtube.com/results?search_query=example', html: youtubeCard(1, '100'), stored: {xEnabled: false}});
+  const {window, storage} = openContent(t, {url: 'https://www.youtube.com/watch?v=example', html: youtubeCard(1, '100'), stored: {xEnabled: false}});
   await wait();
   assertVisible(window, '#video-1', false);
   storage.change({youtubeEnabled: false});
@@ -283,4 +283,71 @@ test('CSS-hidden view metadata is still read and removed metadata becomes visibl
   metadata.remove();
   await wait();
   assertVisible(window, '#video-1', true);
+});
+
+for (const [site, paths, fixture, lowSelector, unknownSelector] of [
+  ['x', ['/search?q=example', '/i/lists/123', '/author'], xCard(1, '25') + xCard(2, null), '#cell-1', '#cell-2'],
+  ['youtube', ['/results?search_query=example', '/feed/subscriptions', '/@creator/videos', '/playlist?list=example'], youtubeCard(1, '25') + youtubeCard(2, null), '#video-1', '#video-2'],
+]) {
+  test(`${site}: excluded pages preserve low and unknown counts even after new cards arrive`, async (t) => {
+    for (const pathname of paths) {
+      const host = site === 'x' ? 'x.com' : 'www.youtube.com';
+      const {window, document} = openContent(t, {url: `https://${host}${pathname}`, html: fixture, stored: {hideUnknown: true}});
+      await wait();
+      assertVisible(window, lowSelector, true);
+      assertVisible(window, unknownSelector, true);
+      document.body.insertAdjacentHTML('beforeend', site === 'x' ? xCard(3, '1') : youtubeCard(3, '1'));
+      await wait();
+      assertVisible(window, site === 'x' ? '#cell-3' : '#video-3', true);
+      assert.equal(document.querySelectorAll('[data-minimum-views-hidden]').length, 0, pathname);
+    }
+  });
+}
+
+for (const [placement, recommendation, recommendationSelector] of [
+  ['beside', '<ytd-compact-video-renderer id="suggestion"><div id="metadata-line"><span>25 views</span></div></ytd-compact-video-renderer>', '#suggestion'],
+  ['below', youtubeCard(1, '25'), '#video-1'],
+]) {
+  test(`YouTube watch recommendations ${placement} the player are filtered without hiding the player`, async (t) => {
+    const player = '<div id="movie_player"><video id="playing"></video><span id="view-count">1 view</span></div>';
+    const html = `<ytd-watch-flexy>${player}<div id="related">${recommendation}${youtubeCard(2, '1,000')}</div></ytd-watch-flexy>`;
+    const {window, document} = openContent(t, {url: 'https://www.youtube.com/watch?v=playing&t=12', html});
+    await wait();
+    assertVisible(window, recommendationSelector, false);
+    assertVisible(window, '#video-2', true);
+    assertVisible(window, '#movie_player', true);
+    assert.ok(document.getElementById('playing').isConnected);
+    assert.equal(document.getElementById('movie_player').outerHTML, player);
+  });
+}
+
+test('YouTube navigation restores search and channel cards, then filters watch recommendations and Home', async (t) => {
+  const {window, document} = openContent(t, {url: 'https://www.youtube.com/', html: youtubeCard(1, '25')});
+  await wait();
+  assertVisible(window, '#video-1', false);
+  for (const [pathname, visible] of [
+    ['/results?search_query=example', true],
+    ['/watch?v=playing', false],
+    ['/@creator/videos', true],
+    ['/', false],
+  ]) {
+    window.history.pushState({}, '', pathname);
+    document.dispatchEvent(new window.Event('yt-navigate-finish', {bubbles: true}));
+    await wait();
+    assertVisible(window, '#video-1', visible);
+  }
+});
+
+test('X navigation to a list or search removes Home filtering from retained cards', async (t) => {
+  const {window} = openContent(t, {html: xCard(1, '25')});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  for (const [pathname, visible] of [
+    ['/i/lists/123', true], ['/home', false], ['/search?q=example', true],
+  ]) {
+    window.history.pushState({}, '', pathname);
+    window.dispatchEvent(new window.PopStateEvent('popstate'));
+    await wait();
+    assertVisible(window, '#cell-1', visible);
+  }
 });

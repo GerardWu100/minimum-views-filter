@@ -26,8 +26,13 @@ the platform through negative-feedback actions.
   If every copy of a count is removed, use the unknown-count policy.
 - This changes presentation; it cannot guarantee that the platform did not log
   an impression or use other activity to personalize recommendations.
-- Do not hide an opened X conversation or the active YouTube player. Current
-  scope is X Home/Lists and YouTube desktop video cards, including recommendations.
+- Filter X only on its Home page (For You and Following), never on search,
+  profiles, Lists, conversations, notifications, or other pages.
+- Filter YouTube only on Home and on recommendations beside or below the video
+  being watched. Never filter search, subscriptions, channels, history, playlists,
+  the Shorts player, or other pages. Keep the active video player visible.
+- Navigating away from an allowed page must remove this extension's hiding marks,
+  including on sites that navigate without a full page reload.
 - Do not install into the user's browser or change existing extension settings
   as part of development unless the user requests that action.
 

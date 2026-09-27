@@ -1,8 +1,8 @@
 {
   "name": "minimum-views-filter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
-  "description": "Locally hide X posts and YouTube videos below your minimum view count.",
+  "description": "Filter low-view X Home posts and YouTube Home/watch recommendations locally.",
   "scripts": {
     "test": "node --test tests/*.test.cjs",
     "build": "node scripts/build.cjs",

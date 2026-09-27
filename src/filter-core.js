@@ -66,13 +66,13 @@
    *
    * @param {'x'|'youtube'} site Adapter name.
    * @param {string} pathname URL pathname without query or fragment.
-   * @returns {boolean} True for X home/lists and YouTube non-player feed surfaces.
-   *   YouTube watch pages are included because their recommendation cards qualify.
+   * @returns {boolean} True only for X Home or YouTube Home/watch pages.
+   *   On watch pages, card selection covers recommendations, not the active player.
    */
   function isSupportedPage(site, pathname) {
     if (typeof pathname !== 'string') return false;
-    if (site === 'x') return /^\/home\/?$/.test(pathname) || /^\/i\/lists\/\d+\/?$/.test(pathname);
-    if (site === 'youtube') return !/^\/(?:shorts|embed|live)(?:\/|$)/.test(pathname);
+    if (site === 'x') return /^\/home\/?$/.test(pathname);
+    if (site === 'youtube') return pathname === '/' || /^\/watch\/?$/.test(pathname);
     return false;
   }
 
