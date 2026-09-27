@@ -238,6 +238,22 @@ the agent verified Home-page count/hiding markers afterwards.
 
 ## YouTube compact-counter report
 
+For a visible low-count card, inspect `html[data-minimum-views-active]` and
+`[data-minimum-views-hidden]` before changing selectors. An absent active flag
+on an enabled, visible Home page means filtering is not active; it does not
+establish a parser failure. The popup runs separately from the page script.
+
+In a second Brave report on 2026-09-27, the popup showed YouTube enabled at
+10,000 while 3.8K and 1.3K cards remained visible. Their accessible count labels
+were present, but the affected tab had no active flag and zero hiding marks.
+Reloading that tab alone restored the active flag and hid five cards with
+4.1K, 5.3K, 2.5K, 78, and 72 views; sampled cards at 18K and above stayed visible.
+The other open YouTube Home tab already filtered correctly. No setting,
+permission, installed extension, or runtime source was changed. This confirms
+the page-reload remedy, not the earlier event that left the script inactive.
+After installation or an extension reload, refresh each existing site tab;
+a working popup alone does not verify the page script is running.
+
 On 2026-09-27 the user reported a visible 511-view Home card after the extension
 reload for X. A fresh YouTube Home tab showed the exact same video at 538 views,
 with a readable `aria-label="538 views"`, this extension's hiding mark and computed
