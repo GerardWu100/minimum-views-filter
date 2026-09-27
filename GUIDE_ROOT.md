@@ -145,6 +145,9 @@ Validation on 2026-09-27:
   extensions and showed zero temporary extensions. Settings exported from the
   temporary copy were imported, saved, and verified after reloading the settings
   page. The signed build also applied the restored threshold to live YouTube Home.
+  A fresh page reload exposed missing host permissions after the temporary-copy
+  removal. Enabling the six declared X/Twitter/YouTube permissions in the add-on's
+  **Permissions and data** tab restored filtering on a fresh YouTube page.
 - Live Brave X/YouTube checks confirmed readable metadata with the existing
   extensions active, and later feed checks confirmed threshold filtering. These
   checks do not cover every extension configuration or custom card layout.
@@ -196,6 +199,10 @@ A temporary copy with the same ID can continue to mask an installed signed XPI.
 Export settings before removing that temporary copy, then import and save them
 in the permanent one; the tested switch started with fresh default settings.
 Check `about:debugging` for zero temporary copies and a regular installed entry.
+Also verify its six declared host permissions in `about:addons`; removing the
+temporary copy left those permissions off in the tested session. A working popup
+does not establish that content scripts can run. Reload a supported site after
+granting access to verify the installed extension, rather than a retained script.
 
 For future releases: run `npm run check`, commit and push the release source,
 build a source archive from that commit, and submit the Firefox ZIP as a new

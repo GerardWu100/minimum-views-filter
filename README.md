@@ -89,6 +89,11 @@ browser** in its popup to keep your preferences. Remove the temporary entry in
 to restore them. A temporary copy can mask the permanent installation until it
 is removed.
 
+If Firefox shows **Permission needed**, open `about:addons`, select **Minimum
+Views Filter → Permissions and data**, and enable its X/Twitter and YouTube site
+permissions. Then reload the feeds. Without site access, the popup can save
+settings but the extension cannot filter the page.
+
 Official instructions: [Chrome unpacked extensions](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked),
 [Firefox temporary installation](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/),
 [Firefox signing](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/).
