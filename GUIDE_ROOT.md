@@ -39,7 +39,8 @@ adapter never reads, so hover restyles are ignored) and routes mutations through
 `getCardSelector` to the owning outer card or X cell. Added subtrees are
 inspected locally; unrelated sidebar/player changes are discarded.
 Overlapping scopes merge, and more than 32 pending scopes collapse into a full
-pass. An 80 ms throttle batches changes. `getCards` includes a matching Element root as well as descendants, so standalone inserted cards work.
+pass. An 80 ms throttle batches changes. `getCards` includes a matching
+Element root as well as descendants, so standalone inserted cards work.
 Startup, navigation, relevant settings, language changes and tab resume use full
 passes. X shared cells, lost card identities and quote-role changes reconcile their
 old hiding marks before wrappers can be reused.
