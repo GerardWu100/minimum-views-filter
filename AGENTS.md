@@ -46,6 +46,9 @@ Do not modify, disable, or reset those extensions to make this one work. Read
 ## Project workflow
 
 - Repository: `GerardWu100/minimum-views-filter`, private unless explicitly changed.
+- Keep the local checkout under `one-time-projects/minimum-views-filter` within the existing projects root.
+- Publish downloadable browser ZIPs as GitHub release assets, not committed build files.
+  Label Firefox packages unsigned until Mozilla signing is complete.
 - Keep runtime code dependency-free. Development/build packages stay in npm devDependencies.
 - Use `npm ci`, `npm test`, `npm run build`, and `npm run lint:firefox`.
 - Add behavior tests for meaningful filtering changes. Cover 999/1,000 boundaries,

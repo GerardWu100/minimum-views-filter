@@ -9,8 +9,13 @@ shows an item with enough views, it becomes eligible again.
 
 ## Install
 
-Use the packaged ZIP for your browser, or build it from source with the commands
-below. Extract the ZIP before loading it.
+Download version 1.0.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.0.0):
+
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.0/minimum-views-filter-chrome-brave-1.0.0.zip)
+- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.0/minimum-views-filter-firefox-1.0.0.zip)
+
+The repository and downloads are private; sign in with an account that has access.
+Extract your browser ZIP before loading it, or build it from source below.
 
 ### Chrome / Brave
 

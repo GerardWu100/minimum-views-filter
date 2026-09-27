@@ -68,6 +68,23 @@ uses hidden counters and a pre-existing foreign hiding rule. Its test shim
 dispatches both platform adapters on localhost; it is not in either package.
 Stop the temporary server when finished.
 
+## Release and project location
+
+The local checkout lives under `one-time-projects/minimum-views-filter` in the
+existing projects root. Relative build and test paths keep relocation safe.
+
+GitHub release `v1.0.0` distributes the browser ZIPs, a source ZIP, installation
+instructions, and SHA-256 checksums. Runtime artifacts are generated from the
+tagged source and remain ignored by Git. The private repository requires an
+authorized signed-in account to download release assets. Publishing a GitHub
+release does not submit to either browser store or sign the Firefox package.
+
+For future releases: run `npm run check`, commit and push the release source,
+build a source archive from that commit, generate checksums for all ZIPs, then
+upload the assets against an explicit version tag and target commit. Download
+the published assets to a temporary directory and compare their hashes before
+reporting success.
+
 ## Open issues and verification limits
 
 - **Permanent Firefox installation remains unsigned.** Code, package, and lint
