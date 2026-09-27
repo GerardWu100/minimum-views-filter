@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Minimum Views Filter — browser fixture</title>
+  <link rel="stylesheet" href="../src/content.css">
+  <style>
+    body { font: 18px/1.5 system-ui, sans-serif; background: #f8fafc; color: #15253b; margin: 0; padding: 32px clamp(1em, 4vw, 3.2em); }
+    h1 { margin-top: 0; } h2 { font-size: 22px; }
+    button { font: inherit; padding: 10px 16px; margin: 0 10px 20px 0; cursor: pointer; }
+    .fixtures { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; }
+    .card, ytd-rich-item-renderer { display:block; padding: 20px; margin: 12px 0; border: 1px solid #bbcadc; background: white; border-radius: 10px; }
+    .concealed-count { display: none !important; }
+    #status { font-weight: 600; } #facts { font-size: 16px; }
+    a { color: #105baa; }
+  </style>
+  <script src="../src/filter-core.js" defer></script>
+  <script src="../src/settings.js" defer></script>
+  <script src="browser-fixture.js" defer></script>
+  <script src="../src/content.js" defer></script>
+</head>
+<body>
+  <h1>Minimum Views Filter</h1>
+  <p>Local browser test. Synthetic cards only; no requests to X or YouTube.</p>
+  <button id="increase">Raise hidden cards to 1,500 views</button>
+  <button id="insert">Insert a 25-view video</button>
+  <button id="disable">Disable filter</button>
+  <div class="fixtures">
+    <section><h2>X cards</h2>
+      <div class="card" data-testid="cellInnerDiv" id="x-low"><article data-testid="tweet"><p>Initially 999 views</p><a class="concealed-count" href="/person/status/1/analytics" aria-label="999 views. View post analytics">999</a></article></div>
+      <div class="card" data-testid="cellInnerDiv" id="x-boundary"><article data-testid="tweet"><p>Exactly 1,000 views — stays visible</p><a class="concealed-count" href="/person/status/2/analytics" aria-label="1000 views. View post analytics">1K</a></article></div>
+      <div class="card" data-testid="cellInnerDiv" id="x-unknown"><article data-testid="tweet"><p>Count removed — stays visible</p></article></div>
+    </section>
+    <section id="youtube-cards"><h2>YouTube cards</h2>
+      <ytd-rich-item-renderer id="yt-low"><yt-lockup-view-model><a class="ytLockupMetadataViewModelTitle" href="/watch?v=synthetic1">Edited title — initially 838 views</a><span class="ytContentMetadataViewModelMetadataText concealed-count" aria-label="838 views">838</span></yt-lockup-view-model></ytd-rich-item-renderer>
+      <ytd-rich-item-renderer id="yt-boundary"><yt-lockup-view-model><a class="ytLockupMetadataViewModelTitle" href="/watch?v=synthetic2">Exactly 1,000 views — stays visible</a><span class="ytContentMetadataViewModelMetadataText concealed-count" aria-label="1 thousand views">1K</span></yt-lockup-view-model></ytd-rich-item-renderer>
+      <ytd-rich-item-renderer id="yt-external" style="display:none!important" class="other-extension-filter"><a id="video-title" href="/watch?v=synthetic3">Hidden by another extension</a><span class="ytContentMetadataViewModelMetadataText" aria-label="999 views">999</span></ytd-rich-item-renderer>
+    </section>
+  </div>
+</body>
+</html>

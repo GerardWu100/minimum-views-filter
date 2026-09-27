@@ -1,0 +1,21 @@
+{
+  "name": "minimum-views-filter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Locally hide X posts and YouTube videos below your minimum view count.",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "build": "node scripts/build.cjs",
+    "lint:firefox": "web-ext lint --source-dir dist/firefox --warnings-as-errors",
+    "check": "npm test && npm run build && npm run lint:firefox"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "fflate": "^0.8.3",
+    "jsdom": "^29.1.1",
+    "pngjs": "^7.0.0",
+    "web-ext": "^10.7.0"
+  }
+}

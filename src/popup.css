@@ -1,0 +1,20 @@
+:root { color-scheme: light dark; font: 16px/1.45 system-ui, sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; width: 350px; background: #f8fafc; color: #15253b; }
+main { padding: 22px; }
+h1 { font-size: 21px; margin: 0 0 24px; letter-spacing: -.5px; }
+fieldset { border: 0; padding: 0; margin: 0; }
+.minimum { display: block; font-weight: 600; margin-bottom: 8px; }
+input[type=number] { width: 100%; font: inherit; font-size: 25px; padding: 10px 12px; border: 1px solid #7b8da2; border-radius: 9px; background: #fff; color: inherit; margin-bottom: 20px; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 12px 0; cursor: pointer; }
+input[type=checkbox] { width: 20px; height: 20px; accent-color: #146dce; flex-shrink: 0; }
+button { width: 100%; margin-top: 20px; border: 0; border-radius: 9px; padding: 11px 14px; background: #146dce; color: #fff; font: inherit; font-weight: 650; cursor: pointer; }
+button:hover { background: #0b56a5; }
+:focus-visible { outline: 3px solid #edaa34; outline-offset: 3px; }
+#status { min-height: 1.5em; font-size: 14px; margin: 9px 0; }
+summary { cursor: pointer; font-size: 14px; }
+details p { font-size: 14px; }
+@media (prefers-color-scheme: dark) {
+  body { background: #152030; color: #edf3fa; }
+  input[type=number] { background: #202f43; }
+}
