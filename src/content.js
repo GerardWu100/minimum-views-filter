@@ -14,17 +14,19 @@
   const CARD_SELECTOR = core.getCardSelector(SITE);
   const PAGE_EVENTS = ["popstate", "yt-navigate-finish", "pageshow"];
   const SETTING_KEYS = [SITE + "MinimumViews", SITE + "Whitelist", SITE + "Enabled", "hideUnknown"];
+  const DECISION_CLASS_NAMES = core.getDecisionClassNames(SITE);
   const OBSERVER_OPTIONS = {
     childList: true,
     subtree: true,
     characterData: true,
     attributes: true,
     // Ignore style/player state and our own marks. X: role/testid can change
-    // whether a subtree is a quoted post; its hover restyles only toggle class,
-    // which the X adapter never reads. YouTube: class and title establish metadata.
+    // whether a subtree is a quoted post; X reads no classes. YouTube: title and
+    // a few metadata classes establish counts, so class records keep old values.
     attributeFilter: SITE === "x"
       ? ["aria-label", "href", "data-testid", "role", "lang"]
       : ["aria-label", "title", "href", "class", "lang"],
+    attributeOldValue: DECISION_CLASS_NAMES.length > 0,
   };
   let settings = normalizeSettings();
   let whitelist = new Set();
@@ -53,6 +55,12 @@
       outer = card.parentElement?.closest(CARD_SELECTOR);
     }
     return SITE === "x" ? card.closest('[data-testid="cellInnerDiv"]') || card : card;
+  }
+
+  /** Hover/focus/theme restyles do not add or remove a class the adapter reads. */
+  function changesDecisionClass(record) {
+    const previousNames = record.oldValue ? record.oldValue.split(/\s+/) : [];
+    return DECISION_CLASS_NAMES.some((name) => record.target.classList.contains(name) !== previousNames.includes(name));
   }
 
   function containsCardOrMark(element) {
@@ -104,6 +112,7 @@
         if (element === document.documentElement) scheduleScan(true);
         continue;
       }
+      if (record.type === "attributes" && record.attributeName === "class" && !changesDecisionClass(record)) continue;
       // Quote role changes and child lists carry more than their target element.
       const routesByTargetOnly = record.type === "characterData"
         || (record.type === "attributes" && record.attributeName !== "role" && record.attributeName !== "data-testid");

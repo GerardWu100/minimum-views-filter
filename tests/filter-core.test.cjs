@@ -300,3 +300,13 @@ test('creator extraction handles absent metadata and leaves foreign DOM state in
   assert.deepEqual(core.getCreatorIdentifiers(card, 'youtube'), ['@nasa']);
   assert.equal(card.outerHTML, before);
 });
+
+test('every class named by an adapter selector is a decision class', () => {
+  const source = require('node:fs').readFileSync(require.resolve('../src/filter-core.js'), 'utf8');
+  // Selector-shaped single-quoted strings only; JS fragments and URLs contain other characters.
+  const selectors = [...source.matchAll(/'([\w#.\-[\]="*^$,\s>]+)'/g)].map((match) => match[1]);
+  const named = new Set(selectors.flatMap((selector) => [...selector.matchAll(/\.([A-Za-z_][\w-]*)/g)].map((match) => match[1])));
+  assert.ok(named.size > 0);
+  assert.deepEqual([...named].filter((name) => !core.getDecisionClassNames('youtube').includes(name)), []);
+  assert.deepEqual(core.getDecisionClassNames('x'), []);
+});

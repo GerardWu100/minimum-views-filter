@@ -270,6 +270,23 @@ test('popup reports save failure and permits a retry', async (t) => {
   assert.equal(storage.writes.length, 2);
 });
 
+test('youtube: gaining or losing a metadata class rereads that card', async (t) => {
+  const html = '<ytd-rich-item-renderer id="video-1"><yt-lockup-view-model><a class="ytLockupMetadataViewModelTitle" href="/watch?v=1">Title</a><span id="count" class="pending">25 views</span></yt-lockup-view-model></ytd-rich-item-renderer>';
+  const {window, document} = openContent(t, {url: 'https://www.youtube.com/', html});
+  await wait();
+  assertVisible(window, '#video-1', true);
+  const count = document.querySelector('#count');
+  count.className = 'pending ytContentMetadataViewModelMetadataText';
+  await wait();
+  assertVisible(window, '#video-1', false);
+  count.className = 'hover ytContentMetadataViewModelMetadataText';
+  await wait();
+  assertVisible(window, '#video-1', false);
+  count.className = 'pending';
+  await wait();
+  assertVisible(window, '#video-1', true);
+});
+
 test('other extensions retain their inline display, hidden, and class state across filtering changes', async (t) => {
   const {window, document, storage} = openContent(t, {html: xCard(1, '100')});
   const cell = document.querySelector('#cell-1');
@@ -515,16 +532,14 @@ for (const site of ['x', 'youtube']) {
     assert.deepEqual(work, before);
   });
 
-  test(`${site}: repeated hover restyles ${site === 'x' ? 'do not reread' : 'reread one'} card`, async (t) => {
+  test(`${site}: repeated hover restyles do not reread the card`, async (t) => {
     const {window, document, work} = openContent(t, {url, html: Array.from({length: 10}, (_, index) => card(index, '800')).join('')});
     await wait();
     const before = {...work};
     const target = document.querySelector(site === 'x' ? '#post-1 [data-testid="tweetText"]' : '#video-1 [id="metadata-line"]');
     for (let index = 0; index < 5; index++) target.className = 'hover-' + index;
     await wait();
-    // X never reads class; YouTube metadata classes can establish a count.
-    assert.equal(work.getViewCount - before.getViewCount, site === 'x' ? 0 : 1);
-    assert.equal(work.documentScans, before.documentScans);
+    assert.deepEqual(work, before);
     assertVisible(window, selector + '1', false);
   });
 

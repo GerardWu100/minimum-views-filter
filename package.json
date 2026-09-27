@@ -1,6 +1,6 @@
 {
   "name": "minimum-views-filter",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "Filter low-view X Home posts and YouTube Home/watch recommendations locally.",
   "scripts": {

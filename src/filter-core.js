@@ -19,6 +19,14 @@
     'a[href^="/@"]', 'a[href^="/channel/"]', 'a[href^="/user/"]',
     'a[href^="/c/"]',
   ].join(',');
+  // Every class the YouTube adapter's selectors name. A class change elsewhere
+  // (hover, focus, theme) cannot alter a count, creator or card decision.
+  const YOUTUBE_DECISION_CLASS_NAMES = [
+    'inline-metadata-item', 'yt-content-metadata-view-model__metadata-text',
+    'ytContentMetadataViewModelMetadataText', 'shortsLockupViewModelHostMetadataSubhead',
+    'yt-shorts-lockup-view-model__metadata-subhead', 'ytLockupMetadataViewModelTitle',
+    'yt-lockup-metadata-view-model__title', 'yt-lockup-metadata-view-model__description',
+  ];
   const VIEW_WORD = '(?:views?|vues?)';
   const COUNT_TOKEN = '(?:no|aucune|[0-9][0-9.,\\s\\u00a0\\u202f]*(?:[kmb]|thousand|million|billion)?)';
 
@@ -81,6 +89,17 @@
   /** Return the raw card selector used to route mutations to their owning card. */
   function getCardSelector(site) {
     return site === 'x' ? X_CARD_SELECTOR : site === 'youtube' ? YOUTUBE_CARD_SELECTOR : null;
+  }
+
+  /**
+   * List class names whose presence can change the adapter's decision.
+   *
+   * @param {'x'|'youtube'} site Adapter name.
+   * @returns {string[]} Class tokens named by the adapter's selectors. X reads no
+   *   classes, so it returns an empty array.
+   */
+  function getDecisionClassNames(site) {
+    return site === 'youtube' ? [...YOUTUBE_DECISION_CLASS_NAMES] : [];
   }
 
   /**
@@ -327,7 +346,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCardSelector, getCards, getViewCount, getCreatorIdentifiers, getHideTarget };
+  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getCreatorIdentifiers, getHideTarget };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);

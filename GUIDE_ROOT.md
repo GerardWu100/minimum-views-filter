@@ -34,8 +34,10 @@ by host, merging any settings changes that arrive during startup. The whitelist
 Set is rebuilt only when relevant settings change. Creator and count metadata
 are read fresh for each affected card, so reused nodes cannot inherit a decision.
 
-The observer watches site-specific attributes (X omits `class`/`title`, which its
-adapter never reads, so hover restyles are ignored) and routes mutations through
+The observer watches site-specific attributes. X omits `class`/`title`, which its
+adapter never reads. YouTube drops a class record unless one of
+`getDecisionClassNames` appeared or disappeared, so hover restyles on either site
+read no card. The observer routes remaining mutations through
 `getCardSelector` to the owning outer card or X cell. Added subtrees are
 inspected locally; unrelated sidebar/player changes are discarded.
 Overlapping scopes merge, and more than 32 pending scopes collapse into a full
@@ -73,7 +75,7 @@ ID; its minimum version is 142. Signing is an external distribution step.
 
 Validation on 2026-09-27:
 
-- 89 tests passed: 28 parser/adapter, 55 runtime/popup, and 6 settings tests.
+- 91 tests passed: 29 parser/adapter, 56 runtime/popup, and 6 settings tests.
 - Threshold tests cover site independence, defaults, invalid values, and zero.
   Whitelist tests cover known/unknown counts, editing/removal, changing creators,
   foreign hiding rules, quoted/mentioned X accounts, modern/classic YouTube
@@ -128,7 +130,7 @@ version can miss duplicate IDs with optimized compound ID selectors.
 The local checkout lives under `one-time-projects/minimum-views-filter` in the
 existing projects root. Relative build and test paths keep relocation safe.
 
-GitHub release `v1.0.3` distributes the browser ZIPs, a source ZIP, installation
+GitHub release `v1.0.4` distributes the browser ZIPs, a source ZIP, installation
 instructions, and SHA-256 checksums. Runtime artifacts are generated from the
 tagged source and remain ignored by Git. The private repository requires an
 authorized signed-in account to download release assets. Publishing a GitHub
@@ -179,7 +181,7 @@ was closed; no installed extension or other extension setting was changed.
 
 - **Permanent Firefox installation remains unsigned.** Code, package, and lint
   are complete. No Mozilla account/signing workflow was used. Next step: submit
-  `dist/minimum-views-filter-firefox-1.0.3.zip` for unlisted signing, then test
+  `dist/minimum-views-filter-firefox-1.0.4.zip` for unlisted signing, then test
   the returned XPI in release Firefox. Do not weaken signature settings.
 - **Full live-feed coexistence remains a manual installation check.** No browser
   settings or other extension settings were changed. The page DOM observations

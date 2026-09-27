@@ -1,7 +1,7 @@
 # Performance measurements
 
 Measured 2026-09-27 with Node.js v22.17.0 and jsdom 29.1.1.
-Baseline: v1.0.3 runtime at commit 2e9c83c4. Updated: working tree after v1.0.3.
+Baseline: v1.0.3 runtime at commit 2e9c83c4. Updated: v1.0.4.
 [Full measured results](performance-results.json) include illustrative callback timings.
 The v1.0.2 → v1.0.3 change had already removed whole-document scans from these
 mutation scenarios (for example, one changed card: 4,000 count reads → 20).
@@ -21,17 +21,21 @@ benchmark checks expected hiding marks on every card after each batch/scenario.
 | X | one-card-count-changes | 20 | 20 | 20 → 20 |
 | X | new-card-batches | 80 | 80 | 20 → 20 |
 | YouTube | unrelated-sidebar-player-noise | 0 | 0 | 20 → 20 |
-| YouTube | card-hover-restyles | 20 | 20 | 20 → 20 |
+| YouTube | card-hover-restyles | 20 | 0 | 20 → 20 |
 | YouTube | one-card-count-changes | 20 | 20 | 20 → 20 |
 | YouTube | new-card-batches | 80 | 80 | 20 → 20 |
 
 No scenario above performs a whole-document scan. The observer attribute list is
-now site-specific. The X adapter never reads `class` or `title`, so X's hover
-restyles no longer wake the extension or reread the hovered post. YouTube keeps
-`class` because metadata classes can establish a count, so a hover restyle still
-rereads that one card. Within one observer callback, repeated text/attribute
-records for the same element are routed once; this saves ancestor lookups but
-does not change the count-read column, which was already deduplicated.
+site-specific. The X adapter never reads `class` or `title`, so X hover restyles
+no longer wake the extension. YouTube must still observe `class`, because a few
+metadata classes can establish a count; the browser therefore still delivers
+those records. Each record now compares its old and new class lists against
+`getDecisionClassNames` (the eight classes the adapter's selectors name) and
+is dropped unless one of those classes appeared or disappeared, so YouTube hover
+restyles read no card. A core test fails if a selector names an unlisted class.
+Within one observer callback, repeated text/attribute records for the same
+element are routed once; this saves ancestor lookups but does not change the
+count-read column, which was already deduplicated.
 Full scans still occur when their scope is necessary: startup, navigation, settings,
 language changes and returning to a visible tab. Resume checks all 280 current cards.
 
