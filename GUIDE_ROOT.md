@@ -101,7 +101,8 @@ resets settings once for 1.4.0 users; no migration code exists by design.
 `scripts/build.cjs` writes a common runtime with separate manifests to
 `dist/chrome-brave` and `dist/firefox`. It also generates small PNG icons and
 deterministic ZIPs. Firefox declares no data collection and a fixed extension
-ID; its minimum version is 142. Signing is an external distribution step.
+ID (`minimum-views-filter@gerardwu100.local`); its minimum version is 142.
+Builds remain unsigned; Mozilla signing is a separate distribution step.
 
 Validation on 2026-09-27:
 
@@ -127,16 +128,26 @@ Validation on 2026-09-27:
   navigation, threshold/settings changes, missing metadata, and foreign styles.
 - `npm run build` produced both 13-file packages.
 - `npm run benchmark` against v1.4.0: every operation count unchanged.
-- The right-click menu, badge, and real sync were **not** exercised in an
-  installed browser; they rely on documented Chrome/Firefox APIs and mocks.
 - Firefox `web-ext lint --warnings-as-errors`: 0 errors, 0 notices, 0 warnings.
-- The initial build was checked in Brave using `tests/browser-fixture.html` and synthetic
+- The browser fixture passed in Brave and Firefox 156.0.1 using synthetic
   DOM: low cards hidden even with hidden counters, 1,000 kept, unknown kept,
   1,500 restored, a newly inserted 25-view card hidden, and disable preserved
   the foreign `display:none!important` rule and concealed counters.
-- Live Brave X/YouTube DOM was inspected read-only to confirm current count
-  labels and wrapper shapes with the user's extensions active. No actual
-  extension installation or full live-feed end-to-end filtering was performed.
+- An installed Firefox build saved popup settings. Changing the YouTube minimum
+  on a live Home page hid cards below the new threshold and retained a card above
+  it without reloading. The **Always show this creator** context-menu item was
+  visible; adding a creator and its badge feedback were not exercised.
+- Mozilla approved the unlisted 1.5.0 submission and returned a signed XPI.
+  Its 13 packaged files match the unsigned build: the manifest is semantically
+  identical with different JSON formatting, and the other files match byte for
+  byte. Five `META-INF` signature files are the only additions. After removing
+  the temporary overlay, Firefox listed the signed build among regular
+  extensions and showed zero temporary extensions. Settings exported from the
+  temporary copy were imported, saved, and verified after reloading the settings
+  page. The signed build also applied the restored threshold to live YouTube Home.
+- Live Brave X/YouTube checks confirmed readable metadata with the existing
+  extensions active, and later feed checks confirmed threshold filtering. These
+  checks do not cover every extension configuration or custom card layout.
 
 To repeat the local fixture with the user's Python convention:
 
@@ -168,17 +179,31 @@ version can miss duplicate IDs with optimized compound ID selectors.
 The local checkout lives under `one-time-projects/minimum-views-filter` in the
 existing projects root. Relative build and test paths keep relocation safe.
 
-GitHub release `v1.5.0` distributes the browser ZIPs, a source ZIP, installation
-instructions, and SHA-256 checksums. Runtime artifacts are generated from the
-tagged source and remain ignored by Git. The repository is public under the
-MIT License, so release assets download without signing in. Publishing a GitHub
-release does not submit to either browser store or sign the Firefox package.
+GitHub release `v1.5.0` distributes the browser ZIPs, the Mozilla-signed Firefox
+XPI, a source ZIP, installation instructions, and SHA-256 checksums. Runtime
+artifacts are generated from the tagged source and remain ignored by Git. The
+repository is public under the MIT License, so release assets download without
+signing in. Mozilla signing was completed separately on 2026-09-27 through the
+unlisted self-distribution flow; there is no public Mozilla Add-ons listing.
+
+The signed XPI installs permanently through Firefox's **Install Add-on From
+File** command. The unsigned ZIP remains useful for development. There is no
+`update_url` in the manifest, so users install newer signed XPIs manually. Keep
+the same gecko ID and increment the version for future releases so Firefox
+updates the existing add-on and retains its settings.
+
+A temporary copy with the same ID can continue to mask an installed signed XPI.
+Export settings before removing that temporary copy, then import and save them
+in the permanent one; the tested switch started with fresh default settings.
+Check `about:debugging` for zero temporary copies and a regular installed entry.
 
 For future releases: run `npm run check`, commit and push the release source,
-build a source archive from that commit, generate checksums for all ZIPs, then
-upload the assets against an explicit version tag and target commit. Download
-the published assets to a temporary directory and compare their hashes before
-reporting success.
+build a source archive from that commit, and submit the Firefox ZIP as a new
+unlisted version to Mozilla. Compare the returned signed XPI's runtime files and
+manifest with the build, then generate checksums for all release archives and
+upload them against an explicit version tag and target commit. Download the
+published assets to a temporary directory and compare their hashes before
+reporting success. GitHub publication alone does not sign a Firefox build.
 
 ## Diagnosing a popup/page threshold mismatch
 
@@ -217,23 +242,17 @@ was closed; no installed extension or other extension setting was changed.
 
 ## Open issues and verification limits
 
-- **Right-click menu and sync need an installed-browser check.** Unit tests
-  mock the APIs. Next step: in Brave/Chrome, reload the extension, right-click a
-  visible X post and a YouTube channel link, and confirm the ✓ badge and popup
-  list; with Chrome sync on, confirm a second computer receives the settings.
-  Firefox event-page menus are recreated on install and startup; confirm the
-  item still appears after a Firefox restart once a signed build exists.
-
-- **Permanent Firefox installation remains unsigned.** Code, package, and lint
-  are complete. No Mozilla account/signing workflow was used. Next step: submit
-  `dist/minimum-views-filter-firefox-1.5.0.zip` for unlisted signing, then test
-  the returned XPI in release Firefox. Do not weaken signature settings.
-- **Full live-feed coexistence remains a manual installation check.** No browser
-  settings or other extension settings were changed. The page DOM observations
-  and fixture tests establish count readability and preservation of foreign
-  styles, but cannot establish every configuration of the supplied extensions.
-  Next step: install unpacked in Brave, reload X/YouTube, and inspect normal
-  scrolling and PocketTube's custom layouts. Leave unreadable counts visible.
+- **Creator addition, menu persistence, and cross-computer sync need checks.**
+  Firefox displayed the menu and saved popup settings, while unit tests cover
+  additions and badge feedback. Next step: right-click a visible X post and a
+  YouTube channel link, select the menu item, and confirm the ✓ badge and popup
+  whitelist; restart Firefox and confirm the menu remains. With Chrome or
+  Firefox sync enabled, confirm a second computer receives the settings.
+- **Full live-feed coexistence remains bounded.** Browser fixtures and live
+  threshold changes establish filtering and preservation of foreign styles for
+  the tested cards, but cannot establish every configuration of the supplied
+  extensions. Next step: inspect normal scrolling and PocketTube's custom
+  layouts in the installed browser. Leave unreadable counts visible.
 - **YouTube identity aliases are not resolved.** The whitelist supports observed
   @handle and /channel/ID links, not display names or legacy /c/ and /user/ links.
   If the configured identifier differs from the one on the card, it does not
@@ -244,7 +263,6 @@ was closed; no installed extension or other extension setting was changed.
   may remain unfiltered. Capture only sanitized card structure, reproduce in a
   fixture, then extend selectors without searching arbitrary titles/body text.
 
-Last checked: 2026-09-27, Node.js 22.17.0, jsdom 29.1.1, web-ext 10.7.0.
-The newest threshold/whitelist controls were verified in jsdom, without installing
-the extension into the user's browser. Runtime tests caught and verified the fix for
-a startup storage race; the corrected merge retains unrelated stored settings.
+Last checked: 2026-09-27, Firefox 156.0.1, Node.js 26.8.2, jsdom 29.1.1,
+web-ext 10.7.0. Runtime tests caught and verified the fix for a startup storage
+race; the corrected merge retains unrelated stored settings.

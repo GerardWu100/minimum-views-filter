@@ -26,9 +26,9 @@ that it showed it to you.
 Download version 1.5.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.5.0):
 
 - [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.0/minimum-views-filter-chrome-brave-1.5.0.zip)
-- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.0/minimum-views-filter-firefox-1.5.0.zip)
+- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.0/minimum-views-filter-firefox-1.5.0.xpi)
 
-Extract your browser ZIP before loading it, or build it from source below.
+Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 
 ### Chrome / Brave
 
@@ -68,18 +68,26 @@ selected and the post author is not whitelisted.
 
 ### Firefox
 
-1. Open `about:debugging#/runtime/this-firefox`.
-2. Click **Load Temporary Add-on**.
-3. Select `manifest.json` inside the extracted Firefox package
-   (from source: `dist/firefox`).
-4. Reload existing X/YouTube tabs. Grant site access if Firefox asks.
+1. Download the signed Firefox XPI above; do not extract it.
+2. Open `about:addons`.
+3. Click the gear menu, choose **Install Add-on From File**, and select the XPI.
+4. Confirm **Add**, then reload existing X/YouTube tabs. Grant site access if asked.
+5. Open the popup to set each site's minimum, edit its whitelist, or disable filtering.
 
-**This is a temporary development install and is removed when Firefox restarts.**
-The package is unsigned. A permanent install in normal Firefox requires Mozilla
-signing, including for a privately distributed add-on. Submit the Firefox ZIP
-through the Mozilla developer hub's self-distribution flow, then install the
-returned signed XPI. Do not disable signature verification. Minimum Firefox:
-142. The extension has not been submitted to either store.
+**This is a permanent installation that survives Firefox restarts.** Minimum
+Firefox: 142. Mozilla approved and signed version 1.5.0 for self-distribution
+on 2026-09-27. It has no public Mozilla Add-ons listing.
+
+Updates are manual: download a newer signed XPI from the GitHub release and
+install it with the same steps. The extension keeps the same ID, so Firefox
+updates the existing installation and retains its settings. The package has no
+automatic update URL. Do not disable signature verification.
+
+If you previously loaded a temporary copy, first use **Copy settings to another
+browser** in its popup to keep your preferences. Remove the temporary entry in
+`about:debugging`, install the signed XPI, then use **Load pasted** and **Save**
+to restore them. A temporary copy can mask the permanent installation until it
+is removed.
 
 Official instructions: [Chrome unpacked extensions](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked),
 [Firefox temporary installation](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/),
@@ -229,7 +237,12 @@ npm run lint:firefox
 `npm run check` runs all three checks. Builds produce unpacked directories and
 ZIPs in `dist/`. No build output or dependencies are committed.
 
-For a manual Brave/Chrome fixture check, serve the project locally and open
+For a temporary Firefox development install, open
+`about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**, and select
+`dist/firefox/manifest.json` after building. This unsigned source build is removed
+when Firefox restarts; use the signed release XPI for normal installation.
+
+For a manual Chrome, Brave, or Firefox fixture check, serve the project locally and open
 `tests/browser-fixture.html`. It runs the production parser and controller with
 synthetic cards and a test-only adapter/storage shim, without installing the
 extension. See [GUIDE_ROOT.md](GUIDE_ROOT.md) for architecture and verification.
