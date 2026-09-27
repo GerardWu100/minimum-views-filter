@@ -9,10 +9,16 @@ the platform through negative-feedback actions.
 
 - Filter locally in the page. Never click, like, dismiss, mute, block, unsubscribe,
   submit feedback, or call platform APIs on the user's behalf.
-- The default minimum is 1,000 views: hide 0–999; keep 1,000 and above.
+- Each site defaults to a 1,000-view minimum: hide 0–999; keep 1,000 and above.
 - Do not permanently blacklist IDs. An item must become eligible again when the
   site displays a view count at or above the threshold, including on a later visit.
-- Expose a configurable minimum and separate X/YouTube switches.
+- Expose independent X and YouTube minimums and switches; the user may set a
+  higher X threshold than YouTube.
+- Provide separate X account and YouTube channel whitelists. A matching creator
+  bypasses both the minimum and unknown-count rule, within the allowed pages.
+  Match profile handles/links, never ambiguous display names, mentions, or quoted
+  authors. Whitelist changes and recycled creator links must apply immediately.
+  Store whitelists locally, never resolve identities through network requests.
 - Missing counts are unknown, not zero. Keep them visible by default; an explicit
   setting can hide unknown-count video/post cards.
 - Read existing DOM text and accessibility labels even when CSS hides them.

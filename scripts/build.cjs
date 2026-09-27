@@ -48,7 +48,7 @@ function build(browser) {
     host_permissions: MATCHES,
     icons,
     action: {default_title: "Minimum Views Filter", default_popup: "popup.html", default_icon: icons},
-    content_scripts: [{matches: MATCHES, js: ["filter-core.js", "settings.js", "content.js"], css: ["content.css"], run_at: "document_idle"}],
+    content_scripts: [{matches: MATCHES, js: ["settings.js", "filter-core.js", "content.js"], css: ["content.css"], run_at: "document_idle"}],
   };
   if (browser === "firefox") {
     manifest.browser_specific_settings = {gecko: {

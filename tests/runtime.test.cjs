@@ -9,8 +9,8 @@ const {JSDOM} = require('jsdom');
 const SOURCE = path.join(__dirname, '..', 'src');
 const source = (name) => readFileSync(path.join(SOURCE, name), 'utf8');
 const wait = (milliseconds = 130) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-const xCard = (id, views) => `<div data-testid="cellInnerDiv" id="cell-${id}"><article data-testid="tweet" id="post-${id}"><a href="/author/status/${id}"><time>Now</time></a><div data-testid="tweetText">An ordinary post</div>${views === null ? '' : `<a href="/author/status/${id}/analytics" aria-label="${views} views">${views}</a>`}</article></div>`;
-const youtubeCard = (id, views) => `<ytd-rich-item-renderer id="video-${id}"><ytd-rich-grid-media><a id="video-title" href="/watch?v=${id}">Video ${id}</a><div id="metadata-line">${views === null ? '' : `<span>${views} views</span>`}<span>1 hour ago</span></div></ytd-rich-grid-media></ytd-rich-item-renderer>`;
+const xCard = (id, views, author = 'author') => `<div data-testid="cellInnerDiv" id="cell-${id}"><article data-testid="tweet" id="post-${id}"><a href="/${author}/status/${id}"><time>Now</time></a><div data-testid="tweetText">An ordinary post</div>${views === null ? '' : `<a href="/${author}/status/${id}/analytics" aria-label="${views} views">${views}</a>`}</article></div>`;
+const youtubeCard = (id, views, creator = '@author') => `<ytd-rich-item-renderer id="video-${id}"><ytd-rich-grid-media><a id="video-title" href="/watch?v=${id}">Video ${id}</a><ytd-channel-name><a href="/${creator}">Creator</a></ytd-channel-name><div id="metadata-line">${views === null ? '' : `<span>${views} views</span>`}<span>1 hour ago</span></div></ytd-rich-grid-media></ytd-rich-item-renderer>`;
 
 function createStorage({stored = {}, get, set} = {}) {
   const listeners = new Set();
@@ -119,14 +119,14 @@ test('SPA route changes without DOM mutations or navigation events restore exclu
 test('settings changes apply threshold, site enablement, and unknown-count policy immediately', async (t) => {
   const {window, storage} = openContent(t, {html: xCard(1, '900') + xCard(2, '1,200') + xCard(3, null)});
   await wait();
-  storage.change({minimumViews: 1500});
+  storage.change({xMinimumViews: 1500});
   await wait();
   assertVisible(window, '#cell-2', false);
   storage.change({xEnabled: false});
   await wait();
   assertVisible(window, '#cell-1', true);
   assertVisible(window, '#cell-2', true);
-  storage.change({xEnabled: true, minimumViews: 500, hideUnknown: true});
+  storage.change({xEnabled: true, xMinimumViews: 500, hideUnknown: true});
   await wait();
   assertVisible(window, '#cell-1', true);
   assertVisible(window, '#cell-3', false);
@@ -154,8 +154,8 @@ test('storage read failure leaves the page usable and releases listeners', async
 test('settings arriving during startup preserve unchanged stored preferences', async (t) => {
   let resolveRead;
   const {window, storage} = openContent(t, {html: xCard(1, '1,500'), get: () => new Promise((resolve) => {resolveRead = resolve;})});
-  storage.change({minimumViews: 2000});
-  resolveRead({xEnabled: false, minimumViews: 1000});
+  storage.change({xMinimumViews: 2000});
+  resolveRead({xEnabled: false, xMinimumViews: 1000});
   await wait();
   assertVisible(window, '#cell-1', true);
   storage.change({xEnabled: true});
@@ -188,19 +188,25 @@ function openPopup(t, {namespace = 'browser', ...options} = {}) {
 
 for (const namespace of ['browser', 'chrome']) {
   test(`${namespace}: popup loads preferences and saves edited controls`, async (t) => {
-    const {document, storage, submit} = openPopup(t, {namespace, stored: {minimumViews: 5000, xEnabled: false, youtubeEnabled: true, hideUnknown: true}});
+    const {document, storage, submit} = openPopup(t, {namespace, stored: {xMinimumViews: 5000, youtubeMinimumViews: 2500, xWhitelist: ['nasa'], youtubeWhitelist: ['@science'], xEnabled: false, youtubeEnabled: true, hideUnknown: true}});
     await wait(0);
     assert.equal(document.querySelector('#controls').disabled, false);
-    assert.equal(document.querySelector('#minimum-views').value, '5000');
+    assert.equal(document.querySelector('#x-minimum-views').value, '5000');
+    assert.equal(document.querySelector('#youtube-minimum-views').value, '2500');
+    assert.equal(document.querySelector('#x-whitelist').value, '@nasa');
+    assert.equal(document.querySelector('#youtube-whitelist').value, '@science');
     assert.equal(document.querySelector('#x-enabled').checked, false);
     assert.equal(document.querySelector('#hide-unknown').checked, true);
-    document.querySelector('#minimum-views').value = '2000';
+    document.querySelector('#x-minimum-views').value = '2000';
+    document.querySelector('#youtube-minimum-views').value = '750';
+    document.querySelector('#x-whitelist').value = '@NASA, https://x.com/NASA\n@SpaceX';
+    document.querySelector('#youtube-whitelist').value = '@Science, https://www.youtube.com/@SCIENCE\nhttps://www.youtube.com/channel/UCExample';
     document.querySelector('#x-enabled').checked = true;
     document.querySelector('#youtube-enabled').checked = false;
     document.querySelector('#hide-unknown').checked = false;
     submit();
     await wait(0);
-    assert.deepEqual(storage.writes, [{minimumViews: 2000, xEnabled: true, youtubeEnabled: false, hideUnknown: false}]);
+    assert.deepEqual(storage.writes, [{xMinimumViews: 2000, youtubeMinimumViews: 750, xWhitelist: ['nasa', 'spacex'], youtubeWhitelist: ['@science', 'channel/UCExample'], xEnabled: true, youtubeEnabled: false, hideUnknown: false}]);
     assert.match(document.querySelector('#status').textContent, /Saved/);
     assert.equal(document.querySelector('#controls').disabled, false);
   });
@@ -209,11 +215,17 @@ for (const namespace of ['browser', 'chrome']) {
 test('popup rejects empty, fractional, negative, and oversized thresholds without saving', async (t) => {
   const {document, storage, submit} = openPopup(t);
   await wait(0);
-  for (const value of ['', '1.5', '-1', '1000000000001']) {
-    document.querySelector('#minimum-views').value = value;
-    submit();
-    await wait(0);
-    assert.match(document.querySelector('#status').textContent, /whole number/);
+  for (const site of ['x', 'youtube']) {
+    for (const value of ['', '1.5', '-1', '1000000000001']) {
+      document.querySelector('#x-minimum-views').value = '1000';
+      document.querySelector('#youtube-minimum-views').value = '1000';
+      const input = document.querySelector('#' + site + '-minimum-views');
+      input.value = value;
+      submit();
+      await wait(0);
+      assert.match(document.querySelector('#status').textContent, /whole number/);
+      assert.equal(document.activeElement, input);
+    }
   }
   assert.equal(storage.writes.length, 0);
 });
@@ -265,7 +277,7 @@ test('other extensions retain their inline display, hidden, and class state acro
   await wait();
   assert.equal(cell.hasAttribute('data-minimum-views-hidden'), false);
   assertOtherState();
-  storage.change({minimumViews: 3000});
+  storage.change({xMinimumViews: 3000});
   await wait();
   assert.equal(cell.hasAttribute('data-minimum-views-hidden'), true);
   storage.change({xEnabled: false});
@@ -350,4 +362,118 @@ test('X navigation to a list or search removes Home filtering from retained card
     await wait();
     assertVisible(window, '#cell-1', visible);
   }
+});
+
+test('each site applies and updates its own minimum independently', async (t) => {
+  const stored = {xMinimumViews: 5000, youtubeMinimumViews: 1000};
+  const x = openContent(t, {html: xCard(1, '2,000'), stored});
+  const youtube = openContent(t, {url: 'https://www.youtube.com/watch?v=playing', html: youtubeCard(1, '2,000'), stored});
+  await wait();
+  assertVisible(x.window, '#cell-1', false);
+  assertVisible(youtube.window, '#video-1', true);
+  for (const page of [x, youtube]) page.storage.change({xMinimumViews: 1500});
+  await wait();
+  assertVisible(x.window, '#cell-1', true);
+  assertVisible(youtube.window, '#video-1', true);
+  for (const page of [x, youtube]) page.storage.change({youtubeMinimumViews: 3000});
+  await wait();
+  assertVisible(x.window, '#cell-1', true);
+  assertVisible(youtube.window, '#video-1', false);
+});
+
+test('zero minimum on YouTube does not disable the X threshold', async (t) => {
+  const stored = {youtubeMinimumViews: 0};
+  const x = openContent(t, {html: xCard(1, '0'), stored});
+  const youtube = openContent(t, {url: 'https://www.youtube.com/', html: youtubeCard(1, '0'), stored});
+  await wait();
+  assertVisible(x.window, '#cell-1', false);
+  assertVisible(youtube.window, '#video-1', true);
+});
+
+for (const site of ['x', 'youtube']) {
+  test(`${site}: whitelist exempts low and unknown counts, updates immediately, and follows recycled creators`, async (t) => {
+    const card = site === 'x' ? xCard : youtubeCard;
+    const selector = site === 'x' ? '#cell-' : '#video-';
+    const creator = site === 'x' ? 'author' : '@author';
+    const url = site === 'x' ? 'https://x.com/home' : 'https://www.youtube.com/watch?v=playing';
+    const {window, document, storage} = openContent(t, {url, html: card(1, '10') + card(2, null), stored: {hideUnknown: true}});
+    await wait();
+    assertVisible(window, selector + '1', false);
+    assertVisible(window, selector + '2', false);
+    storage.change({[site + 'Whitelist']: [creator]});
+    await wait();
+    assertVisible(window, selector + '1', true);
+    assertVisible(window, selector + '2', true);
+    document.querySelector(selector + '1').outerHTML = card(1, '10', site === 'x' ? 'other' : '@other');
+    await wait();
+    assertVisible(window, selector + '1', false);
+    assertVisible(window, selector + '2', true);
+    storage.change({[site + 'Whitelist']: []});
+    await wait();
+    assertVisible(window, selector + '2', false);
+  });
+}
+
+test('X and YouTube whitelists remain independent even for identical handle names', async (t) => {
+  const stored = {xWhitelist: ['author']};
+  const x = openContent(t, {html: xCard(1, '10'), stored});
+  const youtube = openContent(t, {url: 'https://www.youtube.com/', html: youtubeCard(1, '10'), stored});
+  await wait();
+  assertVisible(x.window, '#cell-1', true);
+  assertVisible(youtube.window, '#video-1', false);
+  for (const page of [x, youtube]) page.storage.change({xWhitelist: [], youtubeWhitelist: ['@author']});
+  await wait();
+  assertVisible(x.window, '#cell-1', false);
+  assertVisible(youtube.window, '#video-1', true);
+});
+
+test('YouTube channel IDs retain case and whitelist updates preserve foreign hiding styles', async (t) => {
+  const {window, document, storage} = openContent(t, {url: 'https://www.youtube.com/', html: youtubeCard(1, '10', 'channel/UCAbC'), stored: {youtubeWhitelist: ['channel/UCabc']}});
+  const card = document.querySelector('#video-1');
+  card.style.setProperty('display', 'none', 'important');
+  const originalStyle = card.getAttribute('style');
+  await wait();
+  assert.equal(card.hasAttribute('data-minimum-views-hidden'), true);
+  storage.change({youtubeWhitelist: ['channel/UCAbC']});
+  await wait();
+  assert.equal(card.hasAttribute('data-minimum-views-hidden'), false);
+  assert.equal(card.getAttribute('style'), originalStyle);
+  assertVisible(window, '#video-1', false);
+});
+
+test('unknown creators cannot inherit a YouTube whitelist exemption and changed links are reconsidered', async (t) => {
+  const {window, document} = openContent(t, {url: 'https://www.youtube.com/', html: youtubeCard(1, '10'), stored: {youtubeWhitelist: ['@author']}});
+  await wait();
+  assertVisible(window, '#video-1', true);
+  const link = document.querySelector('ytd-channel-name a');
+  link.setAttribute('href', '/@other');
+  await wait();
+  assertVisible(window, '#video-1', false);
+  link.setAttribute('href', '/@author');
+  await wait();
+  assertVisible(window, '#video-1', true);
+  link.remove();
+  await wait();
+  assertVisible(window, '#video-1', false);
+});
+
+test('popup rejects invalid whitelist entries without dropping them or saving partial settings', async (t) => {
+  const {document, storage, submit} = openPopup(t);
+  await wait(0);
+  for (const site of ['x', 'youtube']) {
+    for (const value of ['https://example.org/@author', 'Creator Display Name', '@valid, https://x.com/home']) {
+      document.querySelector('#x-whitelist').value = '';
+      document.querySelector('#youtube-whitelist').value = '';
+      const textarea = document.querySelector('#' + site + '-whitelist');
+      textarea.closest('details').open = false;
+      textarea.value = value;
+      submit();
+      await wait(0);
+      assert.equal(textarea.value, value);
+      assert.equal(textarea.closest('details').open, true);
+      assert.equal(document.activeElement, textarea);
+      assert.match(document.querySelector('#status').textContent, /one per line/);
+    }
+  }
+  assert.equal(storage.writes.length, 0);
 });

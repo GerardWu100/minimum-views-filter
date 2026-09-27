@@ -198,3 +198,105 @@ test('a channel named after a count cannot supply view metadata', () => {
     assert.equal(readFirst(`${wrapper}<span class="ytContentMetadataViewModelMetadataText" hidden aria-label="6 views">6</span></yt-lockup-view-model>`), 6);
   }
 });
+
+function creatorIdentifiers(html, site) {
+  return core.getCreatorIdentifiers(documentOf(html).body.firstElementChild, site);
+}
+
+test('X creator is the post author, excluding repost context, mentions and quoted authors', () => {
+  const html = `<article data-testid="tweet">
+    <div data-testid="socialContext"><a href="/reposter">Reposter</a></div>
+    <div data-testid="User-Name"><a href="/NASA">NASA</a><a href="/NASA">@NASA</a>
+      <a href="https://x.com/NASA/status/123"><time>Now</time></a></div>
+    <div data-testid="tweetText"><a href="/mentioned">@mentioned</a>
+      <a href="/mentioned/status/456"><time>Yesterday</time></a></div>
+    <div role="link"><div data-testid="User-Name"><a href="/quoted">Quoted</a>
+      <a href="/quoted/status/789"><time>Yesterday</time></a></div></div>
+    <a href="/unrelated">Body link</a>
+  </article>`;
+  assert.deepEqual(creatorIdentifiers(html, 'x'), ['nasa']);
+  for (const marker of ['data-testid="quoteTweet"', 'data-testid="quotedTweet"']) {
+    assert.deepEqual(creatorIdentifiers(`<article data-testid="tweet"><div ${marker}>
+      <div data-testid="User-Name"><a href="/quoted">Quoted</a></div>
+      <a href="/quoted/status/123"><time>Now</time></a></div></article>`, 'x'), []);
+  }
+});
+
+test('X own status permalink can establish identity but unrelated and ambiguous links cannot', () => {
+  assert.deepEqual(creatorIdentifiers(`<article data-testid="tweet">
+    <a href="https://twitter.com/Original/status/123"><time>Now</time></a>
+    <a href="/other/status/456">Referenced post</a></article>`, 'x'), ['original']);
+  assert.deepEqual(creatorIdentifiers(`<article data-testid="tweet">
+    <div data-testid="User-Name"><a href="/first">First</a></div>
+    <a href="/second/status/123"><time>Now</time></a></article>`, 'x'), []);
+  assert.deepEqual(creatorIdentifiers(`<article data-testid="tweet">
+    <div data-testid="socialContext"><a href="/reposter/status/123"><time>Now</time></a></div>
+    <a href="/unrelated">Unrelated</a><span>@displayname</span></article>`, 'x'), []);
+});
+
+test('X external, malformed and reserved profile destinations never establish identity', () => {
+  for (const href of [
+    'https://evil.example/NASA', 'https://x.com.evil.example/NASA',
+    'https://x.com@evil.example/NASA', 'https://attacker@x.com/NASA',
+    'javascript:alert(1)', '/home', '/search', '/i', '/NASA/other', '/nasa%2Fother',
+  ]) {
+    assert.deepEqual(creatorIdentifiers(`<article data-testid="tweet">
+      <div data-testid="User-Name"><a href="${href}">NASA</a></div></article>`, 'x'), [], href);
+  }
+});
+
+test('classic YouTube author containers yield canonical handles and case-sensitive channel IDs', () => {
+  const html = `<ytd-compact-video-renderer>
+    <a id="video-title" href="/watch?v=video">Title</a>
+    <ytd-channel-name><a href="https://www.youtube.com/@NASA">NASA</a></ytd-channel-name>
+    <div id="byline-container"><a href="/channel/UCMixedCase_123">NASA</a></div>
+    <div id="channel-name"><a href="/@nasa">NASA</a></div>
+  </ytd-compact-video-renderer>`;
+  assert.deepEqual(creatorIdentifiers(html, 'youtube'), ['@nasa', 'channel/UCMixedCase_123']);
+  const identifiers = creatorIdentifiers(html, 'youtube');
+  assert.equal(identifiers.includes('channel/UCMixedCase_123'), true);
+  assert.equal(identifiers.includes('channel/ucmixedcase_123'), false);
+});
+
+test('modern YouTube author metadata supports both class forms and Unicode handle normalization', () => {
+  for (const className of ['ytContentMetadataViewModelMetadataText', 'yt-content-metadata-view-model__metadata-text']) {
+    assert.deepEqual(creatorIdentifiers(`<yt-lockup-view-model>
+      <a class="ytLockupMetadataViewModelTitle" href="/watch?v=video">Title</a>
+      <span class="${className}"><a href="/@E%CC%81COLE">École</a></span>
+      <a class="${className}" href="/@%E6%95%99%E8%82%B2">教育</a>
+      <span class="${className}">999 views</span></yt-lockup-view-model>`, 'youtube'), ['@école', '@教育']);
+  }
+});
+
+test('YouTube ignores arbitrary links, display names, titles, descriptions and external destinations', () => {
+  const html = `<yt-lockup-view-model>
+    <a class="ytLockupMetadataViewModelTitle ytContentMetadataViewModelMetadataText" href="/@title">Title</a>
+    <a id="video-title" href="/@secondtitle">Title</a>
+    <a href="/@arbitrary">Unrelated</a>
+    <div id="description-text"><span class="ytContentMetadataViewModelMetadataText"><a href="/@description">Description</a></span></div>
+    <ytd-channel-name>NASA</ytd-channel-name>
+    <span class="ytContentMetadataViewModelMetadataText">@NASA</span>
+    <div id="byline-container">
+      <a href="https://evil.example/@nasa">NASA</a>
+      <a href="https://youtube.com.evil.example/@nasa">NASA</a>
+      <a href="https://youtube.com@evil.example/@nasa">NASA</a>
+      <a href="https://attacker@youtube.com/@nasa">NASA</a>
+      <a href="/redirect?q=https://youtube.com/@nasa">NASA</a>
+      <a href="/watch?v=video">NASA</a>
+      <a href="/c/nasa">NASA</a><a href="/user/nasa">NASA</a>
+      <a href="/@nasa/videos">NASA</a><a href="/@nasa%2Fvideos">NASA</a>
+    </div></yt-lockup-view-model>`;
+  assert.deepEqual(creatorIdentifiers(html, 'youtube'), []);
+});
+
+test('creator extraction handles absent metadata and leaves foreign DOM state intact', () => {
+  assert.deepEqual(core.getCreatorIdentifiers(null, 'x'), []);
+  assert.deepEqual(creatorIdentifiers('<article></article>', 'unknown'), []);
+  assert.deepEqual(creatorIdentifiers('<article data-testid="tweet"></article>', 'x'), []);
+  assert.deepEqual(creatorIdentifiers('<ytd-video-renderer></ytd-video-renderer>', 'youtube'), []);
+  const card = documentOf(`<ytd-video-renderer><ytd-channel-name hidden class="foreign" style="display:none">
+    <a href="/@NASA">NASA</a></ytd-channel-name></ytd-video-renderer>`).body.firstElementChild;
+  const before = card.outerHTML;
+  assert.deepEqual(core.getCreatorIdentifiers(card, 'youtube'), ['@nasa']);
+  assert.equal(card.outerHTML, before);
+});

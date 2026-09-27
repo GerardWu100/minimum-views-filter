@@ -31,9 +31,13 @@
     const enabled = settings[SITE + "Enabled"] && core.isSupportedPage(SITE, location.pathname);
     if (enabled) {
       const locale = document.documentElement.lang || navigator.language || "en";
+      const minimumViews = settings[SITE + "MinimumViews"];
+      const whitelist = new Set(settings[SITE + "Whitelist"]);
       for (const card of core.getCards(document, SITE)) {
+        // Re-read creator links so recycled cards cannot inherit an exemption.
+        if (whitelist.size && core.getCreatorIdentifiers(card, SITE).some((identifier) => whitelist.has(identifier))) continue;
         const views = core.getViewCount(card, SITE, locale);
-        if (views === null ? settings.hideUnknown : views < settings.minimumViews) {
+        if (views === null ? settings.hideUnknown : views < minimumViews) {
           nextHidden.add(core.getHideTarget(card, SITE));
         }
       }

@@ -13,7 +13,7 @@ Content scripts still match the whole site so navigation from an excluded page
 to Home works without reloading. Each reconciliation checks the current route
 and removes obsolete hiding marks when navigating to an excluded page.
 
-The Manifest V3 content script loads `filter-core.js`, `settings.js`, and
+The Manifest V3 content script loads `settings.js`, `filter-core.js`, and
 `content.js`, plus the single scoped CSS rule. There is no background worker,
 page-world injection, network request, or dependency in the installed package.
 
@@ -23,9 +23,17 @@ wrappers must link to a video; playlists/channels/playables and known ad wrapper
 are excluded. X quote subtrees never supply the outer post's count.
 `getViewCount` reads bounded metadata, preferring exact accessible count labels.
 English/French parsing returns `null` for unknown or contradictory data.
+`getCreatorIdentifiers` reads the own X User-Name/status link or bounded YouTube
+channel/byline metadata. The settings normalizer canonicalizes X handles without
+@, YouTube handles with @ (NFC/lowercase), and case-sensitive `channel/ID` values.
+Unknown creators return an empty array; quoted authors, mentions, repost context,
+and arbitrary title/body links cannot establish an exemption.
 
 `content.js` merges local settings with any changes that arrived during startup,
-then reconciles hideable DOM nodes. It marks low-count nodes with
+then reconciles hideable DOM nodes. It selects `xMinimumViews`/`xWhitelist` or
+`youtubeMinimumViews`/`youtubeWhitelist` by host. Whitelisted creators bypass
+both low-count and unknown-count rules, using current links on every scan so
+recycled nodes cannot inherit an exemption. It marks low-count nodes with
 `data-minimum-views-hidden`; `content.css` makes them `display:none!important`.
 X uses a `cellInnerDiv` wrapper only when it contains exactly one tweet/article.
 The next pass removes obsolete marks, including when a node is reused, its
@@ -38,8 +46,9 @@ one-second timer checks only the URL for single-page navigation without a DOM
 event; it does not poll counts or make requests. No timer exists outside the
 open matching page. Storage failure leaves the page unfiltered.
 
-`popup.js` loads and validates the four fields defined in `settings.js` and
-saves to extension local storage. Storage changes update all open supported
+`popup.js` loads and validates the two thresholds, two whitelists, and three
+boolean switches defined in `settings.js`, then saves to extension local storage.
+Invalid whitelist entries prevent the whole save and focus the affected field. Storage changes update all open supported
 pages. The popup never contacts the platforms.
 
 ## Build and verify
@@ -51,7 +60,11 @@ ID; its minimum version is 142. Signing is an external distribution step.
 
 Validation on 2026-09-27:
 
-- 21 parser/adapter tests and 26 runtime/popup integration tests passed.
+- 68 tests passed: 28 parser/adapter, 34 runtime/popup, and 6 settings tests.
+- Threshold tests cover site independence, defaults, invalid values, and zero.
+  Whitelist tests cover known/unknown counts, editing/removal, changing creators,
+  foreign hiding rules, quoted/mentioned X accounts, modern/classic YouTube
+  metadata, Unicode handles, case-sensitive channel IDs, and invalid URLs.
 - Scope regressions cover X search/profiles/Lists, YouTube search/subscriptions/
   channels/playlists, low and unknown counts on excluded pages, watch-page
   recommendations beside/below the player, and navigation with retained cards.
@@ -84,7 +97,7 @@ Stop the temporary server when finished.
 The local checkout lives under `one-time-projects/minimum-views-filter` in the
 existing projects root. Relative build and test paths keep relocation safe.
 
-GitHub release `v1.0.1` distributes the browser ZIPs, a source ZIP, installation
+GitHub release `v1.0.2` distributes the browser ZIPs, a source ZIP, installation
 instructions, and SHA-256 checksums. Runtime artifacts are generated from the
 tagged source and remain ignored by Git. The private repository requires an
 authorized signed-in account to download release assets. Publishing a GitHub
@@ -100,7 +113,7 @@ reporting success.
 
 - **Permanent Firefox installation remains unsigned.** Code, package, and lint
   are complete. No Mozilla account/signing workflow was used. Next step: submit
-  `dist/minimum-views-filter-firefox-1.0.1.zip` for unlisted signing, then test
+  `dist/minimum-views-filter-firefox-1.0.2.zip` for unlisted signing, then test
   the returned XPI in release Firefox. Do not weaken signature settings.
 - **Full live-feed coexistence remains a manual installation check.** No browser
   settings or other extension settings were changed. The page DOM observations
@@ -108,11 +121,17 @@ reporting success.
   styles, but cannot establish every configuration of the supplied extensions.
   Next step: install unpacked in Brave, reload X/YouTube, and inspect normal
   scrolling and PocketTube's custom layouts. Leave unreadable counts visible.
+- **YouTube identity aliases are not resolved.** The whitelist supports observed
+  @handle and /channel/ID links, not display names or legacy /c/ and /user/ links.
+  If the configured identifier differs from the one on the card, it does not
+  match; copy the card's channel link or list both known identifiers. No identity
+  lookup is made. Missing creator metadata uses the ordinary view-count policy.
 - **Markup/locale coverage is intentionally bounded.** English/French desktop
   cards are supported; other locales, PocketTube Deck, and future DOM layouts
   may remain unfiltered. Capture only sanitized card structure, reproduce in a
   fixture, then extend selectors without searching arbitrary titles/body text.
 
-Last checked: 2026-09-27, Node.js 22.17.0, jsdom 29.1.1, web-ext 10.7.0,
-user's connected Brave session. Runtime tests caught and verified the fix for
+Last checked: 2026-09-27, Node.js 22.17.0, jsdom 29.1.1, web-ext 10.7.0.
+The newest threshold/whitelist controls were verified in jsdom, without installing
+the extension into the user's browser. Runtime tests caught and verified the fix for
 a startup storage race; the corrected merge retains unrelated stored settings.

@@ -1,7 +1,8 @@
 # Minimum Views Filter
 
 A small extension for **Chrome/Brave and Firefox** that hides X posts and
-YouTube videos below a configurable view count. The default is **1,000**.
+YouTube videos below separate configurable view counts. Both default to **1,000**.
+Each site also has a creator whitelist.
 
 It only changes the page in your browser. It never clicks “Not interested,”
 sends feedback, or stores a blacklist of posts or videos. If the site later
@@ -9,10 +10,10 @@ shows an item with enough views, it becomes eligible again.
 
 ## Install
 
-Download version 1.0.1 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.0.1):
+Download version 1.0.2 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.0.2):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.1/minimum-views-filter-chrome-brave-1.0.1.zip)
-- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.1/minimum-views-filter-firefox-1.0.1.zip)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.2/minimum-views-filter-chrome-brave-1.0.2.zip)
+- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.2/minimum-views-filter-firefox-1.0.2.zip)
 
 The repository and downloads are private; sign in with an account that has access.
 Extract your browser ZIP before loading it, or build it from source below.
@@ -24,7 +25,7 @@ Extract your browser ZIP before loading it, or build it from source below.
 3. Click **Load unpacked** and select the extracted folder containing
    `manifest.json` (from source: `dist/chrome-brave`).
 4. Pin **Minimum Views Filter** if desired, then reload existing X/YouTube tabs.
-5. Open the extension popup to adjust the minimum or turn filtering off per site.
+5. Open the popup to set each site's minimum, edit its whitelist, or disable filtering.
 
 Keep the unpacked directory in a permanent location. Chrome/Brave load its files
 from that folder. Minimum Chromium version: 109.
@@ -52,7 +53,8 @@ Official instructions: [Chrome unpacked extensions](https://developer.chrome.com
 
 | Item | Default behavior |
 | --- | --- |
-| 0–999 views | Hidden |
+| Whitelisted creator | Kept by this extension, even with low/unknown views |
+| 0–999 views from other creators | Hidden |
 | Exactly 1,000 or more | Kept |
 | Count missing, unsupported, or ambiguous | Kept |
 | Counter hidden by another extension's CSS | Read from underlying text/accessibility labels |
@@ -60,8 +62,9 @@ Official instructions: [Chrome unpacked extensions](https://developer.chrome.com
 | Same item appears later with enough views | Kept; there is no stored exclusion |
 
 “Hide unknown view counts” is optional and off by default. Setting the minimum
-to zero allows every known count. Each site can be disabled separately. Saving
-settings updates open supported pages automatically.
+to zero allows every known count on that site. For example, set **X to 10,000**
+and **YouTube to 1,000**. Each site can be disabled separately. Saving settings
+updates open supported pages automatically.
 
 X scope: **Home only** (For You/Following). Search, profiles, Lists, opened
 conversations, notifications, messages, and all other pages stay unfiltered.
@@ -75,6 +78,28 @@ concurrent viewers are not interpreted as total views.
 
 When you navigate away from Home or a YouTube watch page, this extension removes
 its hiding marks from retained cards. Other extensions' hiding rules remain intact.
+
+## Creator whitelists
+
+Open **X account whitelist** or **YouTube channel whitelist** in the popup.
+Enter one creator per line, or separate entries with commas, then click **Save**.
+
+- X accepts `@NASA`, `NASA`, or `https://x.com/NASA`.
+- YouTube accepts `@NASA`, `https://www.youtube.com/@NASA`, or a
+  `https://www.youtube.com/channel/UC...` URL. Channel-page section links such
+  as `/@NASA/videos` can also be pasted as full URLs.
+- Matching creators bypass this extension's low-view and unknown-count rules.
+  On X this means the post's author, not a quoted author or the account reposting it.
+- Use the channel link attached to the video card. Handles and channel IDs are
+  matched as distinct identifiers; both can be listed, but the extension never
+  contacts YouTube to find the relationship between them. Display names and
+  legacy `/c/` or `/user/` URLs are not matched.
+- If creator metadata is missing or unrecognized, the ordinary view-count rule
+  applies. A whitelist never overrides another extension's hiding rules.
+
+Handles are case-insensitive; YouTube channel IDs retain their exact case.
+[YouTube's handle documentation](https://support.google.com/youtube/answer/11585688?hl=en)
+distinguishes unique handles from display names and documents Unicode handles.
 
 ## Existing extensions
 
@@ -96,7 +121,7 @@ See [compatibility evidence and references](docs/compatibility.md).
 ## Privacy and limitations
 
 - Runtime requests no network resources, records no post/video IDs, and has no
-  analytics or background service worker. Four settings are stored locally.
+  analytics or background service worker. Thresholds, whitelists, and switches are stored locally.
 - Only X/Twitter and desktop YouTube domains are permitted, plus local extension
   storage. It does not access other extensions' settings or private storage.
 - A local filter cannot stop a site from logging a served card or learning from

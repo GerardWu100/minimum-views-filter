@@ -219,6 +219,90 @@
     return null;
   }
 
+  // Only profile destinations in author metadata can establish creator identity.
+  function creatorIdentifierFromLink(link, site, allowStatus = false) {
+    const href = link.getAttribute('href');
+    if (!href || !/^(?:https?:\/\/|\/)/i.test(href)) return null;
+    let pathname;
+    try {
+      const url = new URL(href, site === 'x' ? 'https://x.com' : 'https://www.youtube.com');
+      const hosts = site === 'x'
+        ? /^(?:(?:www|mobile)\.)?(?:x|twitter)\.com$/
+        : /^(?:(?:www|m)\.)?youtube\.com$/;
+      if (!hosts.test(url.hostname) || !/^https?:$/.test(url.protocol)
+          || url.username || url.password || url.port) return null;
+      pathname = decodeURIComponent(url.pathname);
+    } catch {
+      return null;
+    }
+    const match = site === 'x'
+      ? pathname.match(allowStatus ? /^\/([^/]+)\/status\/\d+\/?$/ : /^\/([^/]+)\/?$/)
+      : pathname.match(/^\/(@[^/]+|channel\/[^/]+)\/?$/);
+    if (!match) return null;
+    // Resolve the shared validator in both browser and CommonJS environments.
+    const settings = root.MinimumViewsSettings || (
+      typeof module === 'object' && module.exports ? require('./settings.js') : null
+    );
+    return settings?.normalizeAccountIdentifier?.(match[1], site) || null;
+  }
+
+  function isOwnXAuthorMetadata(element, card) {
+    return !isQuoteDescendant(element, card)
+      && !element.closest('[data-testid="tweetText"], [data-testid="socialContext"]');
+  }
+
+  function getXCreatorIdentifiers(card) {
+    const profileIdentifiers = Array.from(card.querySelectorAll('[data-testid="User-Name"] a[href]'))
+      .filter((link) => isOwnXAuthorMetadata(link, card))
+      .map((link) => creatorIdentifierFromLink(link, 'x'));
+    const statusIdentifiers = Array.from(card.querySelectorAll('a[href] time'))
+      .filter((time) => isOwnXAuthorMetadata(time, card))
+      .map((time) => creatorIdentifierFromLink(time.closest('a'), 'x', true));
+    // Conflicting author metadata must not exempt an unrelated account's post.
+    const identifiers = [...new Set([...profileIdentifiers, ...statusIdentifiers].filter(Boolean))];
+    return identifiers.length === 1 ? identifiers : [];
+  }
+
+  function getYoutubeCreatorIdentifiers(card) {
+    const containers = card.querySelectorAll([
+      'ytd-channel-name', '#channel-name', '#byline-container',
+      '.yt-content-metadata-view-model__metadata-text',
+      '.ytContentMetadataViewModelMetadataText',
+    ].join(','));
+    const identifiers = [];
+    for (const container of containers) {
+      const links = container.matches('a[href]') ? [container] : container.querySelectorAll('a[href]');
+      for (const link of links) {
+        if (link.closest([
+          '#video-title', '#video-title-link', '.ytLockupMetadataViewModelTitle',
+          '.yt-lockup-metadata-view-model__title', '#description', '#description-text',
+          '.yt-lockup-metadata-view-model__description',
+        ].join(','))) continue;
+        const identifier = creatorIdentifierFromLink(link, 'youtube');
+        if (identifier) identifiers.push(identifier);
+      }
+    }
+    return [...new Set(identifiers)];
+  }
+
+  /**
+   * Read stable creator identifiers from the displayed card's author metadata.
+   *
+   * @param {Element} card One card returned by getCards.
+   * @param {'x'|'youtube'} site Adapter name.
+   * @returns {string[]} Unique identifiers accepted by the settings normalizer:
+   *   lowercase X handles without @, NFC/lowercase YouTube @handles, or
+   *   case-preserved YouTube channel/IDs. Missing or ambiguous X authors return
+   *   an empty array. Display names, quoted authors and arbitrary links are not
+   *   identity sources. No handle/channel-ID equivalence is inferred.
+   */
+  function getCreatorIdentifiers(card, site) {
+    if (!card?.querySelectorAll) return [];
+    if (site === 'x') return getXCreatorIdentifiers(card);
+    if (site === 'youtube') return getYoutubeCreatorIdentifiers(card);
+    return [];
+  }
+
   /**
    * Select a safe outer wrapper whose removal will not hide another tweet.
    *
@@ -235,7 +319,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCards, getViewCount, getHideTarget };
+  const core = { parseViewCount, isSupportedPage, getCards, getViewCount, getCreatorIdentifiers, getHideTarget };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);
