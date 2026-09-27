@@ -5,13 +5,16 @@
 const fixtureCore = globalThis.MinimumViewsCore;
 const fixtureListeners = new Set();
 const fixtureSettings = {...globalThis.MinimumViewsSettings.DEFAULTS};
-globalThis.browser = {storage: {
-  local: {get: async () => fixtureSettings},
-  onChanged: {
-    addListener: callback => fixtureListeners.add(callback),
-    removeListener: callback => fixtureListeners.delete(callback),
+globalThis.browser = {
+  storage: {
+    sync: {get: async () => fixtureSettings},
+    onChanged: {
+      addListener: callback => fixtureListeners.add(callback),
+      removeListener: callback => fixtureListeners.delete(callback),
+    },
   },
-}};
+  runtime: {onMessage: {addListener() {}, removeListener() {}}},
+};
 const fixtureSite = card => card.matches('article') ? "x" : "youtube";
 globalThis.MinimumViewsCore = {
   ...fixtureCore,
@@ -34,5 +37,5 @@ document.getElementById("insert").addEventListener("click", () => {
   document.getElementById("youtube-cards").append(card);
 });
 document.getElementById("disable").addEventListener("click", () => {
-  for (const listener of fixtureListeners) listener({xEnabled: {newValue: false}, youtubeEnabled: {newValue: false}}, "local");
+  for (const listener of fixtureListeners) listener({xEnabled: {newValue: false}, youtubeEnabled: {newValue: false}}, "sync");
 });

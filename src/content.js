@@ -2,7 +2,7 @@
   "use strict";
 
   const core = globalThis.MinimumViewsCore;
-  const {normalizeSettings} = globalThis.MinimumViewsSettings;
+  const {normalizeSettings, oversizedSyncKeys, STORAGE_AREA, WHITELIST_CREATOR_MESSAGE} = globalThis.MinimumViewsSettings;
   const extension = globalThis.browser || globalThis.chrome;
   const HIDDEN_ATTRIBUTE = "data-minimum-views-hidden";
   const ACTIVE_ATTRIBUTE = "data-minimum-views-active";
@@ -40,13 +40,15 @@
   let ready = false;
   let stopped = false;
   let pageSuspended = false;
+  // Identifier string only: a DOM reference here could retain a detached card.
+  let contextMenuCreator = null;
 
   function isSuspended() {
     return pageSuspended || document.visibilityState === "hidden";
   }
 
-  /** Find the whole card (or X cell), including outer wrappers around quotes. */
-  function cardScope(element) {
+  /** Find the outermost card around an element, so a quoted post maps to its host. */
+  function outerCard(element) {
     let card = element.closest(CARD_SELECTOR);
     if (!card) return null;
     let outer = card.parentElement?.closest(CARD_SELECTOR);
@@ -54,6 +56,13 @@
       card = outer;
       outer = card.parentElement?.closest(CARD_SELECTOR);
     }
+    return card;
+  }
+
+  /** Find the whole card (or X cell), including outer wrappers around quotes. */
+  function cardScope(element) {
+    const card = outerCard(element);
+    if (!card) return null;
     return SITE === "x" ? card.closest('[data-testid="cellInnerDiv"]') || card : card;
   }
 
@@ -242,7 +251,7 @@
   }
 
   function onSettingsChanged(changes, area) {
-    if (area !== "local" || !SETTING_KEYS.some((key) => key in changes)) return;
+    if (area !== STORAGE_AREA || !SETTING_KEYS.some((key) => key in changes)) return;
     const updated = {...settings};
     for (const key of SETTING_KEYS) {
       if (!(key in changes)) continue;
@@ -260,6 +269,57 @@
     }
   }
 
+  /**
+   * Resolve the creator for a right-click, using only unambiguous author metadata.
+   *
+   * Inside a card this is the clicked card's own author (never a mention,
+   * quoted author, or another post sharing the X cell); elsewhere, including
+   * non-video YouTube lockups, it is a profile/channel link under the pointer.
+   */
+  function creatorAt(target) {
+    const element = target?.nodeType === 1 ? target : target?.parentElement;
+    if (!element) return null;
+    const outer = outerCard(element);
+    const card = outer ? core.getCards(outer, SITE)[0] : null;
+    if (card) {
+      const identifiers = core.getCreatorIdentifiers(card, SITE);
+      return identifiers.length === 1 ? identifiers[0] : null;
+    }
+    const link = element.closest("a[href]");
+    return link ? core.getLinkCreatorIdentifier(link, SITE) : null;
+  }
+
+  function onContextMenu(event) {
+    contextMenuCreator = creatorAt(event.target);
+  }
+
+  /** Add an identifier to this site's synced whitelist; storage change rescans. */
+  async function whitelistCreator(identifier) {
+    const key = SITE + "Whitelist";
+    const current = normalizeSettings(await extension.storage[STORAGE_AREA].get(key))[key];
+    if (current.includes(identifier)) return "present";
+    const update = {[key]: [...current, identifier]};
+    if (oversizedSyncKeys(update).length) return "full";
+    await extension.storage[STORAGE_AREA].set(update);
+    return "added";
+  }
+
+  /** Answer the background's context-menu request with sendResponse (Chrome and Firefox). */
+  function onRuntimeMessage(message, sender, sendResponse) {
+    if (message?.type !== WHITELIST_CREATOR_MESSAGE) return false;
+    const identifier = contextMenuCreator;
+    contextMenuCreator = null;
+    if (!identifier) {
+      sendResponse({result: "missing"});
+      return false;
+    }
+    whitelistCreator(identifier).then(
+      (result) => sendResponse({result, identifier}),
+      () => sendResponse({result: "failed"}),
+    );
+    return true;
+  }
+
   function stop() {
     if (stopped) return;
     stopped = true;
@@ -270,6 +330,9 @@
     window.removeEventListener("pagehide", onPageHide);
     document.removeEventListener("visibilitychange", onVisibilityChange);
     extension.storage.onChanged.removeListener(onSettingsChanged);
+    document.removeEventListener("contextmenu", onContextMenu, true);
+    extension.runtime.onMessage.removeListener(onRuntimeMessage);
+    contextMenuCreator = null;
     restorePage();
   }
 
@@ -286,7 +349,10 @@
   window.addEventListener("pagehide", onPageHide);
   document.addEventListener("visibilitychange", onVisibilityChange);
   extension.storage.onChanged.addListener(onSettingsChanged);
-  extension.storage.local.get(null).then((stored) => {
+  // Capture phase: record the author before page handlers can stop the event.
+  document.addEventListener("contextmenu", onContextMenu, true);
+  extension.runtime.onMessage.addListener(onRuntimeMessage);
+  extension.storage[STORAGE_AREA].get(null).then((stored) => {
     if (stopped) return;
     settings = normalizeSettings({...stored, ...startupChanges});
     whitelist = new Set(settings[SITE + "Whitelist"]);

@@ -24,3 +24,7 @@ details p { font-size: 14px; }
 .minimum-row { display: grid; grid-template-columns: 1fr 160px; gap: 12px; align-items: center; margin-bottom: 8px; }
 .minimum { font-size: 14px; margin-bottom: 0; }
 textarea { display: block; width: 100%; margin-top: 8px; padding: 8px; border: 1px solid #7b8da2; border-radius: 6px; font: 14px/1.4 system-ui, sans-serif; resize: vertical; }
+.transfer { margin-top: 12px; }
+.button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+button.secondary { margin-top: 8px; padding: 8px 12px; background: transparent; color: inherit; border: 1px solid #7b8da2; font-weight: 600; }
+button.secondary:hover { background: #7b8da233; }

@@ -2,7 +2,8 @@
 
 A small extension for **Chrome/Brave and Firefox** that hides X posts and
 YouTube videos below separate configurable view counts. Both default to **1,000**.
-Each site also has a creator whitelist.
+Each site also has a creator whitelist, which you can add to by right-clicking
+a post or video. Settings sync through your Chrome or Firefox account.
 
 It only changes the page in your browser. It never clicks “Not interested,”
 sends feedback, or stores a blacklist of posts or videos. If the site later
@@ -10,10 +11,10 @@ shows an item with enough views, it becomes eligible again.
 
 ## Install
 
-Download version 1.4.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.4.0):
+Download version 1.5.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.5.0):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.4.0/minimum-views-filter-chrome-brave-1.4.0.zip)
-- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.4.0/minimum-views-filter-firefox-1.4.0.zip)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.0/minimum-views-filter-chrome-brave-1.5.0.zip)
+- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.0/minimum-views-filter-firefox-1.5.0.zip)
 
 The repository and downloads are private; sign in with an account that has access.
 Extract your browser ZIP before loading it, or build it from source below.
@@ -36,6 +37,13 @@ from that folder. Minimum Chromium version: 109.
 2. Open `chrome://extensions` or `brave://extensions` and click **Reload** on
    **Minimum Views Filter**. Check that the displayed version matches the download.
 3. Reload X and YouTube tabs, then reopen the popup and save your settings.
+
+**Upgrading from 1.4.0 or earlier resets your settings once.** Version 1.5.0
+stores settings in sync storage and gives the Chromium build a fixed extension ID
+(`lbjagemindgbhajfhagehgodegndnnhi`), so the old saved values are not carried over.
+Before updating, open the popup and write down both minimums and copy both
+whitelists; re-enter them and click **Save** afterwards. If Chrome/Brave shows the
+old and new entries side by side, remove the old one.
 
 **Reloading only the website is insufficient after replacing extension files.**
 Chromium can load the new popup while still injecting cached content scripts.
@@ -98,8 +106,17 @@ its hiding marks from retained cards. Other extensions' hiding rules remain inta
 
 ## Creator whitelists
 
-Open **X account whitelist** or **YouTube channel whitelist** in the popup.
-Enter one creator per line, or separate entries with commas, then click **Save**.
+**Right-click** a post or video on X or YouTube and choose **Always show this
+creator**. The toolbar icon briefly shows ✓ (added or already listed), ? (no creator
+found where you clicked) or ! (whitelist too long to sync, or storage failed).
+Inside a card this is always the card's author, never a mentioned or quoted
+account. Outside cards, right-click a profile or channel link, such as the
+channel name below a YouTube video. It works on every X/YouTube page, not only
+filtered ones. Open X/YouTube tabs from before installation need a reload first.
+
+You can also edit the lists in the popup: open **X account whitelist** or
+**YouTube channel whitelist**, enter one creator per line or separate entries
+with commas, then click **Save**.
 
 - X accepts `@NASA`, `NASA`, or `https://x.com/NASA`.
 - YouTube accepts `@NASA`, `https://www.youtube.com/@NASA`, or a
@@ -114,9 +131,27 @@ Enter one creator per line, or separate entries with commas, then click **Save**
 - If creator metadata is missing or unrecognized, the ordinary view-count rule
   applies. A whitelist never overrides another extension's hiding rules.
 
+Each whitelist must fit one browser sync item (8 KB): at least 450 X handles or
+230 YouTube channel IDs. The popup and right-click menu refuse additions beyond that.
+
 Handles are case-insensitive; YouTube channel IDs retain their exact case.
 [YouTube's handle documentation](https://support.google.com/youtube/answer/11585688?hl=en)
 distinguishes unique handles from display names and documents Unicode handles.
+
+## Sync and copying settings
+
+Settings are saved in the browser's extension **sync storage**:
+
+| Browser | What happens |
+| --- | --- |
+| Chrome | Syncs between computers signed in to the same Google account with extension sync on |
+| Firefox | Syncs through a Firefox account once the add-on is signed and installed on each computer |
+| Brave | Saved on this computer only; Brave Sync does not sync extension data |
+
+To move settings anywhere, including between Brave and Firefox, open **Copy
+settings to another browser** in the popup and click **Copy**. In the other
+browser, paste the text into the same box, click **Load pasted**, check the
+values, and click **Save**.
 
 ## Performance
 
@@ -152,10 +187,13 @@ See [compatibility evidence and references](docs/compatibility.md).
 
 ## Privacy and limitations
 
-- Runtime requests no network resources, records no post/video IDs, and has no
-  analytics or background service worker. Thresholds, whitelists, and switches are stored locally.
-- Only X/Twitter and desktop YouTube domains are permitted, plus local extension
-  storage. It does not access other extensions' settings or private storage.
+- The extension makes no network requests, records no post/video IDs, and has
+  no analytics. Its small background script only handles the right-click menu.
+- Thresholds, whitelists, and switches are in browser sync storage. **With Chrome
+  or Firefox sync on, your browser's vendor stores them in your account**,
+  including which creators you whitelisted. Brave keeps them on this computer.
+- Permissions: X/Twitter and desktop YouTube pages, storage, and the right-click
+  menu. It does not access other extensions' settings or private storage.
 - A local filter cannot stop a site from logging a served card or learning from
   your other activity. “No feedback clicks” does not mean “no algorithm signals.”
 - Counts come from the current page, sometimes rounded. This extension does not

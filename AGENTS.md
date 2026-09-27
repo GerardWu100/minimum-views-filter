@@ -18,7 +18,9 @@ the platform through negative-feedback actions.
   bypasses both the minimum and unknown-count rule, within the allowed pages.
   Match profile handles/links, never ambiguous display names, mentions, or quoted
   authors. Whitelist changes and recycled creator links must apply immediately.
-  Store whitelists locally, never resolve identities through network requests.
+  Store settings in the browser's extension sync storage (the user requested
+  browser-account sync on 2026-09-27); never resolve identities through network
+  requests or add a server. A right-click menu may add the clicked card's author.
 - Missing counts are unknown, not zero. Keep them visible by default; an explicit
   setting can hide unknown-count video/post cards.
 - Read existing DOM text and accessibility labels even when CSS hides them.

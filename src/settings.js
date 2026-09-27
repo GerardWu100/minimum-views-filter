@@ -11,6 +11,20 @@
     hideUnknown: false,
   });
   const MAXIMUM_VIEWS = 1_000_000_000_000;
+  // Browser-account sync storage: Chrome/Firefox copy it between computers;
+  // Brave keeps it on this computer only.
+  const STORAGE_AREA = "sync";
+  // chrome.storage.sync.QUOTA_BYTES_PER_ITEM (Firefox uses the same limit),
+  // measured as UTF-8 bytes of the key plus the JSON-encoded value.
+  const SYNC_ITEM_BYTE_LIMIT = 8192;
+  // Content-script matches, context-menu pages, and host permissions.
+  const SITE_PAGE_PATTERNS = Object.freeze([
+    "https://x.com/*", "https://www.x.com/*",
+    "https://twitter.com/*", "https://www.twitter.com/*",
+    "https://youtube.com/*", "https://www.youtube.com/*",
+  ]);
+  const WHITELIST_CREATOR_MESSAGE = "minimum-views-filter:whitelist-creator";
+  const TRANSFER_FORMAT = "minimum-views-filter-settings";
   const X_RESERVED_PATHS = new Set([
     "home", "explore", "search", "notifications", "messages", "settings",
     "i", "compose", "login", "logout", "signup", "tos", "privacy", "hashtag",
@@ -78,7 +92,7 @@
     return {identifiers: [...identifiers], invalidEntries};
   }
 
-  /** Validate local settings; malformed or missing fields use safe defaults. */
+  /** Validate stored settings; malformed or missing fields use safe defaults. */
   function normalizeSettings(value = {}) {
     const settings = {...DEFAULTS};
     for (const site of ["x", "youtube"]) {
@@ -97,7 +111,57 @@
     return settings;
   }
 
-  const api = {DEFAULTS, MAXIMUM_VIEWS, normalizeAccountIdentifier, parseWhitelistInput, normalizeSettings};
+  /** Return settings keys whose value would exceed the per-item sync quota. */
+  function oversizedSyncKeys(settings) {
+    const encoder = new TextEncoder();
+    return Object.keys(settings).filter((key) => encoder.encode(key + JSON.stringify(settings[key])).length > SYNC_ITEM_BYTE_LIMIT);
+  }
+
+  /** Serialize settings as the text the popup copies between browsers. */
+  function formatSettingsTransfer(settings) {
+    return JSON.stringify({format: TRANSFER_FORMAT, ...normalizeSettings(settings)}, null, 2);
+  }
+
+  /**
+   * Parse pasted transfer text without silently dropping invalid values.
+   *
+   * Parameters
+   * ----------
+   * text : string
+   *     JSON produced by formatSettingsTransfer, possibly from another browser:
+   *     {format, xMinimumViews, youtubeMinimumViews, xWhitelist, youtubeWhitelist,
+   *     xEnabled, youtubeEnabled, hideUnknown}.
+   *
+   * Returns
+   * -------
+   * object | null
+   *     Normalized settings, or null when the format marker or any setting is
+   *     missing or invalid. Whitelist entries may use any accepted spelling.
+   */
+  function parseSettingsTransfer(text) {
+    let value;
+    try {
+      value = JSON.parse(text);
+    } catch {
+      return null;
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value) || value.format !== TRANSFER_FORMAT) return null;
+    const settings = normalizeSettings(value);
+    for (const key of Object.keys(DEFAULTS)) {
+      const raw = value[key];
+      const valid = Array.isArray(settings[key])
+        ? Array.isArray(raw) && raw.every((entry) => normalizeAccountIdentifier(entry, key.replace("Whitelist", "")) !== null)
+        : raw === settings[key];
+      if (!valid) return null;
+    }
+    return settings;
+  }
+
+  const api = {
+    DEFAULTS, MAXIMUM_VIEWS, STORAGE_AREA, SITE_PAGE_PATTERNS, WHITELIST_CREATOR_MESSAGE,
+    normalizeAccountIdentifier, parseWhitelistInput, normalizeSettings,
+    oversizedSyncKeys, formatSettingsTransfer, parseSettingsTransfer,
+  };
   globalThis.MinimumViewsSettings = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

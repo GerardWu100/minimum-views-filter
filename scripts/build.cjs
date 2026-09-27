@@ -4,18 +4,19 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {zipSync} = require("fflate");
 const {PNG} = require("pngjs");
+const {SITE_PAGE_PATTERNS} = require("../src/settings.js");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const OUTPUT_DIRECTORY = path.join(PROJECT_ROOT, "dist");
 const VERSION = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8")).version;
 const ICON_SIZES = [16, 32, 48, 128];
 const ARCHIVE_DATE = new Date("2000-01-01T00:00:00Z");
-const SOURCE_FILES = ["filter-core.js", "settings.js", "content.js", "content.css", "popup.html", "popup.js", "popup.css"];
-const MATCHES = [
-  "https://x.com/*", "https://www.x.com/*",
-  "https://twitter.com/*", "https://www.twitter.com/*",
-  "https://youtube.com/*", "https://www.youtube.com/*",
-];
+const SOURCE_FILES = ["filter-core.js", "settings.js", "content.js", "content.css", "popup.html", "popup.js", "popup.css", "background.js"];
+// Public half of an RSA key; Chromium derives the extension ID from it, so every
+// unpacked copy is ID lbjagemindgbhajfhagehgodegndnnhi wherever its folder lives. Sync storage
+// is keyed by that ID. The private half was discarded: unpacked loading and
+// sync need only the public key, and no .crx is signed.
+const CHROMIUM_PUBLIC_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoM6y+506zg69PYJY+kXjk2b3yzlB1C7ujV4mAxDn/BlTJ27e7oXDnrf1RFVJA2oGVNVklk2sWpH8fI75PEpoANBNRlmHWE+baHuadmK+LUmcorfWU9VnJdaGedJ9GNEJPkmwkAOl0FGL23vlNPo39sdalu7DF2NEg3W+yPk9MczyLPP3fQ//KW/013ge5eyY+yf+cqniYgPYyW/Uo9wIdCOoaAYX/e6q4PXx3LpaHG2xIyGLeCa6NAZSZcfTYw4DmmLBbVGt13CRuXxm1AXxhpXqrzqz8xqPgCf/4ksxzli/3yAkPqnumK2b2iB0dTYRTTOQSOMQ8lNb+FI2a5BLCQIDAQAB";
 
 /** Generate the extension's three-bar filter icon at an exact raster size. */
 function iconPng(size) {
@@ -44,19 +45,22 @@ function build(browser) {
     name: "Minimum Views Filter",
     version: VERSION,
     description: "Hide low-view posts on X Home and videos on YouTube Home/watch recommendations. Local filtering without feedback or blacklists.",
-    permissions: ["storage"],
-    host_permissions: MATCHES,
+    permissions: ["storage", "contextMenus"],
+    host_permissions: [...SITE_PAGE_PATTERNS],
     icons,
     action: {default_title: "Minimum Views Filter", default_popup: "popup.html", default_icon: icons},
-    content_scripts: [{matches: MATCHES, js: ["settings.js", "filter-core.js", "content.js"], css: ["content.css"], run_at: "document_idle"}],
+    content_scripts: [{matches: [...SITE_PAGE_PATTERNS], js: ["settings.js", "filter-core.js", "content.js"], css: ["content.css"], run_at: "document_idle"}],
   };
   if (browser === "firefox") {
+    manifest.background = {scripts: ["settings.js", "background.js"]};
     manifest.browser_specific_settings = {gecko: {
       id: "minimum-views-filter@gerardwu100.local",
       strict_min_version: "142.0",
       data_collection_permissions: {required: ["none"]},
     }};
   } else {
+    manifest.background = {service_worker: "background.js"};
+    manifest.key = CHROMIUM_PUBLIC_KEY;
     manifest.minimum_chrome_version = "109";
   }
   const files = {"manifest.json": Buffer.from(JSON.stringify(manifest, null, 2) + "\n")};

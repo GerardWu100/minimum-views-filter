@@ -14,8 +14,15 @@ to Home works without reloading. Each reconciliation checks the current route
 and removes obsolete hiding marks when navigating to an excluded page.
 
 The Manifest V3 content script loads `settings.js`, `filter-core.js`, and
-`content.js`, plus the single scoped CSS rule. There is no background worker,
-page-world injection, network request, or dependency in the installed package.
+`content.js`, plus the single scoped CSS rule. `background.js` (a Chrome service
+worker, or a Firefox background script after `settings.js`) only owns the
+right-click menu. There is no page-world injection, network request, or
+dependency in the installed package.
+
+`settings.js` is the shared source of settings rules and constants: defaults,
+`STORAGE_AREA` (`sync`), the 8,192-byte per-item sync quota check, site URL
+patterns (also used by the build for manifest matches), the menu message type,
+and the copy/paste transfer format.
 
 `filter-core.js` exposes `MinimumViewsCore` to the isolated extension world and
 CommonJS tests. `getCards` selects outer independent cards. Generic YouTube
@@ -62,9 +69,32 @@ filtering. This timer never fetches counts or scans the DOM. Storage failure and
 unload remove the active flag, restore connected marks, and release listeners.
 
 `popup.js` loads and validates the two thresholds, two whitelists, and three
-boolean switches defined in `settings.js`, then saves to extension local storage.
-Invalid whitelist entries prevent the whole save and focus the affected field. Storage changes update all open supported
-pages. The popup never contacts the platforms.
+boolean switches defined in `settings.js`, then saves to extension sync storage.
+Invalid or over-quota whitelists prevent the whole save and focus the affected
+field. Storage changes update all open supported pages. **Copy** writes the
+validated form as JSON text (clipboard when allowed, selected text otherwise);
+**Load pasted** accepts only complete, valid text from this format and fills the
+form without saving. The popup never contacts the platforms.
+
+## Right-click whitelist and sync
+
+A capture-phase `contextmenu` listener in `content.js` stores only the creator
+identifier under the pointer, never a DOM reference. Inside a card it uses the
+card's single own author (`getCreatorIdentifiers`; ambiguous cards give none);
+outside cards it uses a profile/channel link (`getLinkCreatorIdentifier`). The
+menu click asks that frame's content script, which consumes the stored value
+once, appends it to the site's synced whitelist unless present or over quota,
+and replies. The background shows ✓, ? or ! on that tab's toolbar badge for 4 s.
+This works on every X/YouTube page because the content script matches the whole
+site; the storage change then rescans filtered pages.
+
+Chrome syncs `storage.sync` per extension ID. Unpacked IDs normally derive from
+the folder path, so the build adds a public `key` for the fixed ID
+`lbjagemindgbhajfhagehgodegndnnhi`. The private key was discarded; it is only needed to sign a
+.crx. Firefox already has a fixed gecko ID. Brave Sync does not sync extension
+storage ([brave-browser#4094](https://github.com/brave/brave-browser/issues/4094)),
+hence the copy/paste transfer. The move from `storage.local` plus the new ID
+resets settings once for 1.4.0 users; no migration code exists by design.
 
 ## Build and verify
 
@@ -75,7 +105,12 @@ ID; its minimum version is 142. Signing is an external distribution step.
 
 Validation on 2026-09-27:
 
-- 91 tests passed: 29 parser/adapter, 56 runtime/popup, and 6 settings tests.
+- 105 tests passed: 29 parser/adapter, 64 runtime/popup, 8 settings, and 4
+  background tests. Menu tests cover card authors versus mentions, two posts in
+  one X cell, links outside
+  cards, excluded pages, missing/one-shot right-click state, duplicate and
+  over-quota additions, frames without a content script, and badge restoration.
+  Transfer tests cover round trips, alternate spellings, and rejected text.
 - Threshold tests cover site independence, defaults, invalid values, and zero.
   Whitelist tests cover known/unknown counts, editing/removal, changing creators,
   foreign hiding rules, quoted/mentioned X accounts, modern/classic YouTube
@@ -90,7 +125,10 @@ Validation on 2026-09-27:
 - Browser and Chrome API namespace mocks both passed. Tests run actual scripts
   in jsdom and cover storage-startup races, changing/recycled/new cards,
   navigation, threshold/settings changes, missing metadata, and foreign styles.
-- `npm run build` produced both 12-file packages.
+- `npm run build` produced both 13-file packages.
+- `npm run benchmark` against v1.4.0: every operation count unchanged.
+- The right-click menu, badge, and real sync were **not** exercised in an
+  installed browser; they rely on documented Chrome/Firefox APIs and mocks.
 - Firefox `web-ext lint --warnings-as-errors`: 0 errors, 0 notices, 0 warnings.
 - The initial build was checked in Brave using `tests/browser-fixture.html` and synthetic
   DOM: low cards hidden even with hidden counters, 1,000 kept, unknown kept,
@@ -130,7 +168,7 @@ version can miss duplicate IDs with optimized compound ID selectors.
 The local checkout lives under `one-time-projects/minimum-views-filter` in the
 existing projects root. Relative build and test paths keep relocation safe.
 
-GitHub release `v1.4.0` distributes the browser ZIPs, a source ZIP, installation
+GitHub release `v1.5.0` distributes the browser ZIPs, a source ZIP, installation
 instructions, and SHA-256 checksums. Runtime artifacts are generated from the
 tagged source and remain ignored by Git. The private repository requires an
 authorized signed-in account to download release assets. Publishing a GitHub
@@ -179,9 +217,16 @@ was closed; no installed extension or other extension setting was changed.
 
 ## Open issues and verification limits
 
+- **Right-click menu and sync need an installed-browser check.** Unit tests
+  mock the APIs. Next step: in Brave/Chrome, reload the extension, right-click a
+  visible X post and a YouTube channel link, and confirm the ✓ badge and popup
+  list; with Chrome sync on, confirm a second computer receives the settings.
+  Firefox event-page menus are recreated on install and startup; confirm the
+  item still appears after a Firefox restart once a signed build exists.
+
 - **Permanent Firefox installation remains unsigned.** Code, package, and lint
   are complete. No Mozilla account/signing workflow was used. Next step: submit
-  `dist/minimum-views-filter-firefox-1.4.0.zip` for unlisted signing, then test
+  `dist/minimum-views-filter-firefox-1.5.0.zip` for unlisted signing, then test
   the returned XPI in release Firefox. Do not weaken signature settings.
 - **Full live-feed coexistence remains a manual installation check.** No browser
   settings or other extension settings were changed. The page DOM observations

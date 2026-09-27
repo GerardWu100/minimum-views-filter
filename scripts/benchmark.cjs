@@ -136,14 +136,20 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
     observe(...args) { super.observe(...args); observers.add(this); }
     disconnect() { super.disconnect(); observers.delete(this); }
   };
-  window.browser = {storage: {
-    local: {get: () => ({then(callback) {
-      // Measure the real startup scan inside the production storage continuation.
-      return Promise.resolve({[site + 'Whitelist']: [site === 'x' ? 'exempt' : '@exempt']})
-        .then((stored) => timed(callback, undefined, [stored]));
-    }})},
-    onChanged: {addListener: (callback) => storageListeners.add(callback), removeListener: (callback) => storageListeners.delete(callback)},
-  }};
+  const settingsArea = {get: () => ({then(callback) {
+    // Measure the real startup scan inside the production storage continuation.
+    return Promise.resolve({[site + 'Whitelist']: [site === 'x' ? 'exempt' : '@exempt']})
+      .then((stored) => timed(callback, undefined, [stored]));
+  }})};
+  // Baselines up to v1.4.0 read storage.local; later versions read storage.sync.
+  window.browser = {
+    storage: {
+      local: settingsArea,
+      sync: settingsArea,
+      onChanged: {addListener: (callback) => storageListeners.add(callback), removeListener: (callback) => storageListeners.delete(callback)},
+    },
+    runtime: {onMessage: {addListener() {}, removeListener() {}}},
+  };
 
   async function flush() {
     let idleRounds = 0;
@@ -181,7 +187,10 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
   }
   function changeSettings(values) {
     const changes = Object.fromEntries(Object.entries(values).map(([key, newValue]) => [key, {newValue}]));
-    for (const listener of storageListeners) timed(listener, undefined, [changes, 'local']);
+    // Each runtime version ignores the other area, so every version reacts once.
+    for (const area of ['local', 'sync']) {
+      for (const listener of storageListeners) timed(listener, undefined, [changes, area]);
+    }
   }
   function dispatch(target, event) { timed(target.dispatchEvent, target, [event]); }
   async function noise(enabled = true) {

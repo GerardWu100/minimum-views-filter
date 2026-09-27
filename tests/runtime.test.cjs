@@ -12,30 +12,53 @@ const wait = (milliseconds = 130) => new Promise((resolve) => setTimeout(resolve
 const xCard = (id, views, author = 'author') => `<div data-testid="cellInnerDiv" id="cell-${id}"><article data-testid="tweet" id="post-${id}"><a href="/${author}/status/${id}"><time>Now</time></a><div data-testid="tweetText">An ordinary post</div>${views === null ? '' : `<a href="/${author}/status/${id}/analytics" aria-label="${views} views">${views}</a>`}</article></div>`;
 const youtubeCard = (id, views, creator = '@author') => `<ytd-rich-item-renderer id="video-${id}"><ytd-rich-grid-media><a id="video-title" href="/watch?v=${id}">Video ${id}</a><ytd-channel-name><a href="/${creator}">Creator</a></ytd-channel-name><div id="metadata-line">${views === null ? '' : `<span>${views} views</span>`}<span>1 hour ago</span></div></ytd-rich-grid-media></ytd-rich-item-renderer>`;
 
+/** Browser API mock: sync storage (writes notify listeners) and runtime messages. */
 function createStorage({stored = {}, get, set} = {}) {
   const listeners = new Set();
+  const messageListeners = new Set();
   const writes = [];
-  return {
+  const mock = {
     writes,
     listeners,
-    api: {storage: {
-      local: {
-        get: get || (async () => stored),
-        set: async (settings) => {
-          writes.push(JSON.parse(JSON.stringify(settings)));
-          if (set) await set(settings);
+    messageListeners,
+    api: {
+      storage: {
+        sync: {
+          get: get || (async () => stored),
+          set: async (settings) => {
+            writes.push(JSON.parse(JSON.stringify(settings)));
+            if (set) await set(settings);
+            Object.assign(stored, settings);
+            mock.change(settings);
+          },
+        },
+        onChanged: {
+          addListener: (listener) => listeners.add(listener),
+          removeListener: (listener) => listeners.delete(listener),
         },
       },
-      onChanged: {
-        addListener: (listener) => listeners.add(listener),
-        removeListener: (listener) => listeners.delete(listener),
-      },
-    }},
-    change(values, area = 'local') {
+      runtime: {onMessage: {
+        addListener: (listener) => messageListeners.add(listener),
+        removeListener: (listener) => messageListeners.delete(listener),
+      }},
+    },
+    change(values, area = 'sync') {
       const changes = Object.fromEntries(Object.entries(values).map(([key, newValue]) => [key, {newValue}]));
       for (const listener of listeners) listener(changes, area);
     },
+    /** Resolve with the value passed to sendResponse, or undefined if none is kept. */
+    sendMessage(message) {
+      return new Promise((resolve) => {
+        let responded = false;
+        let keepsChannel = false;
+        // Browsers serialize responses; this also drops the page realm's prototypes.
+        const sendResponse = (response) => { responded = true; resolve(response === undefined ? undefined : JSON.parse(JSON.stringify(response))); };
+        for (const listener of messageListeners) keepsChannel = listener(message, {}, sendResponse) === true || keepsChannel;
+        if (!keepsChannel && !responded) resolve(undefined);
+      });
+    },
   };
+  return mock;
 }
 
 function openContent(t, {html, url = 'https://x.com/home', namespace = 'browser', visibilityState = 'visible', ...storageOptions}) {
@@ -149,7 +172,7 @@ test('settings changes apply threshold, site enablement, and unknown-count polic
   await wait();
   assertVisible(window, '#cell-1', true);
   assertVisible(window, '#cell-3', false);
-  storage.change({xEnabled: false}, 'sync');
+  storage.change({xEnabled: false}, 'local');
   await wait();
   assertVisible(window, '#cell-3', false);
 });
@@ -166,6 +189,7 @@ test('YouTube respects its own enable toggle independently of X', async (t) => {
 test('storage read failure leaves the page usable and releases listeners', async (t) => {
   const {window, storage} = openContent(t, {html: xCard(1, '20'), get: async () => {throw new Error('Storage unavailable');}});
   await wait();
+  assert.equal(storage.messageListeners.size, 0);
   assertVisible(window, '#cell-1', true);
   assert.equal(storage.listeners.size, 0);
 });
@@ -725,3 +749,123 @@ for (const pathname of ['/', '/watch?v=playing']) {
     assertVisible(window, '#compact-video', true);
   });
 }
+
+const WHITELIST_MESSAGE = {type: 'minimum-views-filter:whitelist-creator'};
+const rightClick = (window, element) => element.dispatchEvent(new window.MouseEvent('contextmenu', {bubbles: true, cancelable: true}));
+
+test('context menu whitelists the X card author, not a mentioned account, and reveals their posts', async (t) => {
+  const {window, document, storage} = openContent(t, {html: xCard(1, '800', 'writer') + xCard(2, '300', 'writer') + xCard(3, '300', 'other')});
+  document.querySelector('#post-1 [data-testid="tweetText"]').insertAdjacentHTML('beforeend', ' <a id="mention" href="/mentioned">@mentioned</a>');
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  rightClick(window, document.querySelector('#mention'));
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'added', identifier: 'writer'});
+  assert.deepEqual(storage.writes, [{xWhitelist: ['writer']}]);
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  assertVisible(window, '#cell-2', true);
+  assertVisible(window, '#cell-3', false);
+  rightClick(window, document.querySelector('#post-2 time'));
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'present', identifier: 'writer'});
+  assert.equal(storage.writes.length, 1);
+});
+
+test('context menu uses the right-clicked post when one X cell holds two posts', async (t) => {
+  const html = '<div data-testid="cellInnerDiv" id="thread">' + xCard(1, '800', 'first').replace(/^<div[^>]*>|<\/div>$/g, '') + xCard(2, '800', 'second').replace(/^<div[^>]*>|<\/div>$/g, '') + '</div>';
+  const {window, document, storage} = openContent(t, {html});
+  await wait();
+  rightClick(window, document.querySelector('#post-2 [data-testid="tweetText"]'));
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'added', identifier: 'second'});
+});
+
+test('context menu reports missing creators and never reuses an earlier right-click', async (t) => {
+  const {window, document, storage} = openContent(t, {html: '<aside id="sidebar">Trends</aside>' + xCard(1, '800', 'writer')});
+  await wait();
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'missing'});
+  rightClick(window, document.querySelector('#sidebar'));
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'missing'});
+  rightClick(window, document.querySelector('#post-1'));
+  assert.equal((await storage.sendMessage(WHITELIST_MESSAGE)).result, 'added');
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'missing'});
+  assert.equal(await storage.sendMessage({type: 'unrelated'}), undefined);
+  assert.equal(storage.writes.length, 1);
+});
+
+test('context menu uses a YouTube channel link outside cards, including on excluded pages', async (t) => {
+  const html = '<div id="owner"><a href="/@Owner">Owner</a><a id="video-link" href="/watch?v=abc">Video</a></div>' + youtubeCard(1, '500', '@Owner');
+  const {window, document, storage} = openContent(t, {url: 'https://www.youtube.com/watch?v=abc', html, stored: {youtubeWhitelist: ['@kept']}});
+  await wait();
+  assertVisible(window, '#video-1', false);
+  rightClick(window, document.querySelector('#video-link'));
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'missing'});
+  rightClick(window, document.querySelector('#owner a'));
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'added', identifier: '@owner'});
+  assert.deepEqual(storage.writes, [{youtubeWhitelist: ['@kept', '@owner']}]);
+  await wait();
+  assertVisible(window, '#video-1', true);
+  window.history.pushState({}, '', '/results?search_query=example');
+  rightClick(window, document.querySelector('#video-1 a#video-title'));
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'present', identifier: '@owner'});
+});
+
+test('context menu refuses to grow a whitelist past the sync item quota', async (t) => {
+  const {oversizedSyncKeys} = require('../src/settings.js');
+  const handles = [];
+  // Fill to the largest list that fits one sync item; fillers match 'writer' in length.
+  const filler = () => 'w' + String(handles.length).padStart(5, '0');
+  while (!oversizedSyncKeys({xWhitelist: [...handles, filler()]}).length) handles.push(filler());
+  const {window, document, storage} = openContent(t, {html: xCard(1, '800', 'writer'), stored: {xWhitelist: handles}});
+  await wait();
+  rightClick(window, document.querySelector('#post-1'));
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'full', identifier: 'writer'});
+  assert.equal(storage.writes.length, 0);
+});
+
+test('popup copies settings as text and loads pasted text for review before saving', async (t) => {
+  const stored = {xMinimumViews: 10000, youtubeMinimumViews: 1500, xWhitelist: ['nasa'], youtubeWhitelist: ['@science'], xEnabled: true, youtubeEnabled: false, hideUnknown: true};
+  const {window, document, storage, submit} = openPopup(t, {stored: {...stored}});
+  await wait(0);
+  document.querySelector('#copy-settings').click();
+  await wait(0);
+  const copied = document.querySelector('#transfer-text').value;
+  assert.deepEqual(JSON.parse(copied), {format: 'minimum-views-filter-settings', ...stored});
+  assert.match(document.querySelector('#status').textContent, /Cop/);
+  document.querySelector('#x-minimum-views').value = '5';
+  document.querySelector('#x-whitelist').value = '';
+  document.querySelector('#transfer-text').value = copied.replace('"nasa"', '"@SpaceX"');
+  document.querySelector('#load-settings').click();
+  assert.equal(document.querySelector('#x-minimum-views').value, '10000');
+  assert.equal(document.querySelector('#x-whitelist').value, '@spacex');
+  assert.equal(document.querySelector('#youtube-enabled').checked, false);
+  assert.match(document.querySelector('#status').textContent, /Click Save/);
+  assert.equal(storage.writes.length, 0);
+  submit();
+  await wait(0);
+  assert.deepEqual(storage.writes, [{...stored, xWhitelist: ['spacex']}]);
+  assert.ok(window);
+});
+
+test('popup rejects incomplete or invalid pasted settings without changing the form', async (t) => {
+  const {document, storage} = openPopup(t, {stored: {xMinimumViews: 2500}});
+  await wait(0);
+  const valid = JSON.parse(require('../src/settings.js').formatSettingsTransfer({}));
+  for (const text of ['', 'not json', '[]', JSON.stringify({...valid, format: 'other'}), JSON.stringify({...valid, xMinimumViews: -1}),
+    JSON.stringify({...valid, xWhitelist: ['Display Name']}), JSON.stringify({...valid, hideUnknown: 'yes'}), JSON.stringify({format: valid.format})]) {
+    document.querySelector('#transfer-text').value = text;
+    document.querySelector('#load-settings').click();
+    assert.match(document.querySelector('#status').textContent, /Paste the complete text/, text);
+    assert.equal(document.querySelector('#x-minimum-views').value, '2500');
+  }
+  assert.equal(storage.writes.length, 0);
+});
+
+test('popup blocks a whitelist too long to sync', async (t) => {
+  const {document, storage, submit} = openPopup(t);
+  await wait(0);
+  document.querySelector('#youtube-whitelist').value = Array.from({length: 600}, (_, index) => '@creator-handle-' + index).join('\n');
+  submit();
+  await wait(0);
+  assert.match(document.querySelector('#status').textContent, /YouTube whitelist is too long to sync/);
+  assert.equal(document.activeElement, document.querySelector('#youtube-whitelist'));
+  assert.equal(storage.writes.length, 0);
+});

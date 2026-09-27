@@ -37,12 +37,22 @@
           </section>
           <label class="toggle"><span>Hide unknown view counts</span><input id="hide-unknown" type="checkbox"></label>
           <button type="submit">Save</button>
+          <details class="transfer">
+            <summary>Copy settings to another browser</summary>
+            <textarea id="transfer-text" aria-label="Settings text" rows="4" spellcheck="false"></textarea>
+            <div class="button-row">
+              <button id="copy-settings" type="button" class="secondary">Copy</button>
+              <button id="load-settings" type="button" class="secondary">Load pasted</button>
+            </div>
+          </details>
         </fieldset>
       </form>
       <p id="status" role="status" aria-live="polite"></p>
       <details>
         <summary>How it works</summary>
         <p>Filters X Home, YouTube Home, and recommendations beside or below a video you are watching. Search and other pages stay unfiltered.</p>
+        <p>Right-click a post or video and choose “Always show this creator” to add its author to the whitelist.</p>
+        <p>Settings sync through your Chrome or Firefox account. Brave does not sync extension settings; use “Copy settings to another browser”.</p>
         <p>Each site has its own minimum and whitelist. Enter one account per line or separate them with commas. Matching creators bypass this filter even when their view count is unknown.</p>
         <p>YouTube accepts @handles and /channel/ID URLs. Use the channel link shown on the video card; different links for the same channel are not resolved online. Display names are not matched.</p>
         <p>Cards become eligible again when the site shows a view count at or above that site's minimum. Other extensions' hiding rules stay in effect.</p>

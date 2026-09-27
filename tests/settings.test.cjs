@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const {normalizeSettings, normalizeAccountIdentifier, parseWhitelistInput} = require('../src/settings.js');
+const {normalizeSettings, normalizeAccountIdentifier, parseWhitelistInput, formatSettingsTransfer, parseSettingsTransfer, oversizedSyncKeys} = require('../src/settings.js');
 
 test('thresholds default and validate independently without altering valid zero or high values', () => {
   assert.equal(normalizeSettings().xMinimumViews, 1000);
@@ -63,4 +63,28 @@ test('malformed stored whitelists are isolated and callers cannot mutate shared 
   assert.deepEqual(normalizeSettings({xWhitelist: '@nasa'}).xWhitelist, []);
   settings.xWhitelist.push('other');
   assert.deepEqual(normalizeSettings().xWhitelist, []);
+});
+
+test('transfer text round-trips and rejects anything incomplete or invalid', () => {
+  const settings = {xMinimumViews: 10000, youtubeMinimumViews: 0, xWhitelist: ['nasa'], youtubeWhitelist: ['@science', 'channel/UCExample'], xEnabled: false, youtubeEnabled: true, hideUnknown: true};
+  const text = formatSettingsTransfer(settings);
+  assert.deepEqual(parseSettingsTransfer(text), settings);
+  const value = JSON.parse(text);
+  assert.deepEqual(parseSettingsTransfer(JSON.stringify({...value, xWhitelist: ['@NASA', 'https://x.com/nasa']})).xWhitelist, ['nasa']);
+  for (const invalid of [
+    {...value, format: undefined}, {...value, xMinimumViews: 1.5}, {...value, youtubeMinimumViews: '1000'},
+    {...value, xWhitelist: 'nasa'}, {...value, youtubeWhitelist: ['Science Channel']}, {...value, xEnabled: 1},
+    Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'hideUnknown')),
+  ]) assert.equal(parseSettingsTransfer(JSON.stringify(invalid)), null);
+  for (const invalid of ['', '{', 'null', '[]', '"text"']) assert.equal(parseSettingsTransfer(invalid), null);
+});
+
+test('sync quota check measures UTF-8 key and JSON value bytes', () => {
+  // 8192 bytes = key + JSON array; '[""]' adds 4 bytes around the entry.
+  const fits = 'a'.repeat(8192 - 'xWhitelist'.length - 4);
+  assert.deepEqual(oversizedSyncKeys({xWhitelist: [fits]}), []);
+  assert.deepEqual(oversizedSyncKeys({xWhitelist: [fits + 'a']}), ['xWhitelist']);
+  // Two-byte characters count twice.
+  assert.deepEqual(oversizedSyncKeys({youtubeWhitelist: ['é'.repeat(4100)]}), ['youtubeWhitelist']);
+  assert.deepEqual(oversizedSyncKeys({xMinimumViews: 1000, hideUnknown: false}), []);
 });

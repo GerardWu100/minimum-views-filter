@@ -331,6 +331,19 @@
   }
 
   /**
+   * Read the creator a profile or channel link points to.
+   *
+   * @param {Element} link Anchor the user chose outside any recognized card,
+   *   such as the channel link below a YouTube player.
+   * @param {'x'|'youtube'} site Adapter name.
+   * @returns {string|null} Normalized identifier for a profile/channel link, or
+   *   null for posts, videos, other hosts, and unsupported paths.
+   */
+  function getLinkCreatorIdentifier(link, site) {
+    return link?.getAttribute ? creatorIdentifierFromLink(link, site) : null;
+  }
+
+  /**
    * Select a safe outer wrapper whose removal will not hide another tweet.
    *
    * @param {Element} card One card returned by getCards.
@@ -346,7 +359,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getCreatorIdentifiers, getHideTarget };
+  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);

@@ -2,7 +2,11 @@
   "use strict";
 
   const extension = globalThis.browser || globalThis.chrome;
-  const {normalizeSettings, parseWhitelistInput, MAXIMUM_VIEWS} = globalThis.MinimumViewsSettings;
+  const {
+    normalizeSettings, parseWhitelistInput, oversizedSyncKeys,
+    formatSettingsTransfer, parseSettingsTransfer, MAXIMUM_VIEWS, STORAGE_AREA,
+  } = globalThis.MinimumViewsSettings;
+  const storage = extension.storage[STORAGE_AREA];
   const form = document.getElementById("settings-form");
   const controls = document.getElementById("controls");
   const siteFields = ["x", "youtube"].map((site) => ({
@@ -13,16 +17,52 @@
     enabled: document.getElementById(site + "-enabled"),
   }));
   const hideUnknown = document.getElementById("hide-unknown");
+  const transferText = document.getElementById("transfer-text");
   const status = document.getElementById("status");
 
-  extension.storage.local.get(null).then((stored) => {
-    const settings = normalizeSettings(stored);
+  function showSettings(settings) {
     for (const {site, minimum, whitelist, enabled} of siteFields) {
       minimum.value = settings[site + "MinimumViews"];
       whitelist.value = settings[site + "Whitelist"].map((identifier) => site === "x" ? "@" + identifier : identifier).join("\n");
       enabled.checked = settings[site + "Enabled"];
     }
     hideUnknown.checked = settings.hideUnknown;
+  }
+
+  function reportWhitelistProblem(whitelist, message) {
+    status.textContent = message;
+    whitelist.closest("details").open = true;
+    whitelist.focus();
+  }
+
+  /** Validate every control; report the first problem and return null, else settings. */
+  function readForm() {
+    const settings = {hideUnknown: hideUnknown.checked};
+    for (const {site, name, minimum, whitelist, enabled} of siteFields) {
+      const value = Number(minimum.value);
+      if (minimum.value.trim() === "" || !Number.isSafeInteger(value) || value < 0 || value > MAXIMUM_VIEWS) {
+        status.textContent = name + ": enter a whole number from 0 to 1,000,000,000,000.";
+        minimum.focus();
+        return null;
+      }
+      const parsed = parseWhitelistInput(whitelist.value, site);
+      if (parsed.invalidEntries.length) {
+        reportWhitelistProblem(whitelist, name + ": use " + (site === "x" ? "@handles or X profile URLs" : "@handles or YouTube channel URLs") + ", one per line or separated by commas.");
+        return null;
+      }
+      settings[site + "MinimumViews"] = value;
+      settings[site + "Whitelist"] = parsed.identifiers;
+      settings[site + "Enabled"] = enabled.checked;
+      if (oversizedSyncKeys({[site + "Whitelist"]: parsed.identifiers}).length) {
+        reportWhitelistProblem(whitelist, name + " whitelist is too long to sync. Remove some entries.");
+        return null;
+      }
+    }
+    return settings;
+  }
+
+  storage.get(null).then((stored) => {
+    showSettings(normalizeSettings(stored));
     controls.disabled = false;
   }).catch(() => {
     status.textContent = "Could not load settings. Reopen the extension.";
@@ -30,33 +70,40 @@
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const settings = {hideUnknown: hideUnknown.checked};
-    for (const {site, name, minimum, whitelist, enabled} of siteFields) {
-      const value = Number(minimum.value);
-      if (minimum.value.trim() === "" || !Number.isSafeInteger(value) || value < 0 || value > MAXIMUM_VIEWS) {
-        status.textContent = name + ": enter a whole number from 0 to 1,000,000,000,000.";
-        minimum.focus();
-        return;
-      }
-      const parsed = parseWhitelistInput(whitelist.value, site);
-      if (parsed.invalidEntries.length) {
-        status.textContent = name + ": use " + (site === "x" ? "@handles or X profile URLs" : "@handles or YouTube channel URLs") + ", one per line or separated by commas.";
-        whitelist.closest("details").open = true;
-        whitelist.focus();
-        return;
-      }
-      settings[site + "MinimumViews"] = value;
-      settings[site + "Whitelist"] = parsed.identifiers;
-      settings[site + "Enabled"] = enabled.checked;
-    }
+    const settings = readForm();
+    if (!settings) return;
     controls.disabled = true;
     try {
-      await extension.storage.local.set(settings);
+      await storage.set(settings);
       status.textContent = "Saved. Open feeds update automatically.";
     } catch {
       status.textContent = "Could not save. Please try again.";
     } finally {
       controls.disabled = false;
     }
+  });
+
+  document.getElementById("copy-settings").addEventListener("click", async () => {
+    const settings = readForm();
+    if (!settings) return;
+    transferText.value = formatSettingsTransfer(settings);
+    transferText.select();
+    try {
+      await navigator.clipboard.writeText(transferText.value);
+      status.textContent = "Copied. Paste it into the popup in the other browser.";
+    } catch {
+      status.textContent = "Selected. Copy the text, then paste it in the other browser.";
+    }
+  });
+
+  document.getElementById("load-settings").addEventListener("click", () => {
+    const settings = parseSettingsTransfer(transferText.value);
+    if (!settings) {
+      status.textContent = "Paste the complete text copied from this extension.";
+      transferText.focus();
+      return;
+    }
+    showSettings(settings);
+    status.textContent = "Loaded. Click Save to apply.";
   });
 })();
