@@ -130,7 +130,7 @@ version can miss duplicate IDs with optimized compound ID selectors.
 The local checkout lives under `one-time-projects/minimum-views-filter` in the
 existing projects root. Relative build and test paths keep relocation safe.
 
-GitHub release `v1.0.4` distributes the browser ZIPs, a source ZIP, installation
+GitHub release `v1.4.0` distributes the browser ZIPs, a source ZIP, installation
 instructions, and SHA-256 checksums. Runtime artifacts are generated from the
 tagged source and remain ignored by Git. The private repository requires an
 authorized signed-in account to download release assets. Publishing a GitHub
@@ -181,7 +181,7 @@ was closed; no installed extension or other extension setting was changed.
 
 - **Permanent Firefox installation remains unsigned.** Code, package, and lint
   are complete. No Mozilla account/signing workflow was used. Next step: submit
-  `dist/minimum-views-filter-firefox-1.0.4.zip` for unlisted signing, then test
+  `dist/minimum-views-filter-firefox-1.4.0.zip` for unlisted signing, then test
   the returned XPI in release Firefox. Do not weaken signature settings.
 - **Full live-feed coexistence remains a manual installation check.** No browser
   settings or other extension settings were changed. The page DOM observations

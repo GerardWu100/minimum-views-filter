@@ -10,7 +10,7 @@
   },
   "sources": {
     "baseline": "v1.0.3 runtime, commit 2e9c83c4404d09eaa692de16775a8ec8d41318cd",
-    "current": "v1.0.4"
+    "current": "v1.4.0"
   },
   "timingScope": "Synchronous production callback work in jsdom; excludes throttle waits, fixture writes, setup, and assertions. Not browser CPU, memory, or speed. Timing is noisy; operation counts are deterministic.",
   "correctness": "All expected hidden marks checked after every mutation batch and scenario.",

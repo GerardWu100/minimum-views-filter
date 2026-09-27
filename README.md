@@ -10,10 +10,10 @@ shows an item with enough views, it becomes eligible again.
 
 ## Install
 
-Download version 1.0.4 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.0.4):
+Download version 1.4.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.4.0):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.4/minimum-views-filter-chrome-brave-1.0.4.zip)
-- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.0.4/minimum-views-filter-firefox-1.0.4.zip)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.4.0/minimum-views-filter-chrome-brave-1.4.0.zip)
+- [Firefox ZIP — unsigned](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.4.0/minimum-views-filter-firefox-1.4.0.zip)
 
 The repository and downloads are private; sign in with an account that has access.
 Extract your browser ZIP before loading it, or build it from source below.

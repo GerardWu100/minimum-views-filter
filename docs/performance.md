@@ -1,7 +1,7 @@
 # Performance measurements
 
 Measured 2026-09-27 with Node.js v22.17.0 and jsdom 29.1.1.
-Baseline: v1.0.3 runtime at commit 2e9c83c4. Updated: v1.0.4.
+Baseline: v1.0.3 runtime at commit 2e9c83c4. Updated: v1.4.0.
 [Full measured results](performance-results.json) include illustrative callback timings.
 The v1.0.2 → v1.0.3 change had already removed whole-document scans from these
 mutation scenarios (for example, one changed card: 4,000 count reads → 20).
