@@ -123,21 +123,18 @@ Home page hid 729 views and kept 1,117 views from the same account. Its analytic
 labels were readable; the same-author contrast ruled out a whitelist exemption
 for that pair. Reloading X alone did not resolve the mismatch. A local run of the
 production scripts with a synthetic 2,300-view card hid it at a stored 10,000 and
-kept it at 1,000. These findings support a cached-script/settings mismatch; they
-do not establish the installed extension version or confirm an extension reload.
+kept it at 1,000. The user then confirmed version 1.0.2 and reported that reloading
+the extension followed by X resolved the issue. A fresh live DOM check verified
+7,741, 3,640, 1,820, and 789 views hidden, with 17,466 and higher counts kept.
+The stale unpacked-extension script issue is resolved; no parser change was needed.
 
 Browser automation was blocked from opening Brave's extension-management page.
 Do not bypass that policy via another URL, browser surface, raw protocol command,
-or browser profile files. Ask the user to reload the extension and report its
-version, then verify Home-page count/hiding markers again.
+or browser profile files. For this report, the user performed the extension reload;
+the agent verified Home-page count/hiding markers afterwards.
 
 ## Open issues and verification limits
 
-- **Reported 10,000-view setting still needs an installed-extension reload check.**
-  The live page behaves like a 1,000 minimum despite user-reported Save success.
-  Current scripts handle the reported count correctly in the local reproduction.
-  See the diagnosis above. Awaiting the user's extension version/reload result;
-  after that, inspect live count/hiding markers before calling this resolved.
 
 - **Permanent Firefox installation remains unsigned.** Code, package, and lint
   are complete. No Mozilla account/signing workflow was used. Next step: submit
