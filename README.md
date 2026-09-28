@@ -23,10 +23,14 @@ that it showed it to you.
 
 ## Install
 
-Download version 1.5.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.5.0):
+Download version 1.5.1 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.5.1):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.0/minimum-views-filter-chrome-brave-1.5.0.zip)
-- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.0/minimum-views-filter-firefox-1.5.0.xpi)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.1/minimum-views-filter-chrome-brave-1.5.1.zip)
+- [Firefox XPI 1.5.0 — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.0/minimum-views-filter-firefox-1.5.0.xpi)
+
+Firefox 1.5.1 is awaiting Mozilla signing. Until its signed XPI is attached to
+the 1.5.1 release, Firefox users should keep the signed 1.5.0 XPI; the release's
+Firefox ZIP is unsigned and only loads temporarily.
 
 Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 
@@ -49,7 +53,7 @@ from that folder. Minimum Chromium version: 109.
    **Minimum Views Filter**. Check that the displayed version matches the download.
 3. Reload X and YouTube tabs, then reopen the popup and save your settings.
 
-**Upgrading from 1.4.0 or earlier resets your settings once.** Version 1.5.0
+**Upgrading from 1.4.0 or earlier resets your settings once.** Version 1.5.0 and later
 stores settings in sync storage and gives the Chromium build a fixed extension ID
 (`lbjagemindgbhajfhagehgodegndnnhi`), so the old saved values are not carried over.
 Before updating, open the popup and write down both minimums and copy both

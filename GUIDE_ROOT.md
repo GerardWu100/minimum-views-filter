@@ -189,7 +189,10 @@ The local checkout lives under `one-time-projects/minimum-views-filter` in the
 existing projects root. Relative build and test paths keep relocation safe.
 
 GitHub release `v1.5.0` distributes the browser ZIPs, the Mozilla-signed Firefox
-XPI, a source ZIP, installation instructions, and SHA-256 checksums. Runtime
+XPI, a source ZIP, installation instructions, and SHA-256 checksums. Release
+`v1.5.1` (hot-path performance and count-parsing fixes) has the same assets
+except the signed XPI, which awaits the user's Mozilla submission; until then
+the README directs Firefox users to the signed 1.5.0 XPI. Runtime
 artifacts are generated from the tagged source and remain ignored by Git. The
 repository is public under the MIT License, so release assets download without
 signing in. Mozilla signing was completed separately on 2026-09-27 through the
