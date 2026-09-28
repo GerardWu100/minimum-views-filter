@@ -70,8 +70,8 @@ function openContent(t, {html, url = 'https://x.com/home', namespace = 'browser'
   dom.window[namespace] = storage.api;
   Object.defineProperty(dom.window.document, 'visibilityState', {value: visibilityState, configurable: true});
   for (const file of ['settings.js', 'filter-core.js']) dom.window.eval(source(file));
-  const work = {getCards: 0, getViewCount: 0, getCreatorIdentifiers: 0, documentScans: 0};
-  for (const name of ['getCards', 'getViewCount', 'getCreatorIdentifiers']) {
+  const work = {getCards: 0, getViewCount: 0, getCreatorIdentifiers: 0, getXEngagement: 0, documentScans: 0};
+  for (const name of ['getCards', 'getViewCount', 'getCreatorIdentifiers', 'getXEngagement']) {
     const original = dom.window.MinimumViewsCore[name];
     dom.window.MinimumViewsCore[name] = (...args) => {
       work[name]++;
@@ -877,6 +877,29 @@ const xEngagementCard = (id, views, likes, bookmarks = null) => xCard(id, views)
 const recordedItems = (storage) => storage.recordedMessages.flatMap((message) => message.items);
 const historyItems = (storage) => recordedItems(storage).filter((item) => item.outcome === 'hidden');
 const keptItems = (storage) => recordedItems(storage).filter((item) => item.outcome === 'kept');
+
+for (const lowRule of [{xLowLikeRatioEnabled: false}, {xMinimumLikePercent: 0}]) {
+  test('X skips irrelevant engagement reads but still rescues low-view cards: ' + JSON.stringify(lowRule), async (t) => {
+    const {window, document, storage, work} = openContent(t, {
+      html: xEngagementCard(1, '1000', 0) + xEngagementCard(2, '500', 10) + xEngagementCard(3, '500', 0),
+      stored: lowRule,
+    });
+    await wait();
+    assert.equal(work.getXEngagement, 2);
+    assertVisible(window, '#cell-1', true);
+    assertVisible(window, '#cell-2', true);
+    assertVisible(window, '#cell-3', false);
+    assert.equal(keptItems(storage).length, 1);
+    document.querySelector('#post-1 [data-testid="like"]').setAttribute('aria-label', '1 Likes');
+    await wait();
+    assert.equal(work.getXEngagement, 2);
+    storage.change({xLowLikeRatioEnabled: true, xMinimumLikePercent: 0.5});
+    await wait();
+    assert.equal(work.getXEngagement, 5);
+    assertVisible(window, '#cell-1', false);
+    assertVisible(window, '#cell-2', true);
+  });
+}
 
 test('X ratio decisions react to changed counts, missing likes, quote metrics and live settings', async (t) => {
   const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '10000', 1) + xEngagementCard(2, '500', 10) + xEngagementCard(3, '400', 0, 2)});

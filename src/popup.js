@@ -131,6 +131,7 @@
       const percent = Number(input.value);
       if (input.value.trim() === "" || !Number.isFinite(percent) || percent < 0 || percent > 100) {
         status.textContent = "Enter a percentage from 0 to 100.";
+        input.closest("details").open = true;
         input.focus();
         return null;
       }

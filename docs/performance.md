@@ -1,5 +1,43 @@
 # Performance measurements
 
+## Review fixes, v1.8.1 (2026-09-28)
+
+Compared with v1.8.0 commit `550bd3d`, using Node.js v26.10.0 and jsdom 29.1.1.
+The [full samples and operation counts](review-performance-results.json) contain
+synthetic data only. Runtime comparisons ran in both execution orders and checked
+every expected hiding mark after every mutation batch.
+
+| Workload | Before | After |
+| --- | ---: | ---: |
+| X 200-card startup, DOM queries | 1,302 | 1,002 |
+| X high-engagement exceptions only, all cards meet view floor, metric reads | 150 | 0 |
+| X engagement parser, 200 cards × 20 passes, subtree queries | 12,000 | 4,000 |
+| History batch, 500 hidden + 500 kept entries, URL object constructions | 1,100 | 0 |
+| Hidden 500-row history page, initial load + 20 notifications, reads / renders | 21 / 21 | 0 / 0 |
+| Visible history page, 20 notifications during initial read, reads / renders | 21 / 21 | 2 / 1 |
+
+The dedicated engagement fixture includes rounded buttons, exact group labels,
+and quoted metrics. Seven alternating samples gave median callback times of
+149.29 → 139.75 ms. Nine alternating samples of 200 history batches gave
+104.56 → 51.19 ms, with all ten representative batch outputs deeply equal.
+The history timing covers validation and in-memory transforms; browser messaging,
+storage writes, and interface rendering are excluded. These measurements establish
+less parsing work on the fixtures, not a browser-wide CPU or RAM reduction.
+
+Low-view cards still read rescue metrics, and unchanged default filtering
+decisions pass the full regression suite.
+Sidebar/player noise and hidden content tabs still perform zero card reads.
+
+To reproduce, extract `settings.js`, `filter-core.js`, `content.js`, and
+`history-store.js` from commit `550bd3d` into a temporary source directory, then run:
+
+```sh
+node scripts/benchmark.cjs --baseline /path/to/baseline/src
+node scripts/benchmark-engagement.cjs /path/to/baseline/src
+node scripts/benchmark-history.cjs /path/to/baseline/src
+node --test tests/history-ui.test.cjs
+```
+
 ## Whitelist extraction, 2026-09-28
 
 Compared with commit `ff184ca`, YouTube skips nested creator containers after

@@ -79,6 +79,12 @@
     likes: '[data-testid="like"], [data-testid="unlike"]',
     bookmarks: '[data-testid="bookmark"], [data-testid="removeBookmark"]',
   };
+  const ENGAGEMENT_METRICS = Object.keys(ENGAGEMENT_SELECTORS);
+  const ENGAGEMENT_GROUP_SELECTOR = '[role="group"][aria-label]';
+  const ENGAGEMENT_SOURCE_SELECTOR = [ENGAGEMENT_GROUP_SELECTOR, ...Object.values(ENGAGEMENT_SELECTORS)].join(',');
+  const ENGAGEMENT_PATTERNS = Object.fromEntries(ENGAGEMENT_METRICS.map((metric) => [metric,
+    new RegExp(`(?<![\\p{L}\\p{N}.,+\\-])(${COUNT_TOKEN}|aucun)\\s+(?:de\\s+)?${ENGAGEMENT_WORDS[metric]}(?![\\p{L}])`, 'giu'),
+  ]));
   const PERCENT_SCALE = 100;
   const RATIO_COMPARISON_EPSILON = 2 * Number.EPSILON;
   const HISTORY_TITLE_LENGTH = 240;
@@ -297,8 +303,8 @@
 
   /** Read labeled engagement counts, retaining whether the source is rounded. */
   function engagementCounts(text, metric, locale) {
-    const pattern = new RegExp(`(?<![\\p{L}\\p{N}.,+\\-])(${COUNT_TOKEN}|aucun)\\s+(?:de\\s+)?${ENGAGEMENT_WORDS[metric]}(?![\\p{L}])`, 'giu');
-    return Array.from((text || '').matchAll(pattern), (match) => {
+    if (!text) return [];
+    return Array.from(text.matchAll(ENGAGEMENT_PATTERNS[metric]), (match) => {
       const token = /^(?:no|aucune?)$/i.test(match[1]) ? '0' : match[1];
       return {count: parseViewCount(token, {allowBare: true, locale}), rounded: /[a-z]/i.test(token)};
     }).filter(({count}) => count !== null);
@@ -322,17 +328,29 @@
    */
   function getXEngagement(card, locale = 'en') {
     const result = {likes: null, bookmarks: null};
-    const groups = Array.from(card.querySelectorAll('[role="group"][aria-label]'))
-      .filter((element) => isOwnXAuthorMetadata(element, card));
-    for (const metric of Object.keys(result)) {
-      const buttons = Array.from(card.querySelectorAll(ENGAGEMENT_SELECTORS[metric]))
-        .filter((element) => isOwnXAuthorMetadata(element, card));
-      const labels = [...buttons, ...groups].flatMap((element) => engagementCounts(element.getAttribute('aria-label'), metric, locale));
-      if (labels.length) {
-        const exact = labels.filter(({rounded}) => !rounded);
-        result[metric] = uniqueCount((exact.length ? exact : labels).map(({count}) => count));
+    const labels = {likes: [], bookmarks: []};
+    const buttons = {likes: [], bookmarks: []};
+    // Collect both metrics in one subtree query and check ownership once per
+    // source; group labels still supply both independent count candidates.
+    for (const element of card.querySelectorAll(ENGAGEMENT_SOURCE_SELECTOR)) {
+      if (!isOwnXAuthorMetadata(element, card)) continue;
+      const isGroup = element.matches(ENGAGEMENT_GROUP_SELECTOR);
+      const testId = element.getAttribute('data-testid');
+      const buttonMetric = testId === 'like' || testId === 'unlike' ? 'likes'
+        : testId === 'bookmark' || testId === 'removeBookmark' ? 'bookmarks' : null;
+      if (buttonMetric) buttons[buttonMetric].push(element);
+      const label = element.getAttribute('aria-label');
+      if (!label) continue;
+      for (const metric of ENGAGEMENT_METRICS) {
+        if (isGroup || buttonMetric === metric) labels[metric].push(...engagementCounts(label, metric, locale));
+      }
+    }
+    for (const metric of ENGAGEMENT_METRICS) {
+      if (labels[metric].length) {
+        const exact = labels[metric].filter(({rounded}) => !rounded);
+        result[metric] = uniqueCount((exact.length ? exact : labels[metric]).map(({count}) => count));
       } else {
-        result[metric] = uniqueCount(buttons.map((button) => parseViewCount(button.textContent, {allowBare: true, locale})));
+        result[metric] = uniqueCount(buttons[metric].map((button) => parseViewCount(button.textContent, {allowBare: true, locale})));
       }
     }
     return result;
@@ -420,7 +438,11 @@
         .find((element) => !isQuoteDescendant(element, card))?.textContent || 'X post';
     } else {
       links = Array.from(card.querySelectorAll(YOUTUBE_TITLE_HREF_SELECTOR));
-      if (!links.length) links = Array.from(card.querySelectorAll('a[href]'));
+      if (!links.length) links = Array.from(card.querySelectorAll('a[href]')).filter((link) => (
+        // A thumbnail may retain the own permalink after the title loses it,
+        // but descriptions and creator metadata can link to unrelated videos.
+        !link.closest(YOUTUBE_NON_AUTHOR_LINK_SELECTOR + ',' + YOUTUBE_CREATOR_SOURCE_SELECTOR)
+      ));
       title = card.querySelector(YOUTUBE_TITLE_LINK_SELECTORS.join(','))?.textContent || 'YouTube video';
     }
     const destinations = new Set();

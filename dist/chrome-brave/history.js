@@ -23,6 +23,10 @@
   // disables the site or reason filter.
   const activeFilters = {outcome: "hidden", site: "all", reason: "all"};
   let latestHistory = null;
+  let historyLoadRunning = false;
+  let historyNeedsRefresh = false;
+  let clearingHistory = false;
+  let historyGeneration = 0;
 
   function formatCount(value) {
     return value === null ? "unknown" : Number(value).toLocaleString();
@@ -136,18 +140,36 @@
     });
   }
 
+  /** Refresh once per pending change batch; hidden pages keep only a dirty flag. */
   async function loadHistory() {
+    historyNeedsRefresh = true;
+    if (historyLoadRunning || clearingHistory || document.visibilityState === "hidden") return;
+    historyLoadRunning = true;
     try {
-      const response = await extension.runtime.sendMessage({type: GET_MESSAGE});
-      if (!response?.ok) throw new Error("history unavailable");
-      render(response.history);
-    } catch {
-      status.textContent = "Could not load history. Try reopening this page.";
-      clearButton.disabled = true;
+      do {
+        historyNeedsRefresh = false;
+        const generation = historyGeneration;
+        try {
+          const response = await extension.runtime.sendMessage({type: GET_MESSAGE});
+          if (!response?.ok) throw new Error("history unavailable");
+          // A change or reset arriving during the request makes this snapshot stale.
+          if (generation === historyGeneration && !historyNeedsRefresh && !clearingHistory && document.visibilityState !== "hidden") render(response.history);
+        } catch {
+          if (generation === historyGeneration && !historyNeedsRefresh && !clearingHistory && document.visibilityState !== "hidden") {
+            status.textContent = "Could not load history. Try reopening this page.";
+            clearButton.disabled = true;
+          }
+        }
+      } while (historyNeedsRefresh && !clearingHistory && document.visibilityState !== "hidden");
+    } finally {
+      historyLoadRunning = false;
     }
   }
 
   clearButton.addEventListener("click", async () => {
+    clearingHistory = true;
+    historyGeneration++;
+    historyNeedsRefresh = false;
     clearButton.disabled = true;
     try {
       const response = await extension.runtime.sendMessage({type: CLEAR_MESSAGE});
@@ -157,6 +179,9 @@
     } catch {
       status.textContent = "Could not reset history. Please try again.";
       clearButton.disabled = false;
+    } finally {
+      clearingHistory = false;
+      if (historyNeedsRefresh) void loadHistory();
     }
   });
 
@@ -174,6 +199,9 @@
   bindChipGroup(reasonFilter, "reason");
   extension.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && Object.hasOwn(changes, STORAGE_KEY)) void loadHistory();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "hidden") void loadHistory();
   });
   void loadHistory();
 })();

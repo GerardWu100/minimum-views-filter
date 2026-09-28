@@ -73,10 +73,12 @@ test('popup rejects an invalid ratio percentage without writing settings', async
   const {document, writes, submit} = openPopup(t, 'browser');
   await tick();
   const input = document.querySelector('#x-keep-bookmark-percent');
+  assert.equal(input.closest('details').open, false);
   input.value = '101';
   submit();
   await tick();
   assert.equal(writes.length, 0);
+  assert.equal(input.closest('details').open, true);
   assert.equal(document.activeElement, input);
   assert.match(document.querySelector('#status').textContent, /percentage from 0 to 100/);
 });

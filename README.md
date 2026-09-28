@@ -28,10 +28,10 @@ that it showed it to you.
 
 ## Install
 
-Download version 1.8.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.8.0):
+Download version 1.8.1 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.8.1):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.8.0/minimum-views-filter-chrome-brave-1.8.0.zip)
-- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.8.0/minimum-views-filter-firefox-1.8.0.xpi)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.8.1/minimum-views-filter-chrome-brave-1.8.1.zip)
+- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.8.1/minimum-views-filter-firefox-1.8.1.xpi)
 
 Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 
@@ -202,6 +202,10 @@ hide event. Recycled cards lacking stable links cannot always be distinguished.
 The list is a snapshot, not a live feed of updated counts; opening a link is a
 normal navigation you initiate.
 
+The history page pauses refreshes while its tab is hidden and catches up when
+you return. Reset also cancels older pending snapshots, so a delayed refresh
+cannot bring cleared entries back.
+
 History is stored only in extension **local storage**, never browser sync, settings
 exports, a server, or the repository. Clearing it does not change filtering. Past
 entries are never consulted to decide whether an item should be shown.
@@ -264,6 +268,9 @@ no long-lived collection of hidden page elements; pending work is bounded.
 Creator metadata is checked only when a card would otherwise be hidden. Nested
 YouTube author containers share one link scan; X author checks stop as soon as
 conflicting identities rule out an exemption. Creator links are read fresh each time.
+X engagement counters share one subtree query. If the low-like rule is disabled
+or set to zero, cards already meeting the view minimum skip engagement parsing.
+Local history also avoids reparsing links already in canonical form.
 
 In a synthetic 200-card feed, 20 single-card count changes required **20 count
 reads instead of 4,000**. Unrelated mutations required **zero instead of 4,000**.

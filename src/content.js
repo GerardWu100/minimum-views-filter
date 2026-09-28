@@ -239,7 +239,12 @@
       for (const target of root.querySelectorAll(HIDDEN_SELECTOR)) previousHidden.add(target);
       for (const card of core.getCards(root, SITE)) {
         const views = core.getViewCount(card, SITE, locale);
-        const engagement = SITE === 'x' && views > 0 && (settings.xLowLikeRatioEnabled || settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled)
+        // Exceptions only matter when a rule could hide the card. In particular,
+        // with no positive low-like floor, qualifying views need no metric reads.
+        const engagement = SITE === 'x' && views > 0 && (
+          (settings.xLowLikeRatioEnabled && settings.xMinimumLikePercent > 0)
+          || (views < settings.xMinimumViews && (settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled))
+        )
           ? core.getXEngagement(card, locale) : {likes: null, bookmarks: null};
         const {reason, keptBy, bypassedReason} = core.getFilterDecision(views, SITE, settings, engagement);
         // Whitelisted creators bypass every rule, so their cards record nothing.

@@ -31,7 +31,8 @@ are excluded. X quote subtrees never supply the outer post's count.
 `getViewCount` reads bounded metadata across count and accessibility sources,
 preferring exact accessible count labels over rounded ones. Contradictory exact
 labels fail open. `getXEngagement` reads only own like/bookmark buttons and group
-labels, excluding quote, body, and social-context subtrees.
+labels in one subtree query with reusable parsing patterns, excluding quote,
+body, and social-context subtrees.
 English/French parsing returns `null` for unknown or contradictory data.
 Abbreviated counts are rounded to whole views (4.1M is 4,100,000, not a float
 just below it). French accepts `M de vues` and `Md` (milliard) forms.
@@ -99,15 +100,19 @@ missing new keys to these enabled defaults while preserving existing settings.
 The settings transfer includes all six keys and validates the complete format.
 
 For a supported card, read current views, then X engagement when views are
-positive and any ratio rule is enabled. A high-like OR high-bookmark ratio keeps
-the card. Otherwise a low-like ratio or low views hides it; whitelist matches
+positive and a ratio rule can change the decision. When the low-like rule is
+disabled or set to 0%, cards meeting the view floor skip engagement reads;
+below-floor cards still read enabled rescue metrics. A high-like OR high-bookmark
+ratio keeps the card. Otherwise a low-like ratio or low views hides it; whitelist matches
 rescue any otherwise hidden card. Unknown likes do not establish a low ratio,
 and zero/unknown views have no ratio. Comparisons multiply count by 100 and
 threshold percentage by views, with a two-operation machine-precision allowance
 for decimal boundaries. No history value participates in this decision.
 
 When hiding a card, `getItemMetadata` extracts an own canonical permalink and a
-240-character snippet/title. A WeakMap tracks identity on that DOM node without
+240-character snippet/title. YouTube fallback links exclude description and
+creator metadata, so a missing title link cannot attribute their linked videos
+to the filtered card. A WeakMap tracks identity on that DOM node without
 retaining detached nodes. Stable hidden identities do not produce events on
 rescans. A permalink arriving after a linkless hide sends an enrichment event,
 which adds the linked entry without increasing totals. Metadata for unidentifiable
@@ -116,9 +121,12 @@ of lifetime unique posts. Reporting failure does not interrupt page filtering.
 
 Content messages contain at most 100 entries; the background verifies its own
 extension sender, top frame, exact supported route/host, same item site, reason,
-counts, and canonical URLs. The exact popup and history pages may read history;
-only the history page may reset
-through these messages. A promise queue serializes storage operations across tabs
+counts, and canonical URLs. Reasons must apply to the item's site and have the
+required count snapshots: unknown views are null, while ratio decisions require
+positive views and the relevant known numerator. Already canonical stored links
+pass a strict format check without creating URL objects. The exact popup and
+history pages may read history; only the history page may reset through these
+messages. A promise queue serializes storage operations across tabs
 and resets, and recovers after failed writes. `history-store.js` keeps
 `counts[site][reason]` hide events (a site total is `siteTotal` of its reasons,
 so the two cannot disagree), `xKeptCounts[keptReason]`, and two 500-entry URL
@@ -178,7 +186,7 @@ resets settings once for 1.4.0 users; no migration code exists by design.
 
 ## Current verification and limits
 
-For v1.8.0, run `npm ci`, `npm test`, `npm run build`, and
+For v1.8.1, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
 The packages now contain 19 files; the stable extension IDs and permissions are
@@ -194,7 +202,8 @@ below do not establish live X bookmark availability or universal DOM coverage
 for this release. Next check if a live card behaves unexpectedly: inspect its own
 like/bookmark button and group accessibility labels without altering the feed.
 Missing bookmark counts use the unknown policy; do not fetch them or open posts.
-Verification on 2026-09-28: 140 tests passed, both 17-file packages built, and
+Initial engagement/history verification (v1.6.1, 2026-09-28): 140 tests passed,
+both 17-file packages built, and
 Firefox lint reported 0 errors, 0 notices, and 0 warnings. The synthetic benchmark
 passed every expected hiding assertion: 20 one-card mutations required 20 count
 reads per site, while unrelated/sidebar and hidden-tab noise required zero. These
@@ -215,6 +224,18 @@ separate kept counts/lists with validation and enrichment, reset, the kept tab,
 and the popup kept block. The synthetic benchmark passed its hiding assertions
 (`logs/2026-09-28_002.log`, ignored). Headless Chrome screenshots with synthetic
 kept posts were checked. Not yet observed on a live X feed.
+
+Review fixes (v1.8.1, 2026-09-28): all 158 tests pass, both 19-file packages build,
+and Firefox lint reports zero errors, notices, and warnings. Regression cases
+cover description-link attribution, impossible history snapshots, collapsed
+invalid inputs, and delayed reads after Reset. History refreshes coalesce while
+one is running and suspend in hidden tabs; reset invalidates earlier read
+generations. A 500-row fixture with 20 changes verifies zero hidden-tab reads or
+renders and one refresh on return. See [performance measurements](docs/performance.md)
+for paired runtime, engagement, and history-transform workloads. These checks
+use synthetic data; no installed extension or live-feed behavior was reverified.
+Mozilla signed v1.8.1 unlisted. All 19 runtime files match the tested build
+(the manifest is semantically equal); the five added files are signatures.
 
 ## Build and verify
 

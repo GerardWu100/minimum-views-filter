@@ -9,6 +9,7 @@
   const MAX_TOTAL = Number.MAX_SAFE_INTEGER;
   // Every hide reason from MinimumViewsCore.getFilterReason, in display order.
   const REASONS = Object.freeze(["low-views", "low-like-ratio", "unknown-views"]);
+  const YOUTUBE_REASONS = Object.freeze(["low-views", "unknown-views"]);
   const REASON_SET = new Set(REASONS);
   // X high-engagement exceptions that can keep a card, and the hide reasons they override.
   const KEPT_REASONS = Object.freeze(["high-like-ratio", "high-bookmark-ratio"]);
@@ -16,6 +17,9 @@
   const BYPASSED_REASON_SET = new Set(["low-views", "low-like-ratio"]);
   const X_HOSTS = new Set(["x.com", "www.x.com", "twitter.com", "www.twitter.com"]);
   const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com"]);
+  // The final assertion requires the actual end, including after line breaks.
+  const CANONICAL_X_URL = /^https:\/\/x\.com\/[a-z0-9_]{1,15}\/status\/[0-9]{1,30}(?![\s\S])/;
+  const CANONICAL_YOUTUBE_URL = /^https:\/\/www\.youtube\.com\/(?:watch\?v=|shorts\/)[A-Za-z0-9_-]{1,64}(?![\s\S])/;
 
   /** Return {reason: 0} for every listed reason. */
   function emptyReasonCounts(reasons = REASONS) {
@@ -50,6 +54,9 @@
   /** Canonicalize an X post or YouTube video URL without fetching it. */
   function canonicalItemUrl(value, site) {
     if (typeof value !== "string" || value.length > 2048) return null;
+    // Persisted entries already use these exact forms. Avoid rebuilding up to
+    // 1,000 URL objects whenever a new batch validates the bounded history.
+    if ((site === "x" && CANONICAL_X_URL.test(value)) || (site === "youtube" && CANONICAL_YOUTUBE_URL.test(value))) return value;
     let url;
     try { url = new URL(value); } catch { return null; }
     if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
@@ -85,7 +92,7 @@
   function normalizeEvent(value, site, outcome) {
     if (!value || typeof value !== "object" || Array.isArray(value) || value.site !== site) return null;
     if (Object.prototype.hasOwnProperty.call(value, "outcome") && value.outcome !== outcome) return null;
-    if (outcome === "hidden" && !REASON_SET.has(value.reason)) return null;
+    if (outcome === "hidden" && (!REASON_SET.has(value.reason) || (site === "youtube" && value.reason === "low-like-ratio"))) return null;
     if (outcome === "kept" && (site !== "x" || !KEPT_REASON_SET.has(value.reason) || !BYPASSED_REASON_SET.has(value.bypassedReason))) return null;
     if (outcome !== "hidden" && outcome !== "kept") return null;
     if (Object.prototype.hasOwnProperty.call(value, "enrich") && typeof value.enrich !== "boolean") return null;
@@ -99,6 +106,16 @@
     const likes = countOrNull(value.likes);
     const bookmarks = countOrNull(value.bookmarks);
     if ([views, likes, bookmarks].includes(undefined)) return null;
+    // Ratios need known positive views and the numerator that established the
+    // decision. Thresholds are deliberately not rechecked against later settings.
+    if (outcome === "hidden") {
+      if (value.reason === "unknown-views" ? views !== null : views === null) return null;
+      if (value.reason === "low-like-ratio" && (views === 0 || likes === null)) return null;
+    } else {
+      if (views === null || views === 0) return null;
+      if ((value.reason === "high-like-ratio" && likes === null) || (value.reason === "high-bookmark-ratio" && bookmarks === null)) return null;
+      if (value.bypassedReason === "low-like-ratio" && likes === null) return null;
+    }
     const event = {site, url, title, reason: value.reason, views, likes, bookmarks};
     return outcome === "kept" ? {...event, bypassedReason: value.bypassedReason} : event;
   }
@@ -134,7 +151,8 @@
   function normalizeHistory(value) {
     const history = emptyHistory();
     if (!value || typeof value !== "object" || Array.isArray(value)) return history;
-    for (const site of ["x", "youtube"]) copyCounts(history.counts[site], value.counts?.[site], REASONS);
+    copyCounts(history.counts.x, value.counts?.x, REASONS);
+    copyCounts(history.counts.youtube, value.counts?.youtube, YOUTUBE_REASONS);
     copyCounts(history.xKeptCounts, value.xKeptCounts, KEPT_REASONS);
     history.entries = normalizeEntries(value.entries, "hidden");
     history.keptEntries = normalizeEntries(value.keptEntries, "kept");

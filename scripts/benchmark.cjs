@@ -79,6 +79,7 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
   const expectedCounts = new Map(Array.from({length: cardCount}, (_, id) => [id, INITIAL_COUNTS[id % INITIAL_COUNTS.length]]));
   const exemptCards = new Set();
   let hideUnknown = false;
+  let minimumViews = 1000;
   const cards = [...expectedCounts].map(([id, count]) => cardMarkup(site, id, count)).join('');
   const feed = `<div id="feed">${cards}</div>`;
   const html = `<aside id="sidebar"><span>Unrelated navigation</span></aside>${site === 'youtube' ? `<ytd-watch-flexy><div id="movie_player"><video></video><span>0:00</span></div><div id="related">${feed}</div></ytd-watch-flexy>` : feed}`;
@@ -100,7 +101,7 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
   const nativeObserver = window.MutationObserver;
 
   function emptyTotals() {
-    return {runtimeWorkMs: 0, selectorQueries: 0, getCards: 0, documentGetCards: 0, getViewCount: 0, getCreatorIdentifiers: 0, observerCallbacks: 0, timeoutCallbacks: 0};
+    return {runtimeWorkMs: 0, selectorQueries: 0, getCards: 0, documentGetCards: 0, getViewCount: 0, getCreatorIdentifiers: 0, getXEngagement: 0, observerCallbacks: 0, timeoutCallbacks: 0};
   }
   function timed(callback, receiver, argumentsList) {
     const outermost = timingDepth++ === 0;
@@ -184,7 +185,7 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
   function assertMarks(enabled = true) {
     let expectedHidden = 0;
     for (const [id, count] of expectedCounts) {
-      const expected = enabled && !exemptCards.has(id) && (count === null ? hideUnknown : count < 1000);
+      const expected = enabled && !exemptCards.has(id) && (count === null ? hideUnknown : count < minimumViews);
       expectedHidden += Number(expected);
       assert.equal(document.getElementById(`card-${id}`).hasAttribute(HIDDEN_ATTRIBUTE), expected, `${site} card ${id}`);
     }
@@ -223,8 +224,9 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
         window.eval(readFileSync(path.join(sourceDirectory, file), 'utf8'));
         if (file === 'filter-core.js') {
           const core = window.MinimumViewsCore;
-          for (const name of ['getCards', 'getViewCount', 'getCreatorIdentifiers']) {
+          for (const name of ['getCards', 'getViewCount', 'getCreatorIdentifiers', 'getXEngagement']) {
             const original = core[name];
+            if (!original) continue;
             core[name] = function (...args) {
               totals[name]++;
               if (name === 'getCards' && args[0] === document) totals.documentGetCards++;
@@ -234,6 +236,16 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
         }
       }
     });
+    if (site === 'x') {
+      await scenario('high-engagement-only-above-floor', async () => {
+        minimumViews = 0;
+        changeSettings({xMinimumViews: minimumViews, xLowLikeRatioEnabled: false});
+      });
+      minimumViews = 1000;
+      changeSettings({xMinimumViews: minimumViews, xLowLikeRatioEnabled: true});
+      await flush();
+      assertMarks();
+    }
     await scenario('unrelated-sidebar-player-noise', () => noise());
     await scenario('card-hover-restyles', async () => {
       // Hover effects rewrite one element's class several times per batch.

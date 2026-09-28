@@ -17,7 +17,7 @@ const xSender = {id: 'extension-id', tab: {id: 1}, frameId: 0, url: 'https://x.c
 const youtubeSender = {id: 'extension-id', tab: {id: 2}, frameId: 0, url: 'https://www.youtube.com/watch?v=active'};
 const pageSender = {id: 'extension-id', url: 'chrome-extension://extension-id/history.html'};
 const xEvent = (id, extra = {}) => ({site: 'x', outcome: 'hidden', url: `https://x.com/Author/status/${id}`, title: `Post ${id}`, reason: 'low-views', views: 999, likes: null, bookmarks: null, ...extra});
-const youtubeEvent = (id, extra = {}) => ({site: 'youtube', outcome: 'hidden', url: `https://www.youtube.com/watch?v=${id}`, title: `Video ${id}`, reason: 'low-like-ratio', views: 1000, likes: 1, bookmarks: null, ...extra});
+const youtubeEvent = (id, extra = {}) => ({site: 'youtube', outcome: 'hidden', url: `https://www.youtube.com/watch?v=${id}`, title: `Video ${id}`, reason: 'low-views', views: 999, likes: null, bookmarks: null, ...extra});
 
 function openBackground({style = 'chrome', get, set} = {}) {
   const onMessage = {listeners: [], addListener(listener) {this.listeners.push(listener);}};
@@ -57,6 +57,8 @@ test('canonical URL validation excludes redirects, foreign sites, credentials, a
   assert.equal(store.canonicalItemUrl('https://twitter.com/Author/status/123?x=1', 'x'), 'https://x.com/author/status/123');
   assert.equal(store.canonicalItemUrl('https://x.com/i/status/123/analytics', 'x'), null);
   assert.equal(store.canonicalItemUrl('https://www.youtube.com/watch?feature=share&v=Ab_9', 'youtube'), 'https://www.youtube.com/watch?v=Ab_9');
+  assert.equal(store.canonicalItemUrl('https://x.com/author/status/123\n', 'x'), 'https://x.com/author/status/123');
+  assert.equal(store.canonicalItemUrl('https://www.youtube.com/watch?v=Ab_9\r\n', 'youtube'), 'https://www.youtube.com/watch?v=Ab_9');
   for (const unsafe of ['javascript:alert(1)', 'https://x.com.evil.org/a/status/1', 'https://user@x.com/a/status/1',
     'http://x.com/a/status/1', 'https://www.youtube.com/watch?v=one&v=two']) {
     assert.equal(store.canonicalItemUrl(unsafe, unsafe.includes('youtube') ? 'youtube' : 'x'), null);
@@ -97,6 +99,32 @@ test('malformed batches and unsafe fields cannot bloat storage or increment coun
   assert.equal(store.normalizeEvent(xEvent(1, {enrich: true, url: null}), 'x'), null);
 });
 
+test('history rejects site-specific reasons and snapshots that cannot establish their outcome', () => {
+  const invalidHidden = [
+    xEvent(1, {reason: 'low-views', views: null}),
+    xEvent(2, {reason: 'unknown-views', views: 1}),
+    xEvent(3, {reason: 'low-like-ratio', views: 0, likes: 0}),
+    xEvent(4, {reason: 'low-like-ratio', views: 1000, likes: null}),
+  ];
+  const invalidKept = [
+    keptEvent(5, {views: null}), keptEvent(6, {views: 0}), keptEvent(7, {likes: null}),
+    keptEvent(8, {reason: 'high-bookmark-ratio', bookmarks: null}),
+    keptEvent(9, {reason: 'high-bookmark-ratio', bookmarks: 1, bypassedReason: 'low-like-ratio', likes: null}),
+  ];
+  assert.equal(store.addEvents(null, [...invalidHidden, ...invalidKept], 'x', 1).recorded, 0);
+  assert.equal(store.addEvents(null, [youtubeEvent('a', {reason: 'low-like-ratio', likes: 0})], 'youtube', 1).recorded, 0);
+  const valid = store.addEvents(null, [
+    xEvent(10, {views: 0}), xEvent(11, {reason: 'unknown-views', views: null}),
+    xEvent(12, {reason: 'low-like-ratio', views: 1, likes: 0}),
+    keptEvent(13, {likes: 0}), keptEvent(14, {reason: 'high-bookmark-ratio', bookmarks: 0}),
+  ], 'x', 1);
+  assert.equal(valid.recorded, 5, 'zero numerators are known and may satisfy a configured zero-percent exception');
+  const corrupt = store.normalizeHistory({entries: invalidHidden, keptEntries: invalidKept, counts: {youtube: {'low-like-ratio': 7}}});
+  assert.equal(corrupt.entries.length, 0);
+  assert.equal(corrupt.keptEntries.length, 0);
+  assert.equal(store.siteTotal(corrupt.counts.youtube), 0);
+});
+
 test('a later permalink enriches a linkless hide without counting a second hide event', () => {
   const initial = store.addEvents(null, [xEvent(1, {url: null})], 'x', 100);
   assert.equal(initial.recorded, 1);
@@ -115,6 +143,16 @@ test('a later permalink enriches a linkless hide without counting a second hide 
 });
 
 for (const style of ['chrome', 'firefox']) {
+  test(`${style}: background rejects impossible history outcomes without writing storage`, async () => {
+    const app = openBackground({style});
+    const type = 'minimum-views-filter:record-filtered';
+    for (const [sender, item] of [
+      [xSender, keptEvent(1, {likes: null})],
+      [youtubeSender, youtubeEvent('a', {reason: 'low-like-ratio', likes: 0})],
+    ]) assert.deepEqual(clone(await app.send({type, items: [item]}, sender)), {ok: false, error: 'invalid-message'});
+    assert.equal(app.read(), undefined);
+  });
+
   test(`${style}: background counts permalink enrichment as accepted without increasing total`, async () => {
     const app = openBackground({style});
     const type = 'minimum-views-filter:record-filtered';

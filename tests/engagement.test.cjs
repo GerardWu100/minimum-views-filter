@@ -58,6 +58,27 @@ test('history identifies own permalinks and strips tracking without using quoted
   assert.equal(core.getItemMetadata(document.body.firstChild, 'youtube').url, null);
 });
 
+test('YouTube history never substitutes description or creator links for a missing own permalink', () => {
+  const document = new JSDOM(`<ytd-video-renderer>
+    <a id="video-title" href="/watch?v=own">Own video</a>
+    <div id="description"><a href="/watch?v=unrelated">Related clip</a></div>
+    <ytd-channel-name><a href="/watch?v=unrelated">Creator's featured video</a></ytd-channel-name>
+    <span class="inline-metadata-item">999 views</span>
+  </ytd-video-renderer>`).window.document;
+  const card = document.body.firstElementChild;
+  assert.deepEqual(core.getItemMetadata(card, 'youtube'), {url: 'https://www.youtube.com/watch?v=own', title: 'Own video'});
+  // Title links may disappear during recycling or when another extension edits
+  // the card; unrelated links must not become the filtered video's identity.
+  card.querySelector('#video-title').removeAttribute('href');
+  assert.deepEqual(core.getItemMetadata(card, 'youtube'), {url: null, title: 'Own video'});
+  card.insertAdjacentHTML('afterbegin', '<a id="thumbnail" href="/watch?v=own&tracking=1"></a>');
+  assert.deepEqual(core.getItemMetadata(card, 'youtube'), {url: 'https://www.youtube.com/watch?v=own', title: 'Own video'});
+  card.querySelector('#thumbnail').remove();
+  card.querySelector('#description').className = 'yt-lockup-metadata-view-model__description';
+  card.querySelector('#description').removeAttribute('id');
+  assert.deepEqual(core.getItemMetadata(card, 'youtube'), {url: null, title: 'Own video'});
+});
+
 test('exact view labels across the card take precedence over rounded counters for ratio decisions', () => {
   const document = new JSDOM('<article data-testid="tweet"><a href="/author/status/1/analytics" aria-label="1.2K views">1.2K</a><div role="group" aria-label="1,234 views, 6 likes"></div></article>').window.document;
   const card = document.querySelector('article');
