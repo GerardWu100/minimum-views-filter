@@ -45,6 +45,10 @@ Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 Keep the unpacked directory in a permanent location. Chrome/Brave load its files
 from that folder. Minimum Chromium version: 109.
 
+The Git repository includes the unpacked extension in `dist/chrome-brave/`.
+If you load that folder directly, `git pull` updates its files; then reload the
+extension and X/YouTube tabs using the steps below.
+
 ### Updating an unpacked Chrome / Brave install
 
 1. Replace the files in the existing extension folder with the new browser ZIP's contents.
@@ -299,7 +303,9 @@ npm run lint:firefox
 ```
 
 `npm run check` runs all three checks. Builds produce unpacked directories and
-ZIPs in `dist/`. No build output or dependencies are committed.
+ZIPs in `dist/`. The unpacked `dist/chrome-brave/` and `dist/firefox/` directories
+are committed alongside source changes. Rebuild before committing; do not edit
+generated files directly. ZIPs, XPIs, signing state, and dependencies stay ignored.
 
 For a temporary Firefox development install, open
 `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**, and select

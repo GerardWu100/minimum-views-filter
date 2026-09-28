@@ -177,6 +177,13 @@ deterministic ZIPs. Firefox declares no data collection and a fixed extension
 ID (`minimum-views-filter@gerardwu100.local`); its minimum version is 142.
 Builds remain unsigned; Mozilla signing is a separate distribution step.
 
+Both unpacked directories are tracked in Git at the user's request. Run the
+build after runtime changes and commit these generated files with their source,
+so a pull updates the loadable extension. Do not edit generated files directly.
+ZIPs, XPIs, signing directories, `.amo-upload-uuid`, and `.web-extension-id`
+remain ignored. Reload an unpacked browser installation after pulling changes;
+the tracked Firefox folder is still an unsigned development build.
+
 Whitelist optimization validation on 2026-09-28:
 
 - The full test suite, build, and Firefox lint passed. Four new adapter regressions
@@ -281,7 +288,8 @@ AMO API credentials from the ignored `.env` (see `.env.example`). The signed
 XPI matched the build: identical runtime files, semantically equal manifest,
 plus five `META-INF` signature files. Node's `fetch` in the agent sandbox cannot
 reach AMO, so run the signing command from a normal terminal. Runtime
-artifacts are generated from the tagged source and remain ignored by Git. The
+archives are generated from the tagged source and remain ignored by Git; unpacked
+browser directories are committed. The
 repository is public under the MIT License, so release assets download without
 signing in. Mozilla signing was completed separately on 2026-09-27 through the
 unlisted self-distribution flow; there is no public Mozilla Add-ons listing.

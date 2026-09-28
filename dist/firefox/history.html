@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Filtering history · Minimum Views Filter</title>
+    <link rel="stylesheet" href="history.css">
+    <script src="history.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Filtering history</h1>
+        <button id="clear-history" type="button" disabled>Reset history</button>
+      </header>
+      <details class="about-counts">
+        <summary>About these counts</summary>
+        <p>Stored on this device. Totals count hide events since the last reset, so a later appearance may count again. Recent items keep the latest 500 distinct links. View and engagement values are snapshots from when an item was hidden; items without links appear only in the totals.</p>
+      </details>
+      <section class="totals" aria-label="Hide event totals">
+        <div><span>X hide events</span><strong id="x-count">—</strong></div>
+        <div><span>YouTube hide events</span><strong id="youtube-count">—</strong></div>
+      </section>
+      <p id="status" role="status" aria-live="polite">Loading history…</p>
+      <section aria-labelledby="recent-heading">
+        <h2 id="recent-heading">Recent filtered items</h2>
+        <ol id="entries"></ol>
+      </section>
+    </main>
+  </body>
+</html>

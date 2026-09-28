@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "Minimum Views Filter",
+  "version": "1.6.1",
+  "description": "Filter low views and low X likes/views. Keep high-engagement X posts. Includes local X/YouTube filtering statistics and history.",
+  "permissions": [
+    "storage",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://www.x.com/*",
+    "https://twitter.com/*",
+    "https://www.twitter.com/*",
+    "https://youtube.com/*",
+    "https://www.youtube.com/*"
+  ],
+  "icons": {
+    "16": "icons/filter-16.png",
+    "32": "icons/filter-32.png",
+    "48": "icons/filter-48.png",
+    "128": "icons/filter-128.png"
+  },
+  "action": {
+    "default_title": "Minimum Views Filter",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/filter-16.png",
+      "32": "icons/filter-32.png",
+      "48": "icons/filter-48.png",
+      "128": "icons/filter-128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://www.x.com/*",
+        "https://twitter.com/*",
+        "https://www.twitter.com/*",
+        "https://youtube.com/*",
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "settings.js",
+        "filter-core.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoM6y+506zg69PYJY+kXjk2b3yzlB1C7ujV4mAxDn/BlTJ27e7oXDnrf1RFVJA2oGVNVklk2sWpH8fI75PEpoANBNRlmHWE+baHuadmK+LUmcorfWU9VnJdaGedJ9GNEJPkmwkAOl0FGL23vlNPo39sdalu7DF2NEg3W+yPk9MczyLPP3fQ//KW/013ge5eyY+yf+cqniYgPYyW/Uo9wIdCOoaAYX/e6q4PXx3LpaHG2xIyGLeCa6NAZSZcfTYw4DmmLBbVGt13CRuXxm1AXxhpXqrzqz8xqPgCf/4ksxzli/3yAkPqnumK2b2iB0dTYRTTOQSOMQ8lNb+FI2a5BLCQIDAQAB",
+  "minimum_chrome_version": "109"
+}

@@ -1,0 +1,35 @@
+:root { color-scheme: light dark; font: 16px/1.45 system-ui, sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; width: 370px; background: #f8fafc; color: #15253b; }
+main { padding: 18px; }
+h1 { font-size: 21px; margin: 0 0 12px; letter-spacing: -.5px; }
+fieldset { border: 0; padding: 0; margin: 0; }
+.minimum { display: block; font-weight: 600; margin-bottom: 8px; }
+input[type=number] { width: 100%; font: inherit; font-size: 20px; padding: 7px 10px; border: 1px solid #7b8da2; border-radius: 9px; background: #fff; color: inherit; margin-bottom: 0; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 8px 0; cursor: pointer; }
+input[type=checkbox] { width: 20px; height: 20px; accent-color: #146dce; flex-shrink: 0; }
+button { width: 100%; margin-top: 10px; border: 0; border-radius: 9px; padding: 11px 14px; background: #146dce; color: #fff; font: inherit; font-weight: 650; cursor: pointer; }
+button:hover { background: #0b56a5; }
+:focus-visible { outline: 3px solid #edaa34; outline-offset: 3px; }
+#status { min-height: 1.5em; font-size: 14px; margin: 9px 0; }
+summary { cursor: pointer; font-size: 14px; }
+details p { font-size: 14px; }
+@media (prefers-color-scheme: dark) {
+  body { background: #152030; color: #edf3fa; }
+  input[type=number] { background: #202f43; }
+}
+
+.site-settings { padding-bottom: 10px; margin-bottom: 8px; border-bottom: 1px solid #7b8da255; }
+.site-toggle { font-weight: 650; }
+.minimum-row { display: grid; grid-template-columns: 1fr 160px; gap: 12px; align-items: center; margin-bottom: 8px; }
+.minimum { font-size: 14px; margin-bottom: 0; }
+.ratio-settings { padding: 3px 0 10px; }
+.ratio-settings .toggle { font-size: 14px; }
+.percent-row { display: grid; grid-template-columns: 1fr 105px; gap: 12px; align-items: center; margin: 0 0 8px; font-size: 14px; }
+.percent-input { display: flex; align-items: center; gap: 5px; }
+.percent-input input { min-width: 0; font-size: 16px; padding: 5px 7px; }
+textarea { display: block; width: 100%; margin-top: 8px; padding: 8px; border: 1px solid #7b8da2; border-radius: 6px; font: 14px/1.4 system-ui, sans-serif; resize: vertical; }
+.transfer { margin-top: 12px; }
+.button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+button.secondary { margin-top: 8px; padding: 8px 12px; background: transparent; color: inherit; border: 1px solid #7b8da2; font-weight: 600; }
+button.secondary:hover { background: #7b8da233; }

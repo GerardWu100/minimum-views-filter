@@ -24,7 +24,12 @@ htmlcov/
 logs/
 *.log
 build/
-dist/
+# Commit the ready-to-load extensions; keep archives and signing work local.
+/dist/*
+!/dist/chrome-brave/
+!/dist/firefox/
+.amo-upload-uuid
+.web-extension-id
 *.egg-info/
 
 # Editor and operating-system files

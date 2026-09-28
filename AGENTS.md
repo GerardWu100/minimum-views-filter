@@ -77,8 +77,11 @@ Do not modify, disable, or reset those extensions to make this one work. Read
 - Repository: `GerardWu100/minimum-views-filter`, public under the MIT License
   (the user requested publication on 2026-09-27).
 - Keep the local checkout under `one-time-projects/minimum-views-filter` within the existing projects root.
-- Publish downloadable browser ZIPs as GitHub release assets, not committed build files.
+- Publish downloadable browser ZIPs and signed XPIs as GitHub release assets.
   Label Firefox packages unsigned until Mozilla signing is complete.
+- Commit the unpacked extensions in `dist/chrome-brave/` and `dist/firefox/`.
+  Rebuild them with source changes so a Git pull includes the current loadable
+  files. Keep archives, signing state, and signing work directories ignored.
 - Keep runtime code dependency-free. Development/build packages stay in npm devDependencies.
 - Use `npm ci`, `npm test`, `npm run build`, and `npm run lint:firefox`.
 - Add behavior tests for meaningful filtering changes. Cover 999/1,000 boundaries,
@@ -86,5 +89,5 @@ Do not modify, disable, or reset those extensions to make this one work. Read
   of other extensions' DOM changes.
 - Update the README and guide when behavior, installation, or limits change.
 - Do not commit dependencies, credentials, browser profiles, personal feed content,
-  logs, or generated distribution files.
+  logs, or packaged distribution archives.
 - Verify, review the staged diff, commit with plain `git commit`, and push.

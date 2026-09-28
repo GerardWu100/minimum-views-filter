@@ -1,0 +1,73 @@
+{
+  "manifest_version": 3,
+  "name": "Minimum Views Filter",
+  "version": "1.6.1",
+  "description": "Filter low views and low X likes/views. Keep high-engagement X posts. Includes local X/YouTube filtering statistics and history.",
+  "permissions": [
+    "storage",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://www.x.com/*",
+    "https://twitter.com/*",
+    "https://www.twitter.com/*",
+    "https://youtube.com/*",
+    "https://www.youtube.com/*"
+  ],
+  "icons": {
+    "16": "icons/filter-16.png",
+    "32": "icons/filter-32.png",
+    "48": "icons/filter-48.png",
+    "128": "icons/filter-128.png"
+  },
+  "action": {
+    "default_title": "Minimum Views Filter",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/filter-16.png",
+      "32": "icons/filter-32.png",
+      "48": "icons/filter-48.png",
+      "128": "icons/filter-128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://www.x.com/*",
+        "https://twitter.com/*",
+        "https://www.twitter.com/*",
+        "https://youtube.com/*",
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "settings.js",
+        "filter-core.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "scripts": [
+      "settings.js",
+      "history-store.js",
+      "background.js"
+    ]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "minimum-views-filter@gerardwu100.local",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  }
+}
