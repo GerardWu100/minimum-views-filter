@@ -26,11 +26,7 @@ that it showed it to you.
 Download version 1.5.1 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.5.1):
 
 - [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.1/minimum-views-filter-chrome-brave-1.5.1.zip)
-- [Firefox XPI 1.5.0 — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.0/minimum-views-filter-firefox-1.5.0.xpi)
-
-Firefox 1.5.1 is awaiting Mozilla signing. Until its signed XPI is attached to
-the 1.5.1 release, Firefox users should keep the signed 1.5.0 XPI; the release's
-Firefox ZIP is unsigned and only loads temporarily.
+- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.1/minimum-views-filter-firefox-1.5.1.xpi)
 
 Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 
@@ -79,8 +75,8 @@ selected and the post author is not whitelisted.
 5. Open the popup to set each site's minimum, edit its whitelist, or disable filtering.
 
 **This is a permanent installation that survives Firefox restarts.** Minimum
-Firefox: 142. Mozilla approved and signed version 1.5.0 for self-distribution
-on 2026-09-27. It has no public Mozilla Add-ons listing.
+Firefox: 142. Mozilla approved and signed versions 1.5.0 and 1.5.1 for
+self-distribution on 2026-09-27. It has no public Mozilla Add-ons listing.
 
 Updates are manual: download a newer signed XPI from the GitHub release and
 install it with the same steps. The extension keeps the same ID, so Firefox

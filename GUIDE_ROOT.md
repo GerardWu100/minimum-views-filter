@@ -190,9 +190,12 @@ existing projects root. Relative build and test paths keep relocation safe.
 
 GitHub release `v1.5.0` distributes the browser ZIPs, the Mozilla-signed Firefox
 XPI, a source ZIP, installation instructions, and SHA-256 checksums. Release
-`v1.5.1` (hot-path performance and count-parsing fixes) has the same assets
-except the signed XPI, which awaits the user's Mozilla submission; until then
-the README directs Firefox users to the signed 1.5.0 XPI. Runtime
+`v1.5.1` (hot-path performance and count-parsing fixes) has the same asset set.
+Its unlisted submission was signed with `web-ext sign --channel unlisted` using
+AMO API credentials from the ignored `.env` (see `.env.example`). The signed
+XPI matched the build: identical runtime files, semantically equal manifest,
+plus five `META-INF` signature files. Node's `fetch` in the agent sandbox cannot
+reach AMO, so run the signing command from a normal terminal. Runtime
 artifacts are generated from the tagged source and remain ignored by Git. The
 repository is public under the MIT License, so release assets download without
 signing in. Mozilla signing was completed separately on 2026-09-27 through the
