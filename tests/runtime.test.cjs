@@ -874,7 +874,9 @@ test('popup blocks a whitelist too long to sync', async (t) => {
 });
 
 const xEngagementCard = (id, views, likes, bookmarks = null) => xCard(id, views).replace('</article>', `<button data-testid="like" aria-label="${likes} Likes. Like">${likes}</button>${bookmarks === null ? '' : `<button data-testid="bookmark" aria-label="${bookmarks} Bookmarks">${bookmarks}</button>`}</article>`);
-const historyItems = (storage) => storage.recordedMessages.flatMap((message) => message.items);
+const recordedItems = (storage) => storage.recordedMessages.flatMap((message) => message.items);
+const historyItems = (storage) => recordedItems(storage).filter((item) => item.outcome === 'hidden');
+const keptItems = (storage) => recordedItems(storage).filter((item) => item.outcome === 'kept');
 
 test('X ratio decisions react to changed counts, missing likes, quote metrics and live settings', async (t) => {
   const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '10000', 1) + xEngagementCard(2, '500', 10) + xEngagementCard(3, '400', 0, 2)});
@@ -905,7 +907,7 @@ test('X ratio decisions react to changed counts, missing likes, quote metrics an
   assertVisible(window, '#cell-3', true);
 });
 
-test('history records hidden transitions and recycled identities, never rescans or rescued cards', async (t) => {
+test('history records hidden transitions and recycled identities, never rescans', async (t) => {
   const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '10000', 1) + xEngagementCard(2, '500', 10)});
   await wait();
   assert.equal(historyItems(storage).length, 1);
@@ -970,4 +972,35 @@ test('synchronous invalidated-extension reporting errors do not interrupt hiding
   await wait();
   assertVisible(window, '#cell-1', true);
   assertVisible(window, '#cell-2', false);
+});
+
+test('X posts kept by high engagement are recorded once per continuous kept state', async (t) => {
+  // Post 2: 500 views is below the 1,000 minimum, but 10 likes = 2% keeps it.
+  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '5000', 500) + xEngagementCard(2, '500', 10)});
+  await wait();
+  assertVisible(window, '#cell-2', true);
+  assert.equal(historyItems(storage).length, 0);
+  assert.equal(keptItems(storage).length, 1);
+  assert.equal(keptItems(storage)[0].reason, 'high-like-ratio');
+  assert.equal(keptItems(storage)[0].bypassedReason, 'low-views');
+  assert.equal(keptItems(storage)[0].url, 'https://x.com/author/status/2');
+  assert.equal(keptItems(storage)[0].likes, 10);
+  document.querySelector('#post-2 [data-testid="like"]').setAttribute('aria-label', '11 Likes');
+  await wait();
+  assert.equal(keptItems(storage).length, 1);
+  document.querySelector('#post-2 [data-testid="like"]').setAttribute('aria-label', '1 Likes');
+  await wait();
+  assertVisible(window, '#cell-2', false);
+  assert.equal(historyItems(storage).length, 1);
+  document.querySelector('#post-2 [data-testid="like"]').setAttribute('aria-label', '12 Likes');
+  await wait();
+  assertVisible(window, '#cell-2', true);
+  assert.equal(keptItems(storage).length, 2);
+  storage.change({xWhitelist: ['author']});
+  document.querySelector('#post-2 [data-testid="like"]').setAttribute('aria-label', '1 Likes');
+  await wait();
+  document.querySelector('#post-2 [data-testid="like"]').setAttribute('aria-label', '13 Likes');
+  await wait();
+  assert.equal(keptItems(storage).length, 2);
+  assert.equal(historyItems(storage).length, 1);
 });

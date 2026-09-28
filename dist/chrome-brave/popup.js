@@ -45,23 +45,27 @@
   /** Render per-site hide totals and a stacked reason breakdown for each site. */
   function showStatistics(history) {
     const {siteTotal} = globalThis.MinimumViewsHistory;
-    const {SITE_NAMES, buildReasonBreakdown} = globalThis.MinimumViewsReasonBreakdown;
+    const {SITE_NAMES, buildReasonBreakdown, buildKeptBreakdown} = globalThis.MinimumViewsReasonBreakdown;
     const siteTotals = {x: siteTotal(history.counts.x), youtube: siteTotal(history.counts.youtube)};
     statsTotal.textContent = (siteTotals.x + siteTotals.youtube).toLocaleString();
     statsSites.replaceChildren();
-    for (const site of ["x", "youtube"]) {
+    /** Append one titled total with its breakdown to the statistics card. */
+    const appendBlock = (title, total, breakdown, className) => {
       const block = document.createElement("div");
-      block.className = "stats-site";
+      block.className = className;
       const head = document.createElement("div");
       head.className = "stats-site-head";
       const name = document.createElement("span");
-      name.textContent = SITE_NAMES[site];
-      const total = document.createElement("span");
-      total.textContent = siteTotals[site].toLocaleString();
-      head.append(name, total);
-      block.append(head, buildReasonBreakdown(site, history.counts[site]));
+      name.textContent = title;
+      const count = document.createElement("span");
+      count.textContent = total.toLocaleString();
+      head.append(name, count);
+      block.append(head, breakdown);
       statsSites.append(block);
-    }
+    };
+    for (const site of ["x", "youtube"]) appendBlock(SITE_NAMES[site], siteTotals[site], buildReasonBreakdown(site, history.counts[site]), "stats-site");
+    // Not part of the hidden total: X posts that high engagement kept visible.
+    appendBlock("X kept by high engagement", siteTotal(history.xKeptCounts), buildKeptBreakdown(history.xKeptCounts), "stats-site stats-kept");
     statsStatus.textContent = siteTotals.x + siteTotals.youtube ? "" : "Nothing hidden yet. Open X Home or YouTube to start.";
   }
 

@@ -78,3 +78,22 @@ test('decimal percentages include exact boundaries without accepting a materiall
   assert.equal(core.getFilterReason(10000, 'x', {...settings, xMinimumViews: 20000, xHighLikeRatioEnabled: true, xKeepLikePercent: 0.07}, metrics), null);
   assert.equal(core.getFilterReason(10000, 'x', {...settings, xMinimumViews: 20000, xHighBookmarkRatioEnabled: true, xKeepBookmarkPercent: 0.07}, metrics), null);
 });
+
+test('decision reports which high-engagement rule kept a card and the hide rule it overrode', () => {
+  const settings = normalizeSettings();
+  const decide = (views, likes, bookmarks = null, override = {}, site = 'x') => ({...core.getFilterDecision(views, site, {...settings, ...override}, {likes, bookmarks})});
+  // 500 views is below the 1,000 minimum; 10 likes = 2% reaches the keep threshold.
+  assert.deepEqual(decide(500, 10), {reason: null, keptBy: 'high-like-ratio', bypassedReason: 'low-views'});
+  // 0 likes fails the 0.5% minimum; 2 bookmarks / 400 views = 0.5% keeps it.
+  assert.deepEqual(decide(400, 0, 2), {reason: null, keptBy: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio'});
+  // Both exceptions qualify: likes are credited.
+  assert.deepEqual(decide(500, 10, 10), {reason: null, keptBy: 'high-like-ratio', bypassedReason: 'low-views'});
+  // High engagement on a post that passes anyway is not a rescue.
+  assert.deepEqual(decide(5000, 500), {reason: null, keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(500, 9), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(500, 10, null, {xHighLikeRatioEnabled: false}), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  // Unknown or zero views cannot form a ratio, and YouTube has no exceptions.
+  assert.deepEqual(decide(null, 10, 10, {hideUnknown: true}), {reason: 'unknown-views', keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(0, 10, 10), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(500, 500, 500, {}, 'youtube'), {reason: 'low-views', keptBy: null, bypassedReason: null});
+});

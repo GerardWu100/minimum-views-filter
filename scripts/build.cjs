@@ -44,7 +44,7 @@ function build(browser) {
     manifest_version: 3,
     name: "Minimum Views Filter",
     version: VERSION,
-    description: "Filter low views and low X likes/views. Keep high-engagement X posts. Includes local X/YouTube filtering statistics and history.",
+    description: "Hide low-view X posts and YouTube videos, and low like/view ratio X posts. Includes local filtering statistics.",
     permissions: ["storage", "contextMenus"],
     host_permissions: [...SITE_PAGE_PATTERNS],
     icons,

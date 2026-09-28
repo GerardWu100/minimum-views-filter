@@ -21,6 +21,10 @@ the platform through negative-feedback actions.
   items with canonical links, snippets/titles, count snapshots, reasons, and
   timestamps. Provide a reset action. This user-requested history must never
   become a blacklist, be synced, be uploaded, or hold DOM references.
+- Also count and list X posts that a high likes/views or bookmarks/views ratio
+  kept visible when they would otherwise be hidden (user request 2026-09-28),
+  under the same local, bounded, never-a-blacklist rules and a separate
+  500-link list, so kept posts never displace filtered items.
 - Do not permanently blacklist IDs. An item must become eligible again when the
   site's displayed counts meet the current rules, including on a later visit.
 - Expose independent X and YouTube minimums and switches; the user may set a

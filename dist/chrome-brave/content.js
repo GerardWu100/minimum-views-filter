@@ -35,7 +35,10 @@
   let settings = normalizeSettings();
   let whitelist = new Set();
   // Weak keys cannot keep removed cards alive; values contain only URL/title text.
-  let recordedCards = new WeakMap();
+  // One map per recorded outcome, so a card that flips between hidden and kept
+  // records each new continuous state once.
+  let recordedHiddenCards = new WeakMap();
+  let recordedKeptCards = new WeakMap();
   const pendingRoots = new Set();
   const startupChanges = {};
   let fullScanRequired = false;
@@ -165,7 +168,8 @@
   }
 
   function restorePage() {
-    recordedCards = new WeakMap();
+    recordedHiddenCards = new WeakMap();
+    recordedKeptCards = new WeakMap();
     document.documentElement.removeAttribute(ACTIVE_ATTRIBUTE);
     for (const target of document.querySelectorAll(HIDDEN_SELECTOR)) target.removeAttribute(HIDDEN_ATTRIBUTE);
   }
@@ -210,6 +214,21 @@
       }
       historyItems = [];
     };
+    /** Queue one history event per new item identity in a continuous state. */
+    const recordOutcome = (recordedCards, card, event) => {
+      const metadata = core.getItemMetadata(card, SITE);
+      const previous = recordedCards.get(card);
+      // A permalink can arrive after the count. Enrich that first event instead
+      // of counting the same continuous state twice. Lost links are not new IDs.
+      const enrich = !!previous && !previous.url && !!metadata.url;
+      // Text may hydrate or be rewritten by another extension. Only a changed
+      // stable URL proves a new item on a continuously tracked recycled node.
+      const newItem = !previous || (metadata.url && previous.url && metadata.url !== previous.url);
+      if (metadata.url || !previous?.url) recordedCards.set(card, metadata);
+      if (!newItem && !enrich) return;
+      historyItems.push({site: SITE, ...metadata, ...event, ...(enrich ? {enrich: true} : {})});
+      if (historyItems.length === HISTORY_BATCH_SIZE) recordBatch();
+    };
     for (const root of roots) {
       if (!root.isConnected) continue;
       if (root.nodeType === 1) {
@@ -222,30 +241,24 @@
         const views = core.getViewCount(card, SITE, locale);
         const engagement = SITE === 'x' && views > 0 && (settings.xLowLikeRatioEnabled || settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled)
           ? core.getXEngagement(card, locale) : {likes: null, bookmarks: null};
-        const reason = core.getFilterReason(views, SITE, settings, engagement);
-        if (!reason) {
-          recordedCards.delete(card);
+        const {reason, keptBy, bypassedReason} = core.getFilterDecision(views, SITE, settings, engagement);
+        // Whitelisted creators bypass every rule, so their cards record nothing.
+        const whitelisted = (reason || keptBy) && whitelist.size
+          && core.getCreatorIdentifiers(card, SITE).some((identifier) => whitelist.has(identifier));
+        if (!reason) recordedHiddenCards.delete(card);
+        if (!keptBy) recordedKeptCards.delete(card);
+        if (whitelisted) {
+          recordedHiddenCards.delete(card);
+          recordedKeptCards.delete(card);
           continue;
         }
-        // The whitelist can only rescue a card that would otherwise be hidden.
-        if (whitelist.size && core.getCreatorIdentifiers(card, SITE).some((identifier) => whitelist.has(identifier))) {
-          recordedCards.delete(card);
+        if (keptBy) {
+          recordOutcome(recordedKeptCards, card, {outcome: "kept", reason: keptBy, bypassedReason, views, ...engagement});
           continue;
         }
+        if (!reason) continue;
         nextHidden.add(core.getHideTarget(card, SITE));
-        const metadata = core.getItemMetadata(card, SITE);
-        const previous = recordedCards.get(card);
-        // A permalink can arrive after the count. Enrich that first event instead
-        // of counting the same continuous hide twice. Lost links are not new IDs.
-        const enrich = !!previous && !previous.url && !!metadata.url;
-        // Text may hydrate or be rewritten by another extension. Only a changed
-        // stable URL proves a new item on a continuously hidden recycled node.
-        const newItem = !previous || (metadata.url && previous.url && metadata.url !== previous.url);
-        if (metadata.url || !previous?.url) recordedCards.set(card, metadata);
-        if (newItem || enrich) {
-          historyItems.push({site: SITE, ...metadata, reason, views, ...engagement, ...(enrich ? {enrich: true} : {})});
-          if (historyItems.length === HISTORY_BATCH_SIZE) recordBatch();
-        }
+        recordOutcome(recordedHiddenCards, card, {outcome: "hidden", reason, views, ...engagement});
       }
     }
     for (const target of previousHidden) {

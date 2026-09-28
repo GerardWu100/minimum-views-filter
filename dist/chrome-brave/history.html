@@ -38,17 +38,29 @@
           </div>
           <div id="youtube-reasons"></div>
         </article>
+        <article class="card site-total kept-total" aria-labelledby="x-kept-heading">
+          <div class="site-total-head">
+            <h2 id="x-kept-heading">X kept by high engagement</h2>
+            <strong id="x-kept-count">—</strong>
+          </div>
+          <div id="x-kept-reasons"></div>
+        </article>
       </section>
 
       <details class="about-counts">
         <summary>About these counts</summary>
         <p>Stored on this device. Totals count hide events since the last reset, so a later appearance may count again. Recent items keep the latest 500 distinct links. View and engagement values are snapshots from when an item was hidden; items without links appear only in the totals.</p>
+        <p>“Kept by high engagement” counts X posts that were below your view minimum or minimum likes/views but stayed visible because their likes/views or bookmarks/views reached your keep threshold. They have their own list of the latest 500 links, so they never push filtered items out.</p>
       </details>
 
       <section class="recent" aria-labelledby="recent-heading">
         <div class="recent-head">
-          <h2 id="recent-heading">Recent filtered items</h2>
+          <h2 id="recent-heading">Recent items</h2>
           <span id="recent-shown" class="recent-shown"></span>
+        </div>
+        <div class="chip-group outcome-tabs" role="group" aria-label="Show hidden or kept items" id="outcome-filter">
+          <button type="button" class="chip" data-value="hidden" aria-pressed="true">Hidden <span class="chip-count" id="hidden-entry-count"></span></button>
+          <button type="button" class="chip" data-value="kept" aria-pressed="false">Kept by high engagement <span class="chip-count" id="kept-entry-count"></span></button>
         </div>
         <div class="filters">
           <div class="chip-group" role="group" aria-label="Filter by site" id="site-filter">
@@ -58,9 +70,11 @@
           </div>
           <div class="chip-group" role="group" aria-label="Filter by reason" id="reason-filter">
             <button type="button" class="chip" data-value="all" aria-pressed="true">All reasons</button>
-            <button type="button" class="chip" data-value="low-views" aria-pressed="false"><span class="reason-swatch" data-reason="low-views" aria-hidden="true"></span>Low views</button>
-            <button type="button" class="chip" data-value="low-like-ratio" aria-pressed="false"><span class="reason-swatch" data-reason="low-like-ratio" aria-hidden="true"></span>Low likes/views</button>
-            <button type="button" class="chip" data-value="unknown-views" aria-pressed="false"><span class="reason-swatch" data-reason="unknown-views" aria-hidden="true"></span>Unknown views</button>
+            <button type="button" class="chip" data-value="low-views" data-outcome="hidden" aria-pressed="false"><span class="reason-swatch" data-reason="low-views" aria-hidden="true"></span>Low views</button>
+            <button type="button" class="chip" data-value="low-like-ratio" data-outcome="hidden" aria-pressed="false"><span class="reason-swatch" data-reason="low-like-ratio" aria-hidden="true"></span>Low likes/views</button>
+            <button type="button" class="chip" data-value="unknown-views" data-outcome="hidden" aria-pressed="false"><span class="reason-swatch" data-reason="unknown-views" aria-hidden="true"></span>Unknown views</button>
+            <button type="button" class="chip" data-value="high-like-ratio" data-outcome="kept" aria-pressed="false" hidden><span class="reason-swatch" data-reason="high-like-ratio" aria-hidden="true"></span>High likes/views</button>
+            <button type="button" class="chip" data-value="high-bookmark-ratio" data-outcome="kept" aria-pressed="false" hidden><span class="reason-swatch" data-reason="high-bookmark-ratio" aria-hidden="true"></span>High bookmarks/views</button>
           </div>
         </div>
         <p id="status" role="status" aria-live="polite">Loading history…</p>

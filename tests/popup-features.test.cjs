@@ -114,11 +114,12 @@ test('filtered items button opens the extension history page', async (t) => {
 test('popup shows hide statistics by site and reason, and whitelist sizes', async (t) => {
   const store = require('../src/history-store.js');
   let history = store.addEvents(null, [
-    {site: 'x', url: null, title: '', reason: 'low-views', views: 10, likes: null, bookmarks: null},
-    {site: 'x', url: null, title: '', reason: 'low-like-ratio', views: 5000, likes: 1, bookmarks: null},
-    {site: 'x', url: null, title: '', reason: 'low-like-ratio', views: 5000, likes: 2, bookmarks: null},
+    {site: 'x', outcome: 'hidden', url: null, title: '', reason: 'low-views', views: 10, likes: null, bookmarks: null},
+    {site: 'x', outcome: 'hidden', url: null, title: '', reason: 'low-like-ratio', views: 5000, likes: 1, bookmarks: null},
+    {site: 'x', outcome: 'hidden', url: null, title: '', reason: 'low-like-ratio', views: 5000, likes: 2, bookmarks: null},
   ], 'x', 1).history;
-  history = store.addEvents(history, [{site: 'youtube', url: null, title: '', reason: 'unknown-views', views: null, likes: null, bookmarks: null}], 'youtube', 2).history;
+  history = store.addEvents(history, [{site: 'youtube', outcome: 'hidden', url: null, title: '', reason: 'unknown-views', views: null, likes: null, bookmarks: null}], 'youtube', 2).history;
+  history = store.addEvents(history, [{site: 'x', outcome: 'kept', url: null, title: '', reason: 'high-bookmark-ratio', bypassedReason: 'low-views', views: 400, likes: 0, bookmarks: 2}], 'x', 3).history;
   const messages = [];
   const {document} = openPopup(t, 'chrome', {xWhitelist: ['nasa', 'spacex']}, async (message) => {
     messages.push(message);
@@ -132,6 +133,10 @@ test('popup shows hide statistics by site and reason, and whitelist sizes', asyn
   assert.equal(xStats.querySelector('li[data-reason="low-like-ratio"] .reason-count').textContent, '2');
   assert.equal(xStats.querySelector('li[data-reason="low-like-ratio"] .reason-share').textContent, '67%');
   assert.equal(youtubeStats.querySelector('li[data-reason="unknown-views"] .reason-count').textContent, '1');
+  const keptStats = document.querySelector('#stats-sites .stats-kept');
+  assert.equal(keptStats.querySelector('.stats-site-head').textContent, 'X kept by high engagement1');
+  assert.equal(keptStats.querySelector('li[data-reason="high-bookmark-ratio"] .reason-count').textContent, '1');
+  assert.equal(document.querySelector('#stats-total').textContent, '4');
   assert.equal(document.querySelector('#x-whitelist-size').textContent, '2');
   assert.equal(document.querySelector('#youtube-whitelist-size').textContent, '');
   const textarea = document.querySelector('#youtube-whitelist');

@@ -13,8 +13,9 @@ It never clicks anything or requests platform data. Hidden items become eligible
 again when their displayed counts meet your rules.
 
 The popup shows how many X posts and YouTube videos were hidden and why (low
-views, low likes/views, or unknown views). **Filtered items and history** opens
-recent links you can filter by site and reason. This history stays in your browser.
+views, low likes/views, or unknown views), and how many X posts high engagement
+kept visible. **Filtered items and history** opens recent links you can filter
+by site and reason. This history stays in your browser.
 
 It filters X Home (For You and Following), YouTube Home, and the
 recommendations next to a video you're watching. Search, profiles, channels,
@@ -27,10 +28,10 @@ that it showed it to you.
 
 ## Install
 
-Download version 1.7.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.7.0):
+Download version 1.8.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.8.0):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.7.0/minimum-views-filter-chrome-brave-1.7.0.zip)
-- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.7.0/minimum-views-filter-firefox-1.7.0.xpi)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.8.0/minimum-views-filter-chrome-brave-1.8.0.zip)
+- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.8.0/minimum-views-filter-firefox-1.8.0.xpi)
 
 Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 
@@ -176,12 +177,20 @@ reason, as a stacked bar with counts and shares:
 | Low likes/views | X likes are below the minimum likes-to-views percentage |
 | Unknown views | No readable view count, with **Hide unknown view counts** on |
 
+The card also shows **X kept by high engagement**: posts below your view minimum
+or minimum likes/views that stayed visible because their likes/views reached
+the keep percentage (**High likes/views**) or their bookmarks/views did (**High
+bookmarks/views**). When both qualify, the post counts under likes. Posts that
+pass your rules anyway, and whitelisted creators, are not counted.
+
 Click **Filtered items and history** in the popup. It opens a page with the same
-per-site reason breakdowns and the latest **500 identifiable items** across both
-sites. Chips above the list filter it by site and reason.
+breakdowns and the latest **500 identifiable items** across both sites. Chips
+above the list filter it by site and reason. The **Kept by high engagement** tab
+lists the latest 500 kept X posts separately, each labeled with the rule that
+would have hidden it (for example, "kept despite low views").
 Entries show a link, post snippet or video title, the reason, counts/ratios at the
 time of hiding, and the last filtering time. Repeated URLs share one recent entry.
-**Reset history** clears all totals, reason counts, and entries; current hidden cards are not
+**Reset history** clears all totals, reason counts, kept counts, and entries; current hidden cards are not
 counted again merely because history was reset.
 
 Totals count hide events since reset, not lifetime unique IDs and not the number

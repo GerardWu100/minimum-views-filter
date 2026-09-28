@@ -339,7 +339,8 @@
   }
 
   /**
-   * Decide whether counts fail the configured view or X engagement rules.
+   * Decide whether counts fail the configured view or X engagement rules, and
+   * whether an X high-engagement exception kept a card that would be hidden.
    *
    * Parameters
    * ----------
@@ -354,29 +355,41 @@
    *
    * Returns
    * -------
-   * string|null
-   *     low-views, low-like-ratio, unknown-views, or null to keep the card.
-   *     Whitelist exemptions are applied by the caller. High likes OR bookmarks
-   *     override both hiding rules. No history is consulted for this decision.
+   * {reason: string|null, keptBy: string|null, bypassedReason: string|null}
+   *     reason is low-views, low-like-ratio, unknown-views, or null to keep the
+   *     card. keptBy is high-like-ratio or high-bookmark-ratio only when that
+   *     exception overrode bypassedReason (low-like-ratio or low-views); a card
+   *     that passes anyway has keptBy null. High likes are credited before
+   *     bookmarks when both qualify. Whitelist exemptions are applied by the
+   *     caller. No history is consulted for this decision.
    */
-  function getFilterReason(views, site, settings, engagement = {likes: null, bookmarks: null}) {
-    if (views === null) return settings.hideUnknown ? 'unknown-views' : null;
-    if (site === 'x' && views > 0) {
-      // For count c, views v, percent p: c/v >= p/100 iff 100*c >= p*v.
-      // A two-operation machine-precision allowance preserves decimal boundaries
-      // such as 7/10000 = 0.07%, whose binary product is slightly above 700.
-      const reaches = (count, percent) => {
-        if (count === null) return false;
-        const actual = count * PERCENT_SCALE;
-        const required = percent * views;
-        return actual >= required || required - actual <= RATIO_COMPARISON_EPSILON * Math.max(actual, required);
-      };
-      if ((settings.xHighLikeRatioEnabled && reaches(engagement.likes, settings.xKeepLikePercent))
-          || (settings.xHighBookmarkRatioEnabled && reaches(engagement.bookmarks, settings.xKeepBookmarkPercent))) return null;
-      if (settings.xLowLikeRatioEnabled && engagement.likes !== null
-          && !reaches(engagement.likes, settings.xMinimumLikePercent)) return 'low-like-ratio';
-    }
-    return views < settings[site + 'MinimumViews'] ? 'low-views' : null;
+  function getFilterDecision(views, site, settings, engagement = {likes: null, bookmarks: null}) {
+    const kept = {reason: null, keptBy: null, bypassedReason: null};
+    if (views === null) return settings.hideUnknown ? {...kept, reason: 'unknown-views'} : kept;
+    const belowMinimum = views < settings[site + 'MinimumViews'];
+    if (site !== 'x' || views === 0) return belowMinimum ? {...kept, reason: 'low-views'} : kept;
+    // For count c, views v, percent p: c/v >= p/100 iff 100*c >= p*v.
+    // A two-operation machine-precision allowance preserves decimal boundaries
+    // such as 7/10000 = 0.07%, whose binary product is slightly above 700.
+    const reaches = (count, percent) => {
+      if (count === null) return false;
+      const actual = count * PERCENT_SCALE;
+      const required = percent * views;
+      return actual >= required || required - actual <= RATIO_COMPARISON_EPSILON * Math.max(actual, required);
+    };
+    const lowReason = settings.xLowLikeRatioEnabled && engagement.likes !== null
+      && !reaches(engagement.likes, settings.xMinimumLikePercent) ? 'low-like-ratio'
+      : belowMinimum ? 'low-views' : null;
+    const keptBy = settings.xHighLikeRatioEnabled && reaches(engagement.likes, settings.xKeepLikePercent) ? 'high-like-ratio'
+      : settings.xHighBookmarkRatioEnabled && reaches(engagement.bookmarks, settings.xKeepBookmarkPercent) ? 'high-bookmark-ratio'
+      : null;
+    if (keptBy) return lowReason ? {reason: null, keptBy, bypassedReason: lowReason} : kept;
+    return {...kept, reason: lowReason};
+  }
+
+  /** Return only the hide reason from getFilterDecision, or null to keep the card. */
+  function getFilterReason(views, site, settings, engagement) {
+    return getFilterDecision(views, site, settings, engagement).reason;
   }
 
   /**
@@ -546,7 +559,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterReason, getItemMetadata, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget };
+  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, getItemMetadata, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);

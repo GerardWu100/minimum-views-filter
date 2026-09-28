@@ -42,6 +42,10 @@ h2 { font-size: 1.15rem; margin: 0; }
 .chip:hover { color: var(--text-primary); }
 .chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-fill); color: var(--accent-text); }
 .chip .reason-swatch { width: .65em; height: .65em; }
+.chip[hidden], .chip-group[hidden] { display: none; }
+.outcome-tabs .chip { font-size: .95rem; padding: .4em 1em; }
+.chip-count { font-variant-numeric: tabular-nums; opacity: .8; }
+.chip-count:empty { display: none; }
 
 #status { margin: 0; color: var(--text-secondary); }
 #status:empty { display: none; }

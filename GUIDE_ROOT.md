@@ -120,9 +120,21 @@ counts, and canonical URLs. The exact popup and history pages may read history;
 only the history page may reset
 through these messages. A promise queue serializes storage operations across tabs
 and resets, and recovers after failed writes. `history-store.js` keeps
-`counts[site][reason]` hide events (version 2; a site total is `siteTotal` of its
-reasons, so the two cannot disagree) and 500 recent URL entries under
-`storage.local.filterHistory`. Stored counts in any other shape normalize to zero. Entries deduplicate by
+`counts[site][reason]` hide events (a site total is `siteTotal` of its reasons,
+so the two cannot disagree), `xKeptCounts[keptReason]`, and two 500-entry URL
+lists, `entries` (hidden) and `keptEntries` (kept), under
+`storage.local.filterHistory` (version 3). Stored counts in any other shape
+normalize to zero. Messages carry `outcome`; stored entries omit it because their
+list identifies it. Kept events must come from X, name `high-like-ratio` or
+`high-bookmark-ratio`, and name the `bypassedReason` (`low-views` or
+`low-like-ratio`) the exception overrode.
+
+`getFilterDecision` returns `{reason, keptBy, bypassedReason}`; `getFilterReason`
+is its `reason`. `keptBy` is set only when an exception overrode a hide reason,
+crediting likes before bookmarks. `content.js` tracks hidden and kept identities
+in separate WeakMaps, so each continuous state records once and a card that flips
+between them records each new state. Kept cards parse creator metadata only
+because they would otherwise be hidden; whitelisted creators record nothing. Entries deduplicate by
 URL and retain count snapshots, reason, last filtering time, and event count.
 No IDs enter sync storage or settings exports, and no platform request is made.
 The history page renders through textContent, with links to validated destinations.
@@ -138,7 +150,11 @@ validator requires because aqua is below 3:1 on the light surface.
 shared by `popup.js` and `history.js`. Popup switches are native checkboxes with
 `role="switch"`; their animation turns on only after stored settings are shown, so
 opening the popup does not slide every switch. The history page filters its
-already-loaded entries in memory by site and reason chips.
+already-loaded entries in memory by outcome tab (Hidden or Kept by high
+engagement), site, and reason chips; switching outcome resets the reason filter
+and the kept tab hides the site filter. Kept reasons use dataviz slots 7 (violet,
+high likes/views) and 5 (pink, high bookmarks/views); all five reason colors
+pass the validator as one set in both modes, and pink needs its visible label.
 
 ## Right-click whitelist and sync
 
@@ -162,7 +178,7 @@ resets settings once for 1.4.0 users; no migration code exists by design.
 
 ## Current verification and limits
 
-For v1.7.0, run `npm ci`, `npm test`, `npm run build`, and
+For v1.8.0, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
 The packages now contain 19 files; the stable extension IDs and permissions are
@@ -191,6 +207,14 @@ count normalization, popup read-only access, popup statistics, whitelist-size
 badges, and history chip filters. Both 19-file packages built. Headless Chrome
 screenshots of both pages with synthetic history were checked in light and dark
 mode. Not yet checked in an installed extension or Firefox's popup renderer.
+
+Kept-by-engagement statistics (v1.8.0, 2026-09-28): 150 tests passed, adding
+decision cases (likes vs bookmarks credit, non-rescues, unknown/zero views,
+YouTube), once-per-state kept recording with flips and whitelist exclusion,
+separate kept counts/lists with validation and enrichment, reset, the kept tab,
+and the popup kept block. The synthetic benchmark passed its hiding assertions
+(`logs/2026-09-28_002.log`, ignored). Headless Chrome screenshots with synthetic
+kept posts were checked. Not yet observed on a live X feed.
 
 ## Build and verify
 

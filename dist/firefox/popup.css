@@ -18,6 +18,7 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 1
 .stats-sites { display: grid; gap: 12px; }
 .stats-site-head { display: flex; justify-content: space-between; font-weight: 650; margin-bottom: 5px; }
 .stats-site-head span:last-child { font-variant-numeric: tabular-nums; }
+.stats-kept { padding-top: 10px; border-top: 1px solid var(--border); }
 .stats .reason-list { font-size: 12.5px; }
 .stats-status:empty { display: none; }
 .stats-status { margin: 0; font-size: 12.5px; color: var(--text-muted); }

@@ -16,8 +16,8 @@ const popupSender = {id: 'extension-id', url: 'chrome-extension://extension-id/p
 const xSender = {id: 'extension-id', tab: {id: 1}, frameId: 0, url: 'https://x.com/home'};
 const youtubeSender = {id: 'extension-id', tab: {id: 2}, frameId: 0, url: 'https://www.youtube.com/watch?v=active'};
 const pageSender = {id: 'extension-id', url: 'chrome-extension://extension-id/history.html'};
-const xEvent = (id, extra = {}) => ({site: 'x', url: `https://x.com/Author/status/${id}`, title: `Post ${id}`, reason: 'low-views', views: 999, likes: null, bookmarks: null, ...extra});
-const youtubeEvent = (id, extra = {}) => ({site: 'youtube', url: `https://www.youtube.com/watch?v=${id}`, title: `Video ${id}`, reason: 'low-like-ratio', views: 1000, likes: 1, bookmarks: null, ...extra});
+const xEvent = (id, extra = {}) => ({site: 'x', outcome: 'hidden', url: `https://x.com/Author/status/${id}`, title: `Post ${id}`, reason: 'low-views', views: 999, likes: null, bookmarks: null, ...extra});
+const youtubeEvent = (id, extra = {}) => ({site: 'youtube', outcome: 'hidden', url: `https://www.youtube.com/watch?v=${id}`, title: `Video ${id}`, reason: 'low-like-ratio', views: 1000, likes: 1, bookmarks: null, ...extra});
 
 function openBackground({style = 'chrome', get, set} = {}) {
   const onMessage = {listeners: [], addListener(listener) {this.listeners.push(listener);}};
@@ -278,5 +278,72 @@ test('history page shows reason breakdowns and filters recent items by site and 
   document.querySelector('#site-filter [data-value="youtube"]').click();
   assert.equal(document.querySelectorAll('#entries li').length, 0);
   assert.equal(document.querySelector('#status').textContent, 'No recent items match these filters.');
+  dom.window.close();
+});
+
+const keptEvent = (id, extra = {}) => xEvent(id, {outcome: 'kept', reason: 'high-like-ratio', bypassedReason: 'low-views', views: 500, likes: 10, ...extra});
+
+test('kept events have their own counts and list and are validated separately', () => {
+  let history = store.addEvents(null, [xEvent(1), keptEvent(2), keptEvent(3, {reason: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio', bookmarks: 3})], 'x', 1).history;
+  assert.deepEqual(clone(history.xKeptCounts), {'high-like-ratio': 1, 'high-bookmark-ratio': 1});
+  assert.deepEqual(totals(history), {x: 1, youtube: 0});
+  assert.deepEqual(history.entries.map((entry) => entry.url), ['https://x.com/author/status/1']);
+  assert.deepEqual(history.keptEntries.map((entry) => entry.url), ['https://x.com/author/status/3', 'https://x.com/author/status/2']);
+  assert.equal(history.keptEntries[1].bypassedReason, 'low-views');
+  assert.equal(Object.hasOwn(history.keptEntries[1], 'outcome'), false);
+  // Kept events cannot claim a hide reason, a missing bypass, YouTube, or no outcome.
+  const rejected = store.addEvents(history, [
+    keptEvent(4, {reason: 'low-views'}), keptEvent(5, {bypassedReason: 'unknown-views'}), keptEvent(6, {bypassedReason: undefined}),
+    xEvent(7, {outcome: undefined}), xEvent(8, {outcome: 'shown'}), xEvent(9, {reason: 'high-like-ratio'}),
+  ], 'x', 2);
+  assert.equal(rejected.recorded, 0);
+  assert.equal(store.addEvents(null, [youtubeEvent('a', {outcome: 'kept', reason: 'high-like-ratio', bypassedReason: 'low-views'})], 'youtube', 1).recorded, 0);
+  // Stored lists keep their own outcome; a kept entry in the hidden list is dropped.
+  const normalized = store.normalizeHistory({entries: [{...history.keptEntries[0]}], keptEntries: history.keptEntries, xKeptCounts: {'high-like-ratio': 4, other: 2}});
+  assert.equal(normalized.entries.length, 0);
+  assert.equal(normalized.keptEntries.length, 2);
+  assert.deepEqual(clone(normalized.xKeptCounts), {'high-like-ratio': 4, 'high-bookmark-ratio': 0});
+  // Enrichment adds a kept entry without counting another kept event.
+  const linkless = store.addEvents(null, [keptEvent(10, {url: null})], 'x', 1).history;
+  const enriched = store.addEvents(linkless, [keptEvent(10, {enrich: true})], 'x', 2).history;
+  assert.equal(store.siteTotal(enriched.xKeptCounts), 1);
+  assert.equal(enriched.keptEntries.length, 1);
+});
+
+test('reset clears kept counts and entries', async () => {
+  const app = openBackground();
+  await app.send({type: 'minimum-views-filter:record-filtered', items: [keptEvent(1)]}, xSender);
+  assert.equal(store.siteTotal(app.read().xKeptCounts), 1);
+  const response = await app.send({type: 'minimum-views-filter:clear-history'}, pageSender);
+  assert.equal(store.siteTotal(response.history.xKeptCounts), 0);
+  assert.equal(app.read().keptEntries.length, 0);
+});
+
+test('history page shows kept totals and switches the list to kept posts', async () => {
+  const dom = new JSDOM(source('history.html'), {url: pageSender.url, runScripts: 'outside-only'});
+  let history = store.addEvents(null, [xEvent(1), keptEvent(2), keptEvent(3, {reason: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio', likes: 0, bookmarks: 3})], 'x', 1).history;
+  history = store.addEvents(history, [keptEvent(2)], 'x', 2).history;
+  dom.window.chrome = {runtime: {sendMessage: async () => ({ok: true, history})}, storage: {onChanged: {addListener() {}}}};
+  loadHistoryPageScripts(dom);
+  await new Promise((resolve) => setImmediate(resolve));
+  const document = dom.window.document;
+  assert.equal(document.querySelector('#x-kept-count').textContent, '3');
+  assert.equal(document.querySelector('#x-kept-reasons li[data-reason="high-bookmark-ratio"] .reason-count').textContent, '1');
+  assert.equal(document.querySelector('#kept-entry-count').textContent, '2');
+  assert.equal(document.querySelectorAll('#entries li').length, 1);
+  document.querySelector('#site-filter [data-value="youtube"]').click();
+  document.querySelector('#outcome-filter [data-value="kept"]').click();
+  assert.equal(document.querySelector('#site-filter').hidden, true);
+  assert.equal(document.querySelector('#reason-filter [data-value="low-views"]').hidden, true);
+  assert.equal(document.querySelector('#reason-filter [data-value="high-like-ratio"]').hidden, false);
+  assert.equal(document.querySelectorAll('#entries li').length, 2);
+  const bookmarkRow = document.querySelector('#entries li[data-reason="high-bookmark-ratio"]');
+  assert.match(bookmarkRow.querySelector('.entry-meta').textContent, /High bookmarks\/views · X · kept despite low likes\/views/);
+  assert.match(document.querySelector('#entries li[data-reason="high-like-ratio"] .entry-meta').textContent, /kept 2 times/);
+  document.querySelector('#reason-filter [data-value="high-like-ratio"]').click();
+  assert.equal(document.querySelectorAll('#entries li').length, 1);
+  document.querySelector('#outcome-filter [data-value="hidden"]').click();
+  assert.equal(document.querySelector('#reason-filter [data-value="all"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(document.querySelector('#site-filter').hidden, false);
   dom.window.close();
 });
