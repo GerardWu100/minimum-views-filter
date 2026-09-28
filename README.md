@@ -23,10 +23,10 @@ that it showed it to you.
 
 ## Install
 
-Download version 1.5.1 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.5.1):
+Download version 1.5.2 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.5.2):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.1/minimum-views-filter-chrome-brave-1.5.1.zip)
-- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.1/minimum-views-filter-firefox-1.5.1.xpi)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.2/minimum-views-filter-chrome-brave-1.5.2.zip)
+- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.2/minimum-views-filter-firefox-1.5.2.xpi)
 
 Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 
@@ -75,8 +75,8 @@ selected and the post author is not whitelisted.
 5. Open the popup to set each site's minimum, edit its whitelist, or disable filtering.
 
 **This is a permanent installation that survives Firefox restarts.** Minimum
-Firefox: 142. Mozilla approved and signed versions 1.5.0 and 1.5.1 for
-self-distribution on 2026-09-27. It has no public Mozilla Add-ons listing.
+Firefox: 142. The release XPI is signed by Mozilla for self-distribution.
+It has no public Mozilla Add-ons listing.
 
 Updates are manual: download a newer signed XPI from the GitHub release and
 install it with the same steps. The extension keeps the same ID, so Firefox
@@ -183,6 +183,9 @@ Changed cards are reconsidered individually. Sidebar/player updates do not resca
 the feed, and hidden tabs pause observation and URL checks until you return.
 Disabled sites and excluded pages do not observe DOM changes. The filter keeps
 no long-lived collection of hidden page elements; pending work is bounded.
+Creator metadata is checked only when a card would otherwise be hidden. Nested
+YouTube author containers share one link scan; X author checks stop as soon as
+conflicting identities rule out an exemption. Creator links are read fresh each time.
 
 In a synthetic 200-card feed, 20 single-card count changes required **20 count
 reads instead of 4,000**. Unrelated mutations required **zero instead of 4,000**.

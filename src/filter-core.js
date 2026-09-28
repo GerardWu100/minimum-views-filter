@@ -315,33 +315,45 @@
   }
 
   function getXCreatorIdentifiers(card) {
-    const profileIdentifiers = Array.from(card.querySelectorAll('[data-testid="User-Name"] a[href]'))
-      .filter((link) => isOwnXAuthorMetadata(link, card))
-      .map((link) => creatorIdentifierFromLink(link, 'x'));
-    const statusIdentifiers = Array.from(card.querySelectorAll('a[href] time'))
-      .filter((time) => isOwnXAuthorMetadata(time, card))
-      .map((time) => creatorIdentifierFromLink(time.closest('a'), 'x', true));
-    // Conflicting author metadata must not exempt an unrelated account's post.
-    const identifiers = [...new Set([...profileIdentifiers, ...statusIdentifiers].filter(Boolean))];
-    return identifiers.length === 1 ? identifiers : [];
+    let author = null;
+    for (const link of card.querySelectorAll('[data-testid="User-Name"] a[href]')) {
+      if (!isOwnXAuthorMetadata(link, card)) continue;
+      const identifier = creatorIdentifierFromLink(link, 'x');
+      if (!identifier) continue;
+      // Two distinct authors make this card ambiguous; later links cannot fix it.
+      if (author !== null && author !== identifier) return [];
+      author = identifier;
+    }
+    // A valid profile still needs checking against the post's own permalink.
+    for (const time of card.querySelectorAll('a[href] time')) {
+      if (!isOwnXAuthorMetadata(time, card)) continue;
+      const identifier = creatorIdentifierFromLink(time.closest('a'), 'x', true);
+      if (!identifier) continue;
+      if (author !== null && author !== identifier) return [];
+      author = identifier;
+    }
+    return author === null ? [] : [author];
   }
 
   function getYoutubeCreatorIdentifiers(card) {
     const containers = card.querySelectorAll(YOUTUBE_CREATOR_SOURCE_SELECTOR);
-    const identifiers = [];
-    // Nested containers (#byline-container > ytd-channel-name) share links.
-    const visitedLinks = new Set();
+    const identifiers = new Set();
+    let scannedContainer = null;
     for (const container of containers) {
-      const links = container.matches('a[href]') ? [container] : container.querySelectorAll('a[href]');
+      // Containers arrive in DOM order. An outer source already supplied every
+      // link under its nested sources, so avoid repeating their subtree scans.
+      if (scannedContainer?.contains(container)) continue;
+      const isLink = container.matches('a[href]');
+      const links = isLink ? [container] : container.querySelectorAll('a[href]');
+      // An anchor source supplies only itself, not any nested author sources.
+      if (!isLink) scannedContainer = container;
       for (const link of links) {
-        if (visitedLinks.has(link)) continue;
-        visitedLinks.add(link);
         if (link.closest(YOUTUBE_NON_AUTHOR_LINK_SELECTOR)) continue;
         const identifier = creatorIdentifierFromLink(link, 'youtube');
-        if (identifier) identifiers.push(identifier);
+        if (identifier) identifiers.add(identifier);
       }
     }
-    return [...new Set(identifiers)];
+    return [...identifiers];
   }
 
   /**

@@ -1,0 +1,988 @@
+{
+  "measured": "2026-09-28",
+  "baselineCommit": "ff184ca",
+  "currentSourceSha256": "1e9f2b9bb8c428590acc87e5d7b10840f89b949199ff6c4a680360e0ecf9db4c",
+  "environment": {
+    "node": "v22.17.0",
+    "jsdom": "29.1.1"
+  },
+  "fixture": {
+    "initialCards": 200,
+    "mutationBatches": 20,
+    "newCardsPerBatch": 4,
+    "xAuthorMetadata": "Two profile links and one own status permalink",
+    "youtubeAuthorMetadata": "Nested #byline-container > ytd-channel-name > a[href]"
+  },
+  "runs": 4,
+  "executionOrder": [
+    "baseline,current",
+    "current,baseline",
+    "baseline,current",
+    "current,baseline"
+  ],
+  "timingScope": "Synchronous production callback work in jsdom; excludes throttle waits, fixture writes, setup, and assertions. Not browser CPU, memory, or speed. Timing is noisy; operation counts are deterministic.",
+  "selectorQueryScope": "Production querySelector/querySelectorAll method calls; excludes fixture and assertion queries. Timings include counter overhead.",
+  "correctness": "All expected hidden marks checked after every mutation batch and scenario.",
+  "results": [
+    {
+      "site": "x",
+      "scenario": "startup",
+      "baseline": {
+        "selectorQueries": 602,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 200,
+        "getCreatorIdentifiers": 50,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          133.106,
+          110.469,
+          143.115,
+          99.398
+        ],
+        "medianRuntimeWorkMs": 121.787
+      },
+      "current": {
+        "selectorQueries": 602,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 200,
+        "getCreatorIdentifiers": 50,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          105.225,
+          133.484,
+          83.779,
+          133.193
+        ],
+        "medianRuntimeWorkMs": 119.209
+      }
+    },
+    {
+      "site": "x",
+      "scenario": "unrelated-sidebar-player-noise",
+      "baseline": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          1.467,
+          1.231,
+          2.124,
+          0.863
+        ],
+        "medianRuntimeWorkMs": 1.349
+      },
+      "current": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          0.788,
+          1.716,
+          0.775,
+          1.537
+        ],
+        "medianRuntimeWorkMs": 1.163
+      }
+    },
+    {
+      "site": "x",
+      "scenario": "card-hover-restyles",
+      "baseline": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      },
+      "current": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      }
+    },
+    {
+      "site": "x",
+      "scenario": "one-card-count-changes",
+      "baseline": {
+        "selectorQueries": 110,
+        "getCards": 20,
+        "documentGetCards": 0,
+        "getViewCount": 20,
+        "getCreatorIdentifiers": 10,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          17.377,
+          15.184,
+          16.178,
+          13.451
+        ],
+        "medianRuntimeWorkMs": 15.681
+      },
+      "current": {
+        "selectorQueries": 110,
+        "getCards": 20,
+        "documentGetCards": 0,
+        "getViewCount": 20,
+        "getCreatorIdentifiers": 10,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          10.863,
+          18.114,
+          11.441,
+          16.431
+        ],
+        "medianRuntimeWorkMs": 13.936
+      }
+    },
+    {
+      "site": "x",
+      "scenario": "new-card-batches",
+      "baseline": {
+        "selectorQueries": 480,
+        "getCards": 80,
+        "documentGetCards": 0,
+        "getViewCount": 80,
+        "getCreatorIdentifiers": 20,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          57.421,
+          47.055,
+          56.142,
+          48.889
+        ],
+        "medianRuntimeWorkMs": 52.516
+      },
+      "current": {
+        "selectorQueries": 480,
+        "getCards": 80,
+        "documentGetCards": 0,
+        "getViewCount": 80,
+        "getCreatorIdentifiers": 20,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          45.271,
+          59.542,
+          44.828,
+          56.307
+        ],
+        "medianRuntimeWorkMs": 50.789
+      }
+    },
+    {
+      "site": "x",
+      "scenario": "hidden-tab-noise",
+      "baseline": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 0,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      },
+      "current": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 0,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      }
+    },
+    {
+      "site": "x",
+      "scenario": "visible-tab-return",
+      "baseline": {
+        "selectorQueries": 842,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 70,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          87.528,
+          75.228,
+          88.782,
+          76.126
+        ],
+        "medianRuntimeWorkMs": 81.827
+      },
+      "current": {
+        "selectorQueries": 842,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 70,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          79.635,
+          89.762,
+          91.396,
+          83.695
+        ],
+        "medianRuntimeWorkMs": 86.728
+      }
+    },
+    {
+      "site": "x",
+      "scenario": "whitelist-matching-low-and-unknown",
+      "baseline": {
+        "selectorQueries": 912,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 140,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 1,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          97.64,
+          80.697,
+          113.262,
+          81.041
+        ],
+        "medianRuntimeWorkMs": 89.34
+      },
+      "current": {
+        "selectorQueries": 912,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 140,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 1,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          79.248,
+          96.655,
+          86.856,
+          95.424
+        ],
+        "medianRuntimeWorkMs": 91.14
+      }
+    },
+    {
+      "site": "x",
+      "scenario": "recycled-creator-links",
+      "baseline": {
+        "selectorQueries": 130,
+        "getCards": 20,
+        "documentGetCards": 0,
+        "getViewCount": 20,
+        "getCreatorIdentifiers": 20,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          17.815,
+          17.666,
+          19.554,
+          17.383
+        ],
+        "medianRuntimeWorkMs": 17.741
+      },
+      "current": {
+        "selectorQueries": 130,
+        "getCards": 20,
+        "documentGetCards": 0,
+        "getViewCount": 20,
+        "getCreatorIdentifiers": 20,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          16.708,
+          18.879,
+          16.274,
+          19.009
+        ],
+        "medianRuntimeWorkMs": 17.794
+      }
+    },
+    {
+      "site": "x",
+      "scenario": "whitelist-removed",
+      "baseline": {
+        "selectorQueries": 1052,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 140,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 1,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          98.652,
+          141.79,
+          122.686,
+          84.901
+        ],
+        "medianRuntimeWorkMs": 110.669
+      },
+      "current": {
+        "selectorQueries": 1052,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 140,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 1,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          86.438,
+          100.204,
+          97.911,
+          106.459
+        ],
+        "medianRuntimeWorkMs": 99.058
+      }
+    },
+    {
+      "site": "x",
+      "scenario": "disabled-site-noise",
+      "baseline": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      },
+      "current": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      }
+    },
+    {
+      "site": "x",
+      "scenario": "excluded-route-noise",
+      "baseline": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      },
+      "current": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "startup",
+      "baseline": {
+        "selectorQueries": 1152,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 200,
+        "getCreatorIdentifiers": 50,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          185.034,
+          116.839,
+          159.03,
+          119.581
+        ],
+        "medianRuntimeWorkMs": 139.305
+      },
+      "current": {
+        "selectorQueries": 1102,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 200,
+        "getCreatorIdentifiers": 50,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          116.869,
+          150.062,
+          106.58,
+          157.259
+        ],
+        "medianRuntimeWorkMs": 133.466
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "unrelated-sidebar-player-noise",
+      "baseline": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          3.718,
+          2.754,
+          3.34,
+          2.299
+        ],
+        "medianRuntimeWorkMs": 3.047
+      },
+      "current": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          2.205,
+          3.031,
+          2.018,
+          3.233
+        ],
+        "medianRuntimeWorkMs": 2.618
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "card-hover-restyles",
+      "baseline": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          3.046,
+          2.225,
+          2.398,
+          2.585
+        ],
+        "medianRuntimeWorkMs": 2.492
+      },
+      "current": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          2.133,
+          3.01,
+          2.071,
+          2.112
+        ],
+        "medianRuntimeWorkMs": 2.123
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "one-card-count-changes",
+      "baseline": {
+        "selectorQueries": 170,
+        "getCards": 20,
+        "documentGetCards": 0,
+        "getViewCount": 20,
+        "getCreatorIdentifiers": 10,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          25.71,
+          17.77,
+          17.662,
+          17.688
+        ],
+        "medianRuntimeWorkMs": 17.729
+      },
+      "current": {
+        "selectorQueries": 160,
+        "getCards": 20,
+        "documentGetCards": 0,
+        "getViewCount": 20,
+        "getCreatorIdentifiers": 10,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          15.308,
+          18.563,
+          13.497,
+          16.83
+        ],
+        "medianRuntimeWorkMs": 16.069
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "new-card-batches",
+      "baseline": {
+        "selectorQueries": 620,
+        "getCards": 80,
+        "documentGetCards": 0,
+        "getViewCount": 80,
+        "getCreatorIdentifiers": 20,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          82.186,
+          54.95,
+          63.301,
+          53.754
+        ],
+        "medianRuntimeWorkMs": 59.126
+      },
+      "current": {
+        "selectorQueries": 600,
+        "getCards": 80,
+        "documentGetCards": 0,
+        "getViewCount": 80,
+        "getCreatorIdentifiers": 20,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          53.4,
+          58.448,
+          50.112,
+          62.578
+        ],
+        "medianRuntimeWorkMs": 55.924
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "hidden-tab-noise",
+      "baseline": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 0,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      },
+      "current": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 0,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "visible-tab-return",
+      "baseline": {
+        "selectorQueries": 1612,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 70,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          126.478,
+          111.417,
+          109.068,
+          112.343
+        ],
+        "medianRuntimeWorkMs": 111.88
+      },
+      "current": {
+        "selectorQueries": 1542,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 70,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          107.97,
+          128.905,
+          108.7,
+          124.663
+        ],
+        "medianRuntimeWorkMs": 116.681
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "whitelist-matching-low-and-unknown",
+      "baseline": {
+        "selectorQueries": 1822,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 140,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 1,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          130.592,
+          100.177,
+          100.133,
+          91.702
+        ],
+        "medianRuntimeWorkMs": 100.155
+      },
+      "current": {
+        "selectorQueries": 1682,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 140,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 1,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          103.472,
+          95.046,
+          97.075,
+          93.125
+        ],
+        "medianRuntimeWorkMs": 96.061
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "recycled-creator-links",
+      "baseline": {
+        "selectorQueries": 200,
+        "getCards": 20,
+        "documentGetCards": 0,
+        "getViewCount": 20,
+        "getCreatorIdentifiers": 20,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          20.756,
+          20.63,
+          21.403,
+          18.4
+        ],
+        "medianRuntimeWorkMs": 20.693
+      },
+      "current": {
+        "selectorQueries": 180,
+        "getCards": 20,
+        "documentGetCards": 0,
+        "getViewCount": 20,
+        "getCreatorIdentifiers": 20,
+        "observerCallbacks": 20,
+        "timeoutCallbacks": 20,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          21.357,
+          19.428,
+          20.291,
+          21.349
+        ],
+        "medianRuntimeWorkMs": 20.82
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "whitelist-removed",
+      "baseline": {
+        "selectorQueries": 1822,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 140,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 1,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          119.983,
+          120.082,
+          114.573,
+          113.376
+        ],
+        "medianRuntimeWorkMs": 117.278
+      },
+      "current": {
+        "selectorQueries": 1682,
+        "getCards": 1,
+        "documentGetCards": 1,
+        "getViewCount": 280,
+        "getCreatorIdentifiers": 140,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 1,
+        "activeObservers": 1,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          120.638,
+          140.058,
+          114.584,
+          123.878
+        ],
+        "medianRuntimeWorkMs": 122.258
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "disabled-site-noise",
+      "baseline": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      },
+      "current": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      }
+    },
+    {
+      "site": "youtube",
+      "scenario": "excluded-route-noise",
+      "baseline": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      },
+      "current": {
+        "selectorQueries": 0,
+        "getCards": 0,
+        "documentGetCards": 0,
+        "getViewCount": 0,
+        "getCreatorIdentifiers": 0,
+        "observerCallbacks": 0,
+        "timeoutCallbacks": 0,
+        "activeObservers": 0,
+        "activeIntervals": 1,
+        "runtimeWorkMs": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "medianRuntimeWorkMs": 0
+      }
+    }
+  ]
+}

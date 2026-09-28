@@ -254,6 +254,20 @@ test('X external, malformed and reserved profile destinations never establish id
   }
 });
 
+test('X repeated profiles agree, but later conflicting profiles or permalinks remain ambiguous', () => {
+  const card = documentOf(`<article data-testid="tweet">
+    <div data-testid="User-Name"><a href="/NASA">NASA</a><a href="/nasa">@NASA</a></div>
+    <a href="/NASA/status/123"><time>Now</time></a>
+    <a href="/nasa/status/123"><time>Now</time></a></article>`).body.firstElementChild;
+  assert.deepEqual(core.getCreatorIdentifiers(card, 'x'), ['nasa']);
+  const profiles = card.querySelectorAll('[data-testid="User-Name"] a');
+  profiles[1].setAttribute('href', '/other');
+  assert.deepEqual(core.getCreatorIdentifiers(card, 'x'), []);
+  profiles[1].setAttribute('href', '/nasa');
+  card.querySelectorAll('a[href*="/status/"]')[1].setAttribute('href', '/other/status/456');
+  assert.deepEqual(core.getCreatorIdentifiers(card, 'x'), []);
+});
+
 test('classic YouTube author containers yield canonical handles and case-sensitive channel IDs', () => {
   const html = `<ytd-compact-video-renderer>
     <a id="video-title" href="/watch?v=video">Title</a>
@@ -275,6 +289,46 @@ test('modern YouTube author metadata supports both class forms and Unicode handl
       <a class="${className}" href="/@%E6%95%99%E8%82%B2">教育</a>
       <span class="${className}">999 views</span></yt-lockup-view-model>`, 'youtube'), ['@école', '@教育']);
   }
+});
+
+test('nested YouTube author sources retain unique handles and IDs as links are changed or removed', () => {
+  const card = documentOf(`<ytd-video-renderer><div id="byline-container"><ytd-channel-name>
+    <a class="ytContentMetadataViewModelMetadataText" href="/@NASA">NASA</a>
+    <a href="/@nasa">@NASA</a><a href="/channel/UCMixedCase">NASA</a>
+  </ytd-channel-name></div></ytd-video-renderer>`).body.firstElementChild;
+  assert.deepEqual(core.getCreatorIdentifiers(card, 'youtube'), ['@nasa', 'channel/UCMixedCase']);
+  const links = card.querySelectorAll('a');
+  links[0].setAttribute('href', '/@other');
+  assert.deepEqual(core.getCreatorIdentifiers(card, 'youtube'), ['@other', '@nasa', 'channel/UCMixedCase']);
+  links[1].remove();
+  links[2].remove();
+  assert.deepEqual(core.getCreatorIdentifiers(card, 'youtube'), ['@other']);
+});
+
+test('a YouTube author-source anchor contributes only itself unless another source covers its descendants', () => {
+  const card = documentOf(`<ytd-video-renderer>
+    <a class="ytContentMetadataViewModelMetadataText" href="/@author">Creator</a>
+  </ytd-video-renderer>`).body.firstElementChild;
+  // Scripts can create nested anchors even though the HTML parser repairs them.
+  const nested = card.ownerDocument.createElement('a');
+  nested.setAttribute('href', '/@other');
+  card.querySelector('a').append(nested);
+  assert.deepEqual(core.getCreatorIdentifiers(card, 'youtube'), ['@author']);
+  const byline = card.ownerDocument.createElement('div');
+  byline.id = 'byline-container';
+  byline.append(card.querySelector('a'));
+  card.append(byline);
+  assert.deepEqual(core.getCreatorIdentifiers(card, 'youtube'), ['@author', '@other']);
+});
+
+test('YouTube author sources must be strictly inside the card', () => {
+  const document = documentOf(`<div id="byline-container"><ytd-video-renderer id="channel-name">
+    <a href="/@unrelated">Body link</a>
+  </ytd-video-renderer></div>`);
+  const card = document.querySelector('ytd-video-renderer');
+  assert.deepEqual(core.getCreatorIdentifiers(card, 'youtube'), []);
+  card.insertAdjacentHTML('beforeend', '<ytd-channel-name><a href="/@author">Creator</a></ytd-channel-name>');
+  assert.deepEqual(core.getCreatorIdentifiers(card, 'youtube'), ['@author']);
 });
 
 test('YouTube ignores arbitrary links, display names, titles, descriptions and external destinations', () => {

@@ -52,8 +52,8 @@ function parseArguments() {
 
 function cardMarkup(site, id, views) {
   const count = views === null ? '' : String(views);
-  if (site === 'x') return `<div data-testid="cellInnerDiv" id="card-${id}"><article data-testid="tweet"><a href="/author/status/${id}"><time>Now</time></a><div data-testid="tweetText">Synthetic post</div>${views === null ? '' : `<a data-count href="/author/status/${id}/analytics" aria-label="${count} views">${count}</a>`}</article></div>`;
-  return `<ytd-rich-item-renderer id="card-${id}"><ytd-rich-grid-media><a id="video-title" href="/watch?v=${id}">Synthetic video</a><ytd-channel-name><a href="/@author">Creator</a></ytd-channel-name><div id="metadata-line">${views === null ? '' : `<span data-count>${count} views</span>`}<span>1 hour ago</span></div></ytd-rich-grid-media></ytd-rich-item-renderer>`;
+  if (site === 'x') return `<div data-testid="cellInnerDiv" id="card-${id}"><article data-testid="tweet"><div data-testid="User-Name"><a data-creator href="/author">Author</a><a data-creator href="/author">@author</a><a data-creator href="/author/status/${id}"><time>Now</time></a></div><div data-testid="tweetText">Synthetic post</div>${views === null ? '' : `<a data-count href="/author/status/${id}/analytics" aria-label="${count} views">${count}</a>`}</article></div>`;
+  return `<ytd-rich-item-renderer id="card-${id}"><ytd-rich-grid-media><a id="video-title" href="/watch?v=${id}">Synthetic video</a><div id="byline-container"><ytd-channel-name><a data-creator href="/@author">Creator</a></ytd-channel-name></div><div id="metadata-line">${views === null ? '' : `<span data-count>${count} views</span>`}<span>1 hour ago</span></div></ytd-rich-grid-media></ytd-rich-item-renderer>`;
 }
 
 /**
@@ -77,6 +77,8 @@ function cardMarkup(site, id, views) {
  */
 async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
   const expectedCounts = new Map(Array.from({length: cardCount}, (_, id) => [id, INITIAL_COUNTS[id % INITIAL_COUNTS.length]]));
+  const exemptCards = new Set();
+  let hideUnknown = false;
   const cards = [...expectedCounts].map(([id, count]) => cardMarkup(site, id, count)).join('');
   const feed = `<div id="feed">${cards}</div>`;
   const html = `<aside id="sidebar"><span>Unrelated navigation</span></aside>${site === 'youtube' ? `<ytd-watch-flexy><div id="movie_player"><video></video><span>0:00</span></div><div id="related">${feed}</div></ytd-watch-flexy>` : feed}`;
@@ -98,7 +100,7 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
   const nativeObserver = window.MutationObserver;
 
   function emptyTotals() {
-    return {runtimeWorkMs: 0, getCards: 0, documentGetCards: 0, getViewCount: 0, getCreatorIdentifiers: 0, observerCallbacks: 0, timeoutCallbacks: 0};
+    return {runtimeWorkMs: 0, selectorQueries: 0, getCards: 0, documentGetCards: 0, getViewCount: 0, getCreatorIdentifiers: 0, observerCallbacks: 0, timeoutCallbacks: 0};
   }
   function timed(callback, receiver, argumentsList) {
     const outermost = timingDepth++ === 0;
@@ -107,6 +109,16 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
     finally {
       timingDepth--;
       if (outermost) totals.runtimeWorkMs += performance.now() - started;
+    }
+  }
+  // Count production queries only; fixture setup and assertions run untimed.
+  for (const prototype of [window.Element.prototype, window.Document.prototype]) {
+    for (const name of ['querySelector', 'querySelectorAll']) {
+      const original = prototype[name];
+      prototype[name] = function (...args) {
+        if (timingDepth) totals.selectorQueries++;
+        return original.apply(this, args);
+      };
     }
   }
   Object.defineProperties(document, {
@@ -172,7 +184,7 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
   function assertMarks(enabled = true) {
     let expectedHidden = 0;
     for (const [id, count] of expectedCounts) {
-      const expected = enabled && count !== null && count < 1000;
+      const expected = enabled && !exemptCards.has(id) && (count === null ? hideUnknown : count < 1000);
       expectedHidden += Number(expected);
       assert.equal(document.getElementById(`card-${id}`).hasAttribute(HIDDEN_ATTRIBUTE), expected, `${site} card ${id}`);
     }
@@ -264,6 +276,28 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
     await scenario('visible-tab-return', async () => {
       hidden = false;
       dispatch(document, new window.Event('visibilitychange'));
+    });
+    await scenario('whitelist-matching-low-and-unknown', async () => {
+      hideUnknown = true;
+      for (const id of expectedCounts.keys()) exemptCards.add(id);
+      changeSettings({hideUnknown, [site + 'Whitelist']: [site === 'x' ? 'author' : '@author']});
+    });
+    await scenario('recycled-creator-links', async () => {
+      for (let batch = 0; batch < batchCount; batch++) {
+        const author = batch % 2 === 0 ? 'other' : 'author';
+        for (const link of document.querySelectorAll('#card-0 [data-creator]')) {
+          const status = link.querySelector('time') ? '/status/0' : '';
+          link.setAttribute('href', site === 'x' ? `/${author}${status}` : `/@${author}`);
+        }
+        if (author === 'author') exemptCards.add(0);
+        else exemptCards.delete(0);
+        await flush();
+        assertMarks();
+      }
+    });
+    await scenario('whitelist-removed', async () => {
+      exemptCards.clear();
+      changeSettings({[site + 'Whitelist']: [site === 'x' ? 'exempt' : '@exempt']});
     });
     changeSettings({[site + 'Enabled']: false});
     await flush();

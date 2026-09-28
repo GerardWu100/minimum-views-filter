@@ -37,6 +37,12 @@ channel/byline metadata. The settings normalizer canonicalizes X handles without
 @, YouTube handles with @ (NFC/lowercase), and case-sensitive `channel/ID` values.
 Unknown creators return an empty array; quoted authors, mentions, repost context,
 and arbitrary title/body links cannot establish an exemption.
+X author extraction tracks one identifier and returns unknown on a second
+distinct valid identifier, including conflicts between profile and status links.
+YouTube processes creator containers in DOM order and skips nested containers
+whose links were already scanned by an outer source. Anchor sources contribute
+only themselves; they do not suppress nested sources. All tracking is local to
+the call, so no creator decision or DOM reference is cached between passes.
 
 `content.js` selects `xMinimumViews`/`xWhitelist` or the YouTube counterparts
 by host, merging any settings changes that arrive during startup. The whitelist
@@ -108,7 +114,18 @@ deterministic ZIPs. Firefox declares no data collection and a fixed extension
 ID (`minimum-views-filter@gerardwu100.local`); its minimum version is 142.
 Builds remain unsigned; Mozilla signing is a separate distribution step.
 
-Validation on 2026-09-27:
+Whitelist optimization validation on 2026-09-28:
+
+- The full test suite, build, and Firefox lint passed. Four new adapter regressions
+  cover conflicting X authors, nested YouTube identities, script-created nested
+  anchors, and author sources outside the card boundary.
+- Four paired benchmark runs alternated baseline/current execution order against
+  commit `ff184ca`. All expected hiding marks and existing adapter/lifecycle counts
+  matched. YouTube required fewer selector queries; callback timings varied in
+  both directions. See [the measurements](docs/performance.md) and their full data.
+- Verification used jsdom; no installed browser extension was updated or timed.
+
+Earlier validation on 2026-09-27:
 
 - 106 tests passed: 29 parser/adapter, 64 runtime/popup, 8 settings, and 5
   background tests. Menu tests cover card authors versus mentions, two posts in
@@ -191,7 +208,12 @@ existing projects root. Relative build and test paths keep relocation safe.
 GitHub release `v1.5.0` distributes the browser ZIPs, the Mozilla-signed Firefox
 XPI, a source ZIP, installation instructions, and SHA-256 checksums. Release
 `v1.5.1` (hot-path performance and count-parsing fixes) has the same asset set.
-Its unlisted submission was signed with `web-ext sign --channel unlisted` using
+Release `v1.5.2` packages the whitelist extraction changes measured above,
+with the same extension IDs, permissions, and settings format.
+Mozilla signed its Firefox XPI on 2026-09-28. All 13 build files matched
+(the manifest is semantically equal), with only five `META-INF` signature files
+added. The release includes the signed XPI and an unsigned development ZIP.
+The v1.5.1 unlisted submission was signed with `web-ext sign --channel unlisted` using
 AMO API credentials from the ignored `.env` (see `.env.example`). The signed
 XPI matched the build: identical runtime files, semantically equal manifest,
 plus five `META-INF` signature files. Node's `fetch` in the agent sandbox cannot

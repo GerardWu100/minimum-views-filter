@@ -1,5 +1,45 @@
 # Performance measurements
 
+## Whitelist extraction, 2026-09-28
+
+Compared with commit `ff184ca`, YouTube skips nested creator containers after
+their outer source has already supplied every link. A nested byline/channel
+layout now uses **two queries instead of three** for creator extraction. X
+tracks a single author without intermediate filtered/mapped arrays and stops on
+the second distinct valid author. Both adapters still read current DOM metadata
+on each check; no identities or card decisions are cached.
+
+Four paired runs with Node.js v22.17.0 and jsdom 29.1.1 alternated execution
+order (baseline first, current first). The 200-card fixtures now include X's
+duplicate profile links and own status permalink, and YouTube's nested
+`#byline-container > ytd-channel-name`. After 80 new cards arrive, extra scenarios
+enable a matching whitelist with unknown-count hiding, recycle one card's creator
+links 20 times, then remove the matching whitelist. Every batch checks all marks.
+
+The query column counts production `querySelector`/`querySelectorAll` calls for
+the entire filtering pass, not just creator extraction. Timings include counter
+overhead and are medians of the four runs. [Full results and samples](whitelist-performance-results.json).
+
+| Site | Scenario | Queries before → after | Callback ms before → after |
+| --- | --- | ---: | ---: |
+| X | startup | 602 → 602 | 121.8 → 119.2 |
+| X | matching whitelist, low/unknown | 912 → 912 | 89.3 → 91.1 |
+| X | recycled creator links | 130 → 130 | 17.7 → 17.8 |
+| X | whitelist removed | 1,052 → 1,052 | 110.7 → 99.1 |
+| YouTube | startup | 1,152 → 1,102 | 139.3 → 133.5 |
+| YouTube | matching whitelist, low/unknown | 1,822 → 1,682 | 100.2 → 96.1 |
+| YouTube | recycled creator links | 200 → 180 | 20.7 → 20.8 |
+| YouTube | whitelist removed | 1,822 → 1,682 | 117.3 → 122.3 |
+
+All adapter-read, observer, timer and full-scan counts were unchanged. Query
+reductions were identical across runs, while timings varied in both directions;
+these results establish less duplicate query work, **not a consistent elapsed-time
+speedup or a measured browser CPU/RAM reduction**. A combined complex selector
+was also tried and discarded after it slowed several scenarios. The retained
+implementation keeps the original simple selectors and skips covered containers.
+
+## Earlier runtime measurements
+
 Measured 2026-09-27 with Node.js v22.17.0 and jsdom 29.1.1.
 Baseline: v1.0.3 runtime at commit 2e9c83c4. Updated: v1.4.0.
 [Full measured results](performance-results.json) include illustrative callback timings.

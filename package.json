@@ -1,6 +1,6 @@
 {
   "name": "minimum-views-filter",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "private": true,
   "license": "MIT",
   "description": "Filter low-view X Home posts and YouTube Home/watch recommendations locally.",
