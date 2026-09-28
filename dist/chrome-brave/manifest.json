@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Minimum Views Filter",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "Filter low views and low X likes/views. Keep high-engagement X posts. Includes local X/YouTube filtering statistics and history.",
   "permissions": [
     "storage",

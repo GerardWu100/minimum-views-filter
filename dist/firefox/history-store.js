@@ -7,13 +7,31 @@
   const MAX_TITLE_LENGTH = 240;
   const MAX_COUNT = 1_000_000_000_000;
   const MAX_TOTAL = Number.MAX_SAFE_INTEGER;
-  const REASONS = new Set(["low-views", "low-like-ratio", "unknown-views"]);
+  // Every hide reason from MinimumViewsCore.getFilterReason, in display order.
+  const REASONS = Object.freeze(["low-views", "low-like-ratio", "unknown-views"]);
+  const REASON_SET = new Set(REASONS);
   const X_HOSTS = new Set(["x.com", "www.x.com", "twitter.com", "www.twitter.com"]);
   const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com"]);
 
-  /** Return a fresh, JSON-safe history object; entries are most recent first. */
+  /** Return {reason: 0} for every hide reason. */
+  function emptyReasonCounts() {
+    return Object.fromEntries(REASONS.map((reason) => [reason, 0]));
+  }
+
+  /**
+   * Return a fresh, JSON-safe history object.
+   *
+   * counts maps site -> reason -> hide events since the last reset, e.g.
+   * {x: {"low-views": 3, "low-like-ratio": 1, "unknown-views": 0}, youtube: {...}}.
+   * A site's total is the sum of its reasons. entries are most recent first.
+   */
   function emptyHistory() {
-    return {version: 1, counts: {x: 0, youtube: 0}, entries: []};
+    return {version: 2, counts: {x: emptyReasonCounts(), youtube: emptyReasonCounts()}, entries: []};
+  }
+
+  /** Sum one site's reason counts into its total hide events. */
+  function siteTotal(reasonCounts) {
+    return REASONS.reduce((total, reason) => total + reasonCounts[reason], 0);
   }
 
   /** Canonicalize an X post or YouTube video URL without fetching it. */
@@ -45,7 +63,7 @@
 
   /** Validate one content-script event; null means reject it. */
   function normalizeEvent(value, site) {
-    if (!value || typeof value !== "object" || Array.isArray(value) || value.site !== site || !REASONS.has(value.reason)) return null;
+    if (!value || typeof value !== "object" || Array.isArray(value) || value.site !== site || !REASON_SET.has(value.reason)) return null;
     if (Object.prototype.hasOwnProperty.call(value, "enrich") && typeof value.enrich !== "boolean") return null;
     if (value.url !== null && typeof value.url !== "string") return null;
     const url = value.url === null ? null : canonicalItemUrl(value.url, site);
@@ -65,8 +83,10 @@
     const history = emptyHistory();
     if (!value || typeof value !== "object" || Array.isArray(value)) return history;
     for (const site of ["x", "youtube"]) {
-      const count = value.counts?.[site];
-      if (Number.isSafeInteger(count) && count >= 0 && count <= MAX_TOTAL) history.counts[site] = count;
+      for (const reason of REASONS) {
+        const count = value.counts?.[site]?.[reason];
+        if (Number.isSafeInteger(count) && count >= 0 && count <= MAX_TOTAL) history.counts[site][reason] = count;
+      }
     }
     if (!Array.isArray(value.entries)) return history;
     const seen = new Set();
@@ -91,13 +111,13 @@
    * ----------
    * stored : object
    *     Previous history in extension local storage, with counts by site and
-   *     at most 500 recent URL entries (most recent first).
+   *     reason and at most 500 recent URL entries (most recent first).
    * items : object[]
    *     Up to 100 content-script events from one verified site. Each event has
    *     site, canonical item URL or null, bounded title, reason, and optional
    *     numeric views/likes/bookmarks. Null URLs count without an entry. A
    *     linked event with enrich: true identifies an earlier linkless event;
-   *     it adds an entry occurrence without incrementing the site total.
+   *     it adds an entry occurrence without incrementing any reason count.
    * site : "x" | "youtube"
    *     Site established from the trusted message sender URL.
    * now : number
@@ -116,7 +136,7 @@
     for (const item of items) {
       const event = normalizeEvent(item, site);
       if (!event) continue;
-      if (item.enrich !== true) history.counts[site] = Math.min(MAX_TOTAL, history.counts[site] + 1);
+      if (item.enrich !== true) history.counts[site][event.reason] = Math.min(MAX_TOTAL, history.counts[site][event.reason] + 1);
       recorded++;
       if (!event.url) continue;
       const previousIndex = history.entries.findIndex((entry) => entry.url === event.url);
@@ -131,7 +151,7 @@
     return {history, recorded};
   }
 
-  const api = {STORAGE_KEY, MAX_ENTRIES, MAX_BATCH_ITEMS, emptyHistory, canonicalItemUrl, normalizeEvent, normalizeHistory, addEvents};
+  const api = {STORAGE_KEY, MAX_ENTRIES, MAX_BATCH_ITEMS, REASONS, emptyHistory, siteTotal, canonicalItemUrl, normalizeEvent, normalizeHistory, addEvents};
   globalThis.MinimumViewsHistory = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

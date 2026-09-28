@@ -11,7 +11,7 @@ const OUTPUT_DIRECTORY = path.join(PROJECT_ROOT, "dist");
 const VERSION = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8")).version;
 const ICON_SIZES = [16, 32, 48, 128];
 const ARCHIVE_DATE = new Date("2000-01-01T00:00:00Z");
-const SOURCE_FILES = ["filter-core.js", "settings.js", "content.js", "content.css", "popup.html", "popup.js", "popup.css", "background.js", "history-store.js", "history.html", "history.js", "history.css"];
+const SOURCE_FILES = ["filter-core.js", "settings.js", "content.js", "content.css", "popup.html", "popup.js", "popup.css", "background.js", "history-store.js", "history.html", "history.js", "history.css", "theme.css", "reason-breakdown.js"];
 // Public half of an RSA key; Chromium derives the extension ID from it, so every
 // unpacked copy is ID lbjagemindgbhajfhagehgodegndnnhi wherever its folder lives. Sync storage
 // is keyed by that ID. The private half was discarded: unpacked loading and

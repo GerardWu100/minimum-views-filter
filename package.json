@@ -1,6 +1,6 @@
 {
   "name": "minimum-views-filter",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "private": true,
   "license": "MIT",
   "description": "Filter low views and low X likes/views, keep high-engagement posts, and review local filtering statistics.",

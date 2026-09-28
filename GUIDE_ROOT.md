@@ -116,13 +116,29 @@ of lifetime unique posts. Reporting failure does not interrupt page filtering.
 
 Content messages contain at most 100 entries; the background verifies its own
 extension sender, top frame, exact supported route/host, same item site, reason,
-counts, and canonical URLs. Only the exact extension history page can read/reset
+counts, and canonical URLs. The exact popup and history pages may read history;
+only the history page may reset
 through these messages. A promise queue serializes storage operations across tabs
-and resets, and recovers after failed writes. `history-store.js` keeps totals and
-500 recent URL entries under `storage.local.filterHistory`. Entries deduplicate by
+and resets, and recovers after failed writes. `history-store.js` keeps
+`counts[site][reason]` hide events (version 2; a site total is `siteTotal` of its
+reasons, so the two cannot disagree) and 500 recent URL entries under
+`storage.local.filterHistory`. Stored counts in any other shape normalize to zero. Entries deduplicate by
 URL and retain count snapshots, reason, last filtering time, and event count.
 No IDs enter sync storage or settings exports, and no platform request is made.
 The history page renders through textContent, with links to validated destinations.
+
+## Popup and history page presentation
+
+`theme.css` holds shared color tokens (light and dark), cards, buttons, chevron
+dropdowns, and the stacked reason bar. Reason colors are slots 1-3 of the dataviz
+skill's validated categorical palette (blue low views, orange low likes/views, aqua
+unknown views); every segment also has a visible label and count, which the
+validator requires because aqua is below 3:1 on the light surface.
+`reason-breakdown.js` builds one site's bar and count list with textContent and is
+shared by `popup.js` and `history.js`. Popup switches are native checkboxes with
+`role="switch"`; their animation turns on only after stored settings are shown, so
+opening the popup does not slide every switch. The history page filters its
+already-loaded entries in memory by site and reason chips.
 
 ## Right-click whitelist and sync
 
@@ -146,10 +162,10 @@ resets settings once for 1.4.0 users; no migration code exists by design.
 
 ## Current verification and limits
 
-For v1.6.1, run `npm ci`, `npm test`, `npm run build`, and
+For v1.7.0, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
-The packages now contain 17 files; the stable extension IDs and permissions are
+The packages now contain 19 files; the stable extension IDs and permissions are
 unchanged. Development tests cover both browser API namespaces, English/French
 engagement labels, zero/unknown counts, quote exclusion, ratio boundaries and
 precedence, exact labels over rounded counts, mutation-driven restoration,
@@ -168,6 +184,13 @@ passed every expected hiding assertion: 20 one-card mutations required 20 count
 reads per site, while unrelated/sidebar and hidden-tab noise required zero. These
 workloads mock history messaging and do not measure background storage overhead.
 The extra metadata/history work has no live-browser CPU or RAM claim.
+
+Popup/history redesign with per-reason statistics (v1.7.0, 2026-09-28): 145 tests
+passed, including per-site/per-reason counting, enrichment not counting, corrupt
+count normalization, popup read-only access, popup statistics, whitelist-size
+badges, and history chip filters. Both 19-file packages built. Headless Chrome
+screenshots of both pages with synthetic history were checked in light and dark
+mode. Not yet checked in an installed extension or Firefox's popup renderer.
 
 ## Build and verify
 

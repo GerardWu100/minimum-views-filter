@@ -44,9 +44,10 @@
     return null;
   }
 
-  function isHistoryPage(sender) {
+  /** True when the sender is this extension's own page with that exact file name. */
+  function isExtensionPage(sender, fileName) {
     // A history page opened in a browser tab may itself have sender.tab.
-    return sender?.id === extension.runtime.id && sender.url === extension.runtime.getURL("history.html");
+    return sender?.id === extension.runtime.id && sender.url === extension.runtime.getURL(fileName);
   }
 
   async function processHistoryMessage(message, sender) {
@@ -64,13 +65,15 @@
         return {ok: true, recorded: result.recorded};
       });
     }
-    if (!isHistoryPage(sender)) return {ok: false, error: "forbidden"};
-    if (message.type === GET_HISTORY_MESSAGE) {
+    // The popup shows statistics; only the history page may reset them.
+    const isHistoryPage = isExtensionPage(sender, "history.html");
+    if (message.type === GET_HISTORY_MESSAGE && (isHistoryPage || isExtensionPage(sender, "popup.html"))) {
       return queueHistory(async () => {
         const stored = await extension.storage.local.get(historyStore.STORAGE_KEY);
         return {ok: true, history: historyStore.normalizeHistory(stored[historyStore.STORAGE_KEY])};
       });
     }
+    if (!isHistoryPage) return {ok: false, error: "forbidden"};
     return queueHistory(async () => {
       const history = historyStore.emptyHistory();
       await extension.storage.local.set({[historyStore.STORAGE_KEY]: history});

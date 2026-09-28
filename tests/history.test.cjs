@@ -10,6 +10,9 @@ const store = require('../src/history-store.js');
 
 const source = (name) => readFileSync(path.join(__dirname, '..', 'src', name), 'utf8');
 const clone = (value) => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+// Site totals derived from per-reason counts, e.g. {x: 3, youtube: 0}.
+const totals = (history) => ({x: store.siteTotal(history.counts.x), youtube: store.siteTotal(history.counts.youtube)});
+const popupSender = {id: 'extension-id', url: 'chrome-extension://extension-id/popup.html'};
 const xSender = {id: 'extension-id', tab: {id: 1}, frameId: 0, url: 'https://x.com/home'};
 const youtubeSender = {id: 'extension-id', tab: {id: 2}, frameId: 0, url: 'https://www.youtube.com/watch?v=active'};
 const pageSender = {id: 'extension-id', url: 'chrome-extension://extension-id/history.html'};
@@ -63,12 +66,12 @@ test('canonical URL validation excludes redirects, foreign sites, credentials, a
 test('history caps recent links and deduplicates repeat appearances while preserving total events', () => {
   let history = store.emptyHistory();
   for (let id = 1; id <= 510; id++) history = store.addEvents(history, [xEvent(id)], 'x', id).history;
-  assert.equal(history.counts.x, 510);
+  assert.equal(store.siteTotal(history.counts.x), 510);
   assert.equal(history.entries.length, 500);
   assert.equal(history.entries[0].url, 'https://x.com/author/status/510');
   assert.equal(history.entries.at(-1).url, 'https://x.com/author/status/11');
   const repeated = store.addEvents(history, [xEvent(42, {title: 'Updated'})], 'x', 999).history;
-  assert.equal(repeated.counts.x, 511);
+  assert.equal(store.siteTotal(repeated.counts.x), 511);
   assert.equal(repeated.entries.length, 500);
   assert.equal(repeated.entries[0].title, 'Updated');
   assert.equal(repeated.entries[0].events, 2);
@@ -88,7 +91,7 @@ test('malformed batches and unsafe fields cannot bloat storage or increment coun
   ], 'x', 1);
   assert.equal(result.recorded, 2);
   assert.equal(result.history.entries.length, 1);
-  assert.equal(result.history.counts.x, 2);
+  assert.equal(store.siteTotal(result.history.counts.x), 2);
   assert.equal(store.normalizeEvent(xEvent(1, {title: 'x'.repeat(500)}), 'x'), null);
   assert.equal(store.normalizeEvent(xEvent(1, {enrich: 'yes'}), 'x'), null);
   assert.equal(store.normalizeEvent(xEvent(1, {enrich: true, url: null}), 'x'), null);
@@ -97,17 +100,17 @@ test('malformed batches and unsafe fields cannot bloat storage or increment coun
 test('a later permalink enriches a linkless hide without counting a second hide event', () => {
   const initial = store.addEvents(null, [xEvent(1, {url: null})], 'x', 100);
   assert.equal(initial.recorded, 1);
-  assert.equal(initial.history.counts.x, 1);
+  assert.equal(store.siteTotal(initial.history.counts.x), 1);
   assert.equal(initial.history.entries.length, 0);
   const enriched = store.addEvents(initial.history, [xEvent(1, {enrich: true})], 'x', 200);
   assert.equal(enriched.recorded, 1);
-  assert.equal(enriched.history.counts.x, 1);
+  assert.equal(store.siteTotal(enriched.history.counts.x), 1);
   assert.equal(enriched.history.entries.length, 1);
   assert.equal(enriched.history.entries[0].events, 1);
   assert.equal(enriched.history.entries[0].lastFilteredAt, 200);
   assert.equal(Object.hasOwn(enriched.history.entries[0], 'enrich'), false);
   const laterAppearance = store.addEvents(enriched.history, [xEvent(1)], 'x', 300);
-  assert.equal(laterAppearance.history.counts.x, 2);
+  assert.equal(store.siteTotal(laterAppearance.history.counts.x), 2);
   assert.equal(laterAppearance.history.entries[0].events, 2);
 });
 
@@ -117,7 +120,7 @@ for (const style of ['chrome', 'firefox']) {
     const type = 'minimum-views-filter:record-filtered';
     assert.deepEqual(clone(await app.send({type, items: [xEvent(1, {url: null})]}, xSender)), {ok: true, recorded: 1});
     assert.deepEqual(clone(await app.send({type, items: [xEvent(1, {enrich: true})]}, xSender)), {ok: true, recorded: 1});
-    assert.deepEqual(app.read().counts, {x: 1, youtube: 0});
+    assert.deepEqual(totals(app.read()), {x: 1, youtube: 0});
     assert.equal(app.read().entries[0].events, 1);
   });
 
@@ -130,13 +133,13 @@ for (const style of ['chrome', 'firefox']) {
     }
     assert.equal((await Promise.all(messages)).every((response) => response.ok), true);
     let response = await app.send({type: 'minimum-views-filter:get-history'}, pageSender);
-    assert.deepEqual(clone(response.history.counts), {x: 20, youtube: 20});
+    assert.deepEqual(totals(response.history), {x: 20, youtube: 20});
     assert.equal(response.history.entries.length, 40);
     const clear = app.send({type: 'minimum-views-filter:clear-history'}, pageSender);
     const after = app.send({type: 'minimum-views-filter:record-filtered', items: [xEvent(100)]}, xSender);
     await Promise.all([clear, after]);
     response = await app.send({type: 'minimum-views-filter:get-history'}, pageSender);
-    assert.deepEqual(clone(response.history.counts), {x: 1, youtube: 0});
+    assert.deepEqual(totals(response.history), {x: 1, youtube: 0});
     assert.equal(response.history.entries.length, 1);
   });
 }
@@ -153,7 +156,7 @@ test('only verified main-frame content scripts may record; only history page may
   ]) assert.deepEqual(clone(await app.send(record, sender)), {ok: false, error: 'forbidden'});
   assert.deepEqual(clone(await app.send(record, youtubeSender)), {ok: false, error: 'invalid-message'});
   assert.deepEqual(clone(await app.send({type: 'minimum-views-filter:get-history'}, xSender)), {ok: false, error: 'forbidden'});
-  assert.deepEqual(clone((await app.send({type: 'minimum-views-filter:get-history'}, {...pageSender, tab: {id: 9}})).history.counts), {x: 0, youtube: 0});
+  assert.deepEqual(totals((await app.send({type: 'minimum-views-filter:get-history'}, {...pageSender, tab: {id: 9}})).history), {x: 0, youtube: 0});
   assert.deepEqual(clone(await app.send({type: 'minimum-views-filter:clear-history'}, {...pageSender, url: pageSender.url + '?fake'})), {ok: false, error: 'forbidden'});
   assert.equal(app.read(), undefined);
 });
@@ -169,8 +172,12 @@ test('storage failure returns a bounded error and a later operation can recover'
   assert.deepEqual(clone(await app.send(record, xSender)), {ok: false, error: 'storage-unavailable'});
   fail = false;
   assert.deepEqual(clone(await app.send(record, xSender)), {ok: true, recorded: 1});
-  assert.deepEqual(clone((await app.send({type: 'minimum-views-filter:get-history'}, pageSender)).history.counts), {x: 1, youtube: 0});
+  assert.deepEqual(totals((await app.send({type: 'minimum-views-filter:get-history'}, pageSender)).history), {x: 1, youtube: 0});
 });
+
+function loadHistoryPageScripts(dom) {
+  for (const name of ['history-store.js', 'reason-breakdown.js', 'history.js']) dom.window.eval(source(name));
+}
 
 test('history page renders titles as text and updates counters from local storage changes', async () => {
   const dom = new JSDOM(source('history.html'), {url: pageSender.url, runScripts: 'outside-only'});
@@ -179,7 +186,7 @@ test('history page renders titles as text and updates counters from local storag
   const listeners = [];
   dom.window.chrome = {runtime: {sendMessage: async ({type}) => ({ok: true, history: type.endsWith('clear-history') ? store.emptyHistory() : history})},
     storage: {onChanged: {addListener: (listener) => listeners.push(listener)}}};
-  dom.window.eval(source('history.js'));
+  loadHistoryPageScripts(dom);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(dom.window.document.querySelector('#x-count').textContent, '1');
   const xRow = [...dom.window.document.querySelectorAll('#entries li')].find((row) => row.querySelector('a').href.includes('x.com'));
@@ -187,9 +194,10 @@ test('history page renders titles as text and updates counters from local storag
   assert.equal(xRow.querySelector('a').textContent, '<img src=x onerror=alert(1)>');
   assert.equal(dom.window.document.querySelector('#entries img'), null);
   assert.equal(xRow.querySelector('a').href, 'https://x.com/author/status/1');
-  assert.match(xRow.querySelector('p').textContent, /Likes\/views: 0\.3%/);
-  assert.match(xRow.querySelector('p').textContent, /Bookmarks\/views: 0\.1%/);
-  assert.doesNotMatch(youtubeRow.querySelector('p').textContent, /Likes|Bookmarks/);
+  assert.match(xRow.querySelector('.entry-metrics').textContent, /Likes\/views 0\.3%/);
+  assert.match(xRow.querySelector('.entry-metrics').textContent, /Bookmarks\/views 0\.1%/);
+  assert.match(xRow.querySelector('.entry-meta').textContent, /Low views/);
+  assert.doesNotMatch(youtubeRow.querySelector('.entry-metrics').textContent, /Likes|Bookmarks/);
   assert.ok(dom.window.document.querySelector('details.about-counts summary').textContent.includes('About these counts'));
   dom.window.document.querySelector('#clear-history').click();
   await new Promise((resolve) => setImmediate(resolve));
@@ -203,15 +211,72 @@ test('history page renders titles as text and updates counters from local storag
 
 test('history can clear a late enrichment entry even when reset left both totals at zero', async () => {
   const history = store.addEvents(store.emptyHistory(), [xEvent(1, {enrich: true})], 'x', 1).history;
-  assert.equal(history.counts.x, 0);
+  assert.equal(store.siteTotal(history.counts.x), 0);
   const dom = new JSDOM(source('history.html'), {url: 'https://extension.invalid/history.html', runScripts: 'outside-only'});
   dom.window.chrome = {runtime: {sendMessage: async ({type}) => ({ok: true, history: type.endsWith('clear-history') ? store.emptyHistory() : history})}, storage: {onChanged: {addListener() {}}}};
-  dom.window.eval(source('history.js'));
+  loadHistoryPageScripts(dom);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(dom.window.document.querySelector('#clear-history').disabled, false);
   dom.window.document.querySelector('#clear-history').click();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(dom.window.document.querySelector('#entries').children.length, 0);
   assert.equal(dom.window.document.querySelector('#clear-history').disabled, true);
+  dom.window.close();
+});
+
+test('hide events are counted per site and reason; enrichment and corrupt counts add nothing', () => {
+  let history = store.addEvents(null, [
+    xEvent(1), xEvent(2), xEvent(3, {reason: 'low-like-ratio', views: 5000, likes: 1}),
+    xEvent(4, {reason: 'unknown-views', views: null}),
+  ], 'x', 1).history;
+  history = store.addEvents(history, [youtubeEvent('a', {reason: 'low-views'}), youtubeEvent('b', {reason: 'unknown-views', views: null})], 'youtube', 2).history;
+  history = store.addEvents(history, [xEvent(1, {enrich: true})], 'x', 3).history;
+  assert.deepEqual(clone(history.counts), {
+    x: {'low-views': 2, 'low-like-ratio': 1, 'unknown-views': 1},
+    youtube: {'low-views': 1, 'low-like-ratio': 0, 'unknown-views': 1},
+  });
+  assert.deepEqual(totals(history), {x: 4, youtube: 2});
+  const corrupt = store.normalizeHistory({counts: {x: 7, youtube: {'low-views': -1, 'unknown-views': 3, invented: 9}}});
+  assert.deepEqual(clone(corrupt.counts), {
+    x: {'low-views': 0, 'low-like-ratio': 0, 'unknown-views': 0},
+    youtube: {'low-views': 0, 'low-like-ratio': 0, 'unknown-views': 3},
+  });
+});
+
+test('the popup may read statistics but only the history page may reset them', async () => {
+  const app = openBackground();
+  await app.send({type: 'minimum-views-filter:record-filtered', items: [xEvent(1)]}, xSender);
+  const read = await app.send({type: 'minimum-views-filter:get-history'}, popupSender);
+  assert.deepEqual(totals(read.history), {x: 1, youtube: 0});
+  assert.deepEqual(clone(await app.send({type: 'minimum-views-filter:clear-history'}, popupSender)), {ok: false, error: 'forbidden'});
+  assert.deepEqual(totals(app.read()), {x: 1, youtube: 0});
+});
+
+test('history page shows reason breakdowns and filters recent items by site and reason', async () => {
+  const dom = new JSDOM(source('history.html'), {url: pageSender.url, runScripts: 'outside-only'});
+  let history = store.addEvents(null, [xEvent(1), xEvent(2), xEvent(3, {reason: 'low-like-ratio', views: 5000, likes: 1})], 'x', 1).history;
+  history = store.addEvents(history, [youtubeEvent('a', {reason: 'unknown-views', views: null})], 'youtube', 2).history;
+  dom.window.chrome = {runtime: {sendMessage: async () => ({ok: true, history})}, storage: {onChanged: {addListener() {}}}};
+  loadHistoryPageScripts(dom);
+  await new Promise((resolve) => setImmediate(resolve));
+  const document = dom.window.document;
+  const reasonRow = (site, reason) => document.querySelector(`#${site}-reasons li[data-reason="${reason}"]`);
+  assert.equal(document.querySelector('#x-count').textContent, '3');
+  assert.equal(reasonRow('x', 'low-views').querySelector('.reason-count').textContent, '2');
+  assert.equal(reasonRow('x', 'low-views').querySelector('.reason-share').textContent, '67%');
+  assert.equal(reasonRow('x', 'low-like-ratio').querySelector('.reason-count').textContent, '1');
+  assert.equal(reasonRow('x', 'unknown-views').hasAttribute('data-zero'), true);
+  assert.equal(reasonRow('youtube', 'low-like-ratio'), null);
+  assert.equal(document.querySelectorAll('#x-reasons .stack-segment').length, 2);
+  assert.equal(document.querySelectorAll('#entries li').length, 4);
+  document.querySelector('#site-filter [data-value="x"]').click();
+  assert.equal(document.querySelectorAll('#entries li').length, 3);
+  document.querySelector('#reason-filter [data-value="low-like-ratio"]').click();
+  assert.equal(document.querySelectorAll('#entries li').length, 1);
+  assert.equal(document.querySelector('#reason-filter [data-value="low-like-ratio"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(document.querySelector('#recent-shown').textContent, '1 of 4 items');
+  document.querySelector('#site-filter [data-value="youtube"]').click();
+  assert.equal(document.querySelectorAll('#entries li').length, 0);
+  assert.equal(document.querySelector('#status').textContent, 'No recent items match these filters.');
   dom.window.close();
 });

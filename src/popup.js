@@ -14,6 +14,7 @@
     name: site === "x" ? "X" : "YouTube",
     minimum: document.getElementById(site + "-minimum-views"),
     whitelist: document.getElementById(site + "-whitelist"),
+    whitelistSize: document.getElementById(site + "-whitelist-size"),
     enabled: document.getElementById(site + "-enabled"),
   }));
   const hideUnknown = document.getElementById("hide-unknown");
@@ -27,12 +28,60 @@
   ];
   const transferText = document.getElementById("transfer-text");
   const status = document.getElementById("status");
+  const statsTotal = document.getElementById("stats-total");
+  const statsSites = document.getElementById("stats-sites");
+  const statsStatus = document.getElementById("stats-status");
+  const HISTORY_STORAGE_KEY = "filterHistory";
+  // Delay after loading settings before switch animations are enabled.
+  const SWITCH_ANIMATION_DELAY_MS = 100;
+  const GET_HISTORY_MESSAGE = "minimum-views-filter:get-history";
+
+  /** Show the number of non-empty whitelist lines/commas beside the dropdown title. */
+  function showWhitelistSize({site, whitelist, whitelistSize}) {
+    const size = parseWhitelistInput(whitelist.value, site).identifiers.length;
+    whitelistSize.textContent = size ? size.toLocaleString() : "";
+  }
+
+  /** Render per-site hide totals and a stacked reason breakdown for each site. */
+  function showStatistics(history) {
+    const {siteTotal} = globalThis.MinimumViewsHistory;
+    const {SITE_NAMES, buildReasonBreakdown} = globalThis.MinimumViewsReasonBreakdown;
+    const siteTotals = {x: siteTotal(history.counts.x), youtube: siteTotal(history.counts.youtube)};
+    statsTotal.textContent = (siteTotals.x + siteTotals.youtube).toLocaleString();
+    statsSites.replaceChildren();
+    for (const site of ["x", "youtube"]) {
+      const block = document.createElement("div");
+      block.className = "stats-site";
+      const head = document.createElement("div");
+      head.className = "stats-site-head";
+      const name = document.createElement("span");
+      name.textContent = SITE_NAMES[site];
+      const total = document.createElement("span");
+      total.textContent = siteTotals[site].toLocaleString();
+      head.append(name, total);
+      block.append(head, buildReasonBreakdown(site, history.counts[site]));
+      statsSites.append(block);
+    }
+    statsStatus.textContent = siteTotals.x + siteTotals.youtube ? "" : "Nothing hidden yet. Open X Home or YouTube to start.";
+  }
+
+  async function loadStatistics() {
+    try {
+      const response = await extension.runtime.sendMessage({type: GET_HISTORY_MESSAGE});
+      if (!response?.ok) throw new Error("history unavailable");
+      showStatistics(response.history);
+    } catch {
+      statsStatus.textContent = "Statistics are unavailable right now.";
+    }
+  }
 
   function showSettings(settings) {
-    for (const {site, minimum, whitelist, enabled} of siteFields) {
+    for (const fields of siteFields) {
+      const {site, minimum, whitelist, enabled} = fields;
       minimum.value = settings[site + "MinimumViews"];
       whitelist.value = settings[site + "Whitelist"].map((identifier) => site === "x" ? "@" + identifier : identifier).join("\n");
       enabled.checked = settings[site + "Enabled"];
+      showWhitelistSize(fields);
     }
     hideUnknown.checked = settings.hideUnknown;
     for (const {key, input} of ratioFields) {
@@ -89,6 +138,8 @@
   storage.get(null).then((stored) => {
     showSettings(normalizeSettings(stored));
     controls.disabled = false;
+    // Let the loaded switch positions paint before transitions turn on.
+    setTimeout(() => document.body.toggleAttribute("data-settings-shown", true), SWITCH_ANIMATION_DELAY_MS);
   }).catch(() => {
     status.textContent = "Could not load settings. Reopen the extension.";
   });
@@ -131,6 +182,13 @@
     showSettings(settings);
     status.textContent = "Loaded. Click Save to apply.";
   });
+
+  for (const fields of siteFields) fields.whitelist.addEventListener("input", () => showWhitelistSize(fields));
+
+  extension.storage.onChanged?.addListener((changes, area) => {
+    if (area === "local" && Object.hasOwn(changes, HISTORY_STORAGE_KEY)) void loadStatistics();
+  });
+  void loadStatistics();
 
   document.getElementById("filtered-items").addEventListener("click", async () => {
     try {

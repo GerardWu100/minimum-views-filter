@@ -12,8 +12,9 @@ high likes-to-views or saves-to-views ratios, even below your view minimum.
 It never clicks anything or requests platform data. Hidden items become eligible
 again when their displayed counts meet your rules.
 
-Open **Filtered items** in the popup to see how many X posts and YouTube videos
-were filtered, plus recent links and reasons. This history stays in your browser.
+The popup shows how many X posts and YouTube videos were hidden and why (low
+views, low likes/views, or unknown views). **Filtered items and history** opens
+recent links you can filter by site and reason. This history stays in your browser.
 
 It filters X Home (For You and Following), YouTube Home, and the
 recommendations next to a video you're watching. Search, profiles, channels,
@@ -166,11 +167,21 @@ small view counts can swing sharply; this version has no minimum sample-size rul
 
 ## Filtered items and statistics
 
-Click **Filtered items** in the popup. It opens a page with separate X and YouTube
-hide-event totals and the latest **500 identifiable items** across both sites.
+The popup's **Hidden since reset** card shows each site's hide events split by
+reason, as a stacked bar with counts and shares:
+
+| Reason | Meaning |
+|---|---|
+| Low views | Views below that site's minimum |
+| Low likes/views | X likes are below the minimum likes-to-views percentage |
+| Unknown views | No readable view count, with **Hide unknown view counts** on |
+
+Click **Filtered items and history** in the popup. It opens a page with the same
+per-site reason breakdowns and the latest **500 identifiable items** across both
+sites. Chips above the list filter it by site and reason.
 Entries show a link, post snippet or video title, the reason, counts/ratios at the
 time of hiding, and the last filtering time. Repeated URLs share one recent entry.
-**Reset history** clears both totals and entries; current hidden cards are not
+**Reset history** clears all totals, reason counts, and entries; current hidden cards are not
 counted again merely because history was reset.
 
 Totals count hide events since reset, not lifetime unique IDs and not the number

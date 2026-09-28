@@ -4,26 +4,66 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Filtering history · Minimum Views Filter</title>
+    <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="history.css">
+    <script src="history-store.js" defer></script>
+    <script src="reason-breakdown.js" defer></script>
     <script src="history.js" defer></script>
   </head>
   <body>
     <main>
-      <header>
-        <h1>Filtering history</h1>
-        <button id="clear-history" type="button" disabled>Reset history</button>
+      <header class="page-header">
+        <div class="brand">
+          <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <rect width="24" height="24" rx="6"/>
+            <path d="M5 6.5h14M8 11.5h8M10.8 16.5h2.4"/>
+          </svg>
+          <h1>Filtering history</h1>
+        </div>
+        <button id="clear-history" type="button" class="button-quiet button-danger" disabled>Reset history</button>
       </header>
+
+      <section class="totals" aria-label="Hide events by site and reason">
+        <article class="card site-total" aria-labelledby="x-total-heading">
+          <div class="site-total-head">
+            <h2 id="x-total-heading">X hide events</h2>
+            <strong id="x-count">—</strong>
+          </div>
+          <div id="x-reasons"></div>
+        </article>
+        <article class="card site-total" aria-labelledby="youtube-total-heading">
+          <div class="site-total-head">
+            <h2 id="youtube-total-heading">YouTube hide events</h2>
+            <strong id="youtube-count">—</strong>
+          </div>
+          <div id="youtube-reasons"></div>
+        </article>
+      </section>
+
       <details class="about-counts">
         <summary>About these counts</summary>
         <p>Stored on this device. Totals count hide events since the last reset, so a later appearance may count again. Recent items keep the latest 500 distinct links. View and engagement values are snapshots from when an item was hidden; items without links appear only in the totals.</p>
       </details>
-      <section class="totals" aria-label="Hide event totals">
-        <div><span>X hide events</span><strong id="x-count">—</strong></div>
-        <div><span>YouTube hide events</span><strong id="youtube-count">—</strong></div>
-      </section>
-      <p id="status" role="status" aria-live="polite">Loading history…</p>
-      <section aria-labelledby="recent-heading">
-        <h2 id="recent-heading">Recent filtered items</h2>
+
+      <section class="recent" aria-labelledby="recent-heading">
+        <div class="recent-head">
+          <h2 id="recent-heading">Recent filtered items</h2>
+          <span id="recent-shown" class="recent-shown"></span>
+        </div>
+        <div class="filters">
+          <div class="chip-group" role="group" aria-label="Filter by site" id="site-filter">
+            <button type="button" class="chip" data-value="all" aria-pressed="true">All sites</button>
+            <button type="button" class="chip" data-value="x" aria-pressed="false">X</button>
+            <button type="button" class="chip" data-value="youtube" aria-pressed="false">YouTube</button>
+          </div>
+          <div class="chip-group" role="group" aria-label="Filter by reason" id="reason-filter">
+            <button type="button" class="chip" data-value="all" aria-pressed="true">All reasons</button>
+            <button type="button" class="chip" data-value="low-views" aria-pressed="false"><span class="reason-swatch" data-reason="low-views" aria-hidden="true"></span>Low views</button>
+            <button type="button" class="chip" data-value="low-like-ratio" aria-pressed="false"><span class="reason-swatch" data-reason="low-like-ratio" aria-hidden="true"></span>Low likes/views</button>
+            <button type="button" class="chip" data-value="unknown-views" aria-pressed="false"><span class="reason-swatch" data-reason="unknown-views" aria-hidden="true"></span>Unknown views</button>
+          </div>
+        </div>
+        <p id="status" role="status" aria-live="polite">Loading history…</p>
         <ol id="entries"></ol>
       </section>
     </main>
