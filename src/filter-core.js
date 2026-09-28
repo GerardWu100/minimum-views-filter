@@ -1,8 +1,9 @@
 (function exposeMinimumViewsCore(root) {
   'use strict';
 
+  // French YouTube abbreviates milliards (billions) as Md.
   const MULTIPLIERS = {
-    k: 1_000, m: 1_000_000, b: 1_000_000_000,
+    k: 1_000, m: 1_000_000, b: 1_000_000_000, md: 1_000_000_000,
     thousand: 1_000, million: 1_000_000, billion: 1_000_000_000,
   };
   const YOUTUBE_CARD_SELECTOR = [
@@ -12,13 +13,51 @@
     'yt-shorts-lockup-view-model', 'ytm-shorts-lockup-view-model',
   ].join(',');
   const X_CARD_SELECTOR = 'article[data-testid="tweet"], article[role="article"]';
+  // Quoted posts are nested interactive blocks; an inner article is also nested.
+  const X_QUOTE_OR_CARD_SELECTOR = '[data-testid="quoteTweet"], [data-testid="quotedTweet"], [role="link"], ' + X_CARD_SELECTOR;
   const GENERIC_YOUTUBE_CARD_SELECTOR = 'ytd-rich-item-renderer, yt-lockup-view-model';
   const YOUTUBE_AD_SELECTOR = 'ytd-ad-slot-renderer, ytd-in-feed-ad-layout-renderer, ytd-display-ad-renderer';
+  // Cards inside the Shorts player or an ad are never feed recommendations.
+  const YOUTUBE_EXCLUDED_ANCESTOR_SELECTOR = 'ytd-shorts, ytd-reel-video-renderer, #shorts-player, ' + YOUTUBE_AD_SELECTOR;
+  // Wrappers around ads or shelves are containers, not independent cards.
+  const YOUTUBE_EXCLUDED_DESCENDANT_SELECTOR = 'ytd-rich-section-renderer, ytd-reel-shelf-renderer, ' + YOUTUBE_AD_SELECTOR;
+  const YOUTUBE_CREATOR_CONTAINER_SELECTOR = 'ytd-channel-name, #channel-name, #byline-container';
   const YOUTUBE_CHANNEL_SELECTOR = [
-    'ytd-channel-name', '#channel-name', '#byline-container',
+    YOUTUBE_CREATOR_CONTAINER_SELECTOR,
     'a[href^="/@"]', 'a[href^="/channel/"]', 'a[href^="/user/"]',
     'a[href^="/c/"]',
   ].join(',');
+  // Every a[href^=...] in YOUTUBE_CHANNEL_SELECTOR is also an a[href].
+  const YOUTUBE_LINK_OR_CHANNEL_SELECTOR = 'a[href], ' + YOUTUBE_CREATOR_CONTAINER_SELECTOR;
+  const YOUTUBE_TITLE_LINK_SELECTORS = [
+    'a#video-title', 'a#video-title-link',
+    'a.ytLockupMetadataViewModelTitle', 'a.yt-lockup-metadata-view-model__title',
+  ];
+  const YOUTUBE_TITLE_HREF_SELECTOR = YOUTUBE_TITLE_LINK_SELECTORS.map((selector) => selector + '[href]').join(',');
+  const YOUTUBE_TITLE_LABEL_SELECTOR = YOUTUBE_TITLE_LINK_SELECTORS.map((selector) => selector + '[aria-label]').join(',');
+  const YOUTUBE_METADATA_SELECTOR = [
+    '#metadata-line > span', '.inline-metadata-item',
+    '.yt-content-metadata-view-model__metadata-text',
+    '.ytContentMetadataViewModelMetadataText',
+    '.shortsLockupViewModelHostMetadataSubhead',
+    '.yt-shorts-lockup-view-model__metadata-subhead',
+    '#view-count',
+  ].join(',');
+  const YOUTUBE_CREATOR_SOURCE_SELECTOR = [
+    YOUTUBE_CREATOR_CONTAINER_SELECTOR,
+    '.yt-content-metadata-view-model__metadata-text',
+    '.ytContentMetadataViewModelMetadataText',
+  ].join(',');
+  // Title and description links can name other channels than the author.
+  const YOUTUBE_NON_AUTHOR_LINK_SELECTOR = [
+    '#video-title', '#video-title-link', '.ytLockupMetadataViewModelTitle',
+    '.yt-lockup-metadata-view-model__title', '#description', '#description-text',
+    '.yt-lockup-metadata-view-model__description',
+  ].join(',');
+  const PROFILE_HOST_PATTERNS = {
+    x: /^(?:(?:www|mobile)\.)?(?:x|twitter)\.com$/,
+    youtube: /^(?:(?:www|m)\.)?youtube\.com$/,
+  };
   // Every class the YouTube adapter's selectors name. A class change elsewhere
   // (hover, focus, theme) cannot alter a count, creator or card decision.
   const YOUTUBE_DECISION_CLASS_NAMES = [
@@ -28,9 +67,12 @@
     'yt-lockup-metadata-view-model__title', 'yt-lockup-metadata-view-model__description',
   ];
   const VIEW_WORD = '(?:views?|vues?)';
-  const COUNT_TOKEN = '(?:no|aucune|[0-9][0-9.,\\s\\u00a0\\u202f]*(?:[kmb]|thousand|million|billion)?)';
+  const COUNT_TOKEN = '(?:no|aucune|[0-9][0-9.,\\s\\u00a0\\u202f]*(?:md|[kmb]|thousand|million|billion)?)';
 
-  const VIEW_COUNT_PATTERN = new RegExp(`(?<![\\p{L}\\p{N}.,+\\-])(${COUNT_TOKEN})\\s+${VIEW_WORD}(?![\\p{L}])`, 'giu');
+  // French writes "1,2 M de vues"; the parser accepts "de" only for French units.
+  const VIEW_COUNT_PATTERN = new RegExp(`(?<![\\p{L}\\p{N}.,+\\-])(${COUNT_TOKEN})\\s+(?:de\\s+)?${VIEW_WORD}(?![\\p{L}])`, 'giu');
+  // Lazily resolved: the browser fixture loads this file before settings.js.
+  let settingsApi = null;
 
   /**
    * Parse a displayed English or French view count without guessing separators.
@@ -50,10 +92,13 @@
     if (language !== 'en' && language !== 'fr') return null;
     let value = text.trim().replace(/[\u00a0\u202f]/g, ' ');
     if (/^(?:no views?|aucune vue)$/i.test(value)) return 0;
-    const label = value.match(/\s+(?:views?|vues?)$/i);
+    const label = value.match(/\s+(de\s+)?(?:views?|vues?)$/i);
     if (label) value = value.slice(0, label.index).trim();
-    const unit = value.match(/\s*(thousand|million|billion|[kmb])$/i);
-    if (unit && unit[1].length > 1 && language !== 'en') return null;
+    const unit = value.match(/\s*(thousand|million|billion|md|[kmb])$/i);
+    const unitName = unit?.[1].toLowerCase();
+    // Spelled-out units are English; Md (milliard) and "de" are French.
+    if (unitName === 'md' ? language !== 'fr' : unitName?.length > 1 && language !== 'en') return null;
+    if (label?.[1] && (language !== 'fr' || !unit)) return null;
     if (!label && !unit && !allowBare) return null;
     if (unit) value = value.slice(0, unit.index).trim();
 
@@ -66,7 +111,8 @@
     const normalized = language === 'en'
       ? value.replace(/,/g, '')
       : value.replace(/ /g, '').replace(',', '.');
-    const count = Number(normalized) * (unit ? MULTIPLIERS[unit[1].toLowerCase()] : 1);
+    // Round away binary float error, e.g. 4.1 * 1e6 = 4099999.9999999995.
+    const count = unit ? Math.round(Number(normalized) * MULTIPLIERS[unitName]) : Number(normalized);
     return Number.isFinite(count) && count >= 0 && count <= Number.MAX_SAFE_INTEGER
       ? count : null;
   }
@@ -115,24 +161,26 @@
     if (!selector || !document?.querySelectorAll) return [];
     const matches = Array.from(document.querySelectorAll(selector));
     if (document.matches?.(selector)) matches.unshift(document);
-    const candidates = matches.filter((card) => {
-      if (site === 'x') return !isQuoteDescendant(card, null);
-      return !card.closest('ytd-shorts, ytd-reel-video-renderer, #shorts-player')
-        && !card.closest(YOUTUBE_AD_SELECTOR) && !card.querySelector(YOUTUBE_AD_SELECTOR)
-        && !card.querySelector('ytd-rich-section-renderer, ytd-reel-shelf-renderer')
-        && (!card.matches(GENERIC_YOUTUBE_CARD_SELECTOR) || hasVideoDestination(card));
-    });
-    const candidateSet = new Set(candidates);
-    return candidates.filter((card) => {
-      for (let ancestor = card.parentElement; ancestor; ancestor = ancestor.parentElement) {
-        if (candidateSet.has(ancestor)) return false;
-      }
-      return true;
-    });
+    // Matches are in document order, so an accepted ancestor always precedes
+    // its descendants and is the most recently accepted card; nested matches
+    // are skipped before their own filters run.
+    const cards = [];
+    for (const card of matches) {
+      if (cards.at(-1)?.contains(card)) continue;
+      if (isIndependentCard(card, site)) cards.push(card);
+    }
+    return cards;
+  }
+
+  function isIndependentCard(card, site) {
+    if (site === 'x') return !isQuoteDescendant(card, null);
+    return !card.closest(YOUTUBE_EXCLUDED_ANCESTOR_SELECTOR)
+      && !card.querySelector(YOUTUBE_EXCLUDED_DESCENDANT_SELECTOR)
+      && (!card.matches(GENERIC_YOUTUBE_CARD_SELECTOR) || hasVideoDestination(card));
   }
 
   function hasVideoDestination(card) {
-    const titleLinks = card.querySelectorAll('a#video-title[href], a#video-title-link[href], a.ytLockupMetadataViewModelTitle[href], a.yt-lockup-metadata-view-model__title[href]');
+    const titleLinks = card.querySelectorAll(YOUTUBE_TITLE_HREF_SELECTOR);
     const links = titleLinks.length ? titleLinks : card.querySelectorAll('a[href]');
     return Array.from(links).some((link) => {
       const href = link.getAttribute('href');
@@ -143,13 +191,11 @@
     });
   }
 
-  // Quoted posts are nested interactive blocks, not the main tweet's footer.
+  // True when a quote block or nested card lies strictly between element and
+  // card (or anywhere above element when card is null).
   function isQuoteDescendant(element, card) {
-    for (let ancestor = element.parentElement; ancestor && ancestor !== card; ancestor = ancestor.parentElement) {
-      if (ancestor.matches('[data-testid="quoteTweet"], [data-testid="quotedTweet"], [role="link"]')) return true;
-      if (ancestor.matches(X_CARD_SELECTOR)) return true;
-    }
-    return false;
+    const nearest = element.parentElement?.closest(X_QUOTE_OR_CARD_SELECTOR);
+    return !!nearest && (!card || (nearest !== card && card.contains(nearest)));
   }
 
   function uniqueCount(counts) {
@@ -188,18 +234,11 @@
   }
 
   function getYoutubeViewCount(card, locale) {
-    const metadata = Array.from(card.querySelectorAll([
-      '#metadata-line > span', '.inline-metadata-item',
-      '.yt-content-metadata-view-model__metadata-text',
-      '.ytContentMetadataViewModelMetadataText',
-      '.shortsLockupViewModelHostMetadataSubhead',
-      '.yt-shorts-lockup-view-model__metadata-subhead',
-      '#view-count',
-    ].join(',')));
+    const metadata = Array.from(card.querySelectorAll(YOUTUBE_METADATA_SELECTOR));
     const counts = metadata.flatMap((element) => {
       // Channel names share the same metadata class as counts on modern cards.
-      if (element.closest(YOUTUBE_CHANNEL_SELECTOR) || element.querySelector('a[href]')
-          || element.querySelector(YOUTUBE_CHANNEL_SELECTOR)) return [];
+      if (element.closest(YOUTUBE_CHANNEL_SELECTOR)
+          || element.querySelector(YOUTUBE_LINK_OR_CHANNEL_SELECTOR)) return [];
       const label = element.getAttribute('aria-label');
       if (label) {
         const labeled = parseViewCount(label, { locale });
@@ -216,7 +255,7 @@
     });
     if (counts.some((count) => count !== null)) return uniqueCount(counts);
 
-    const links = card.querySelectorAll('a#video-title[aria-label], a#video-title-link[aria-label], a.yt-lockup-metadata-view-model__title[aria-label]');
+    const links = card.querySelectorAll(YOUTUBE_TITLE_LABEL_SELECTOR);
     const accessibleCounts = [];
     for (const link of links) {
       if (!/(?:\/watch\?|\/shorts\/)/.test(link.getAttribute('href') || '')) continue;
@@ -253,10 +292,7 @@
     let pathname;
     try {
       const url = new URL(href, site === 'x' ? 'https://x.com' : 'https://www.youtube.com');
-      const hosts = site === 'x'
-        ? /^(?:(?:www|mobile)\.)?(?:x|twitter)\.com$/
-        : /^(?:(?:www|m)\.)?youtube\.com$/;
-      if (!hosts.test(url.hostname) || !/^https?:$/.test(url.protocol)
+      if (!PROFILE_HOST_PATTERNS[site].test(url.hostname) || !/^https?:$/.test(url.protocol)
           || url.username || url.password || url.port) return null;
       pathname = decodeURIComponent(url.pathname);
     } catch {
@@ -267,10 +303,10 @@
       : pathname.match(/^\/(@[^/]+|channel\/[^/]+)\/?$/);
     if (!match) return null;
     // Resolve the shared validator in both browser and CommonJS environments.
-    const settings = root.MinimumViewsSettings || (
+    settingsApi ??= root.MinimumViewsSettings || (
       typeof module === 'object' && module.exports ? require('./settings.js') : null
     );
-    return settings?.normalizeAccountIdentifier?.(match[1], site) || null;
+    return settingsApi?.normalizeAccountIdentifier?.(match[1], site) || null;
   }
 
   function isOwnXAuthorMetadata(element, card) {
@@ -291,20 +327,16 @@
   }
 
   function getYoutubeCreatorIdentifiers(card) {
-    const containers = card.querySelectorAll([
-      'ytd-channel-name', '#channel-name', '#byline-container',
-      '.yt-content-metadata-view-model__metadata-text',
-      '.ytContentMetadataViewModelMetadataText',
-    ].join(','));
+    const containers = card.querySelectorAll(YOUTUBE_CREATOR_SOURCE_SELECTOR);
     const identifiers = [];
+    // Nested containers (#byline-container > ytd-channel-name) share links.
+    const visitedLinks = new Set();
     for (const container of containers) {
       const links = container.matches('a[href]') ? [container] : container.querySelectorAll('a[href]');
       for (const link of links) {
-        if (link.closest([
-          '#video-title', '#video-title-link', '.ytLockupMetadataViewModelTitle',
-          '.yt-lockup-metadata-view-model__title', '#description', '#description-text',
-          '.yt-lockup-metadata-view-model__description',
-        ].join(','))) continue;
+        if (visitedLinks.has(link)) continue;
+        visitedLinks.add(link);
+        if (link.closest(YOUTUBE_NON_AUTHOR_LINK_SELECTOR)) continue;
         const identifier = creatorIdentifierFromLink(link, 'youtube');
         if (identifier) identifiers.push(identifier);
       }

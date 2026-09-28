@@ -17,6 +17,8 @@
     full: {text: "!", title: "Whitelist is too long to sync"},
     failed: {text: "!", title: "Could not update whitelist"},
   };
+  // Tab ID -> pending restore timer, so a newer result is not cleared early.
+  const badgeRestoreTimers = new Map();
 
   /** Recreate the menu; Chrome keeps menus across restarts, Firefox event pages may not. */
   async function createMenu() {
@@ -35,20 +37,22 @@
     const defaultTitle = extension.runtime.getManifest().action.default_title;
     await extension.action.setBadgeText({tabId, text: feedback.text});
     await extension.action.setTitle({tabId, title: feedback.title});
-    setTimeout(() => {
+    clearTimeout(badgeRestoreTimers.get(tabId));
+    badgeRestoreTimers.set(tabId, setTimeout(() => {
+      badgeRestoreTimers.delete(tabId);
       // The tab may have closed; nothing remains to restore then.
       extension.action.setBadgeText({tabId, text: ""}).catch(() => {});
       extension.action.setTitle({tabId, title: defaultTitle}).catch(() => {});
-    }, RESULT_BADGE_MS);
+    }, RESULT_BADGE_MS));
   }
 
   /** Ask the clicked frame's content script, which knows the right-clicked card. */
   async function onMenuClicked(info, tab) {
     if (info.menuItemId !== MENU_ITEM_ID || typeof tab?.id !== "number") return;
-    let result = "failed";
+    let result;
     try {
       const response = await extension.tabs.sendMessage(tab.id, {type: WHITELIST_CREATOR_MESSAGE}, {frameId: info.frameId ?? 0});
-      result = response?.result || "failed";
+      result = response?.result;
     } catch {
       // No content script in that frame, e.g. a tab opened before installation.
       result = "missing";

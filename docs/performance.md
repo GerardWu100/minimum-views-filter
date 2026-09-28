@@ -3,6 +3,25 @@
 Measured 2026-09-27 with Node.js v22.17.0 and jsdom 29.1.1.
 Baseline: v1.0.3 runtime at commit 2e9c83c4. Updated: v1.4.0.
 [Full measured results](performance-results.json) include illustrative callback timings.
+
+**Post-1.5.0 hot-path pass** (compared with commit 2633d3c): each card's count
+is read before its creator, so creator metadata is parsed only for cards that
+would otherwise be hidden. Card selection, quote checks and metadata filters use
+fewer, native DOM ancestor/subtree walks, and selector strings are built once.
+Every hiding mark and every non-creator operation count is unchanged. Median of
+three jsdom runs (callback ms is illustrative, not browser CPU):
+
+| Site | Scenario | Creator reads | Callback ms |
+| --- | --- | --- | --- |
+| X | startup | 200 → 50 | 120 → 51 |
+| X | one-card-count-changes | 20 → 10 | 14 → 8 |
+| X | new-card-batches | 80 → 20 | 51 → 32 |
+| X | visible-tab-return | 280 → 70 | 92 → 51 |
+| YouTube | startup | 200 → 50 | 172 → 101 |
+| YouTube | one-card-count-changes | 20 → 10 | 17 → 12 |
+| YouTube | new-card-batches | 80 → 20 | 66 → 44 |
+| YouTube | visible-tab-return | 280 → 70 | 142 → 93 |
+
 v1.5.0 adds the right-click menu and sync storage without changing filtering work:
 compared with v1.4.0 (commit 5cffa9e), every operation count in every scenario is identical.
 The v1.0.2 → v1.0.3 change had already removed whole-document scans from these

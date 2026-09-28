@@ -30,6 +30,8 @@ wrappers must link to a video; playlists/channels/playables and known ad wrapper
 are excluded. X quote subtrees never supply the outer post's count.
 `getViewCount` reads bounded metadata, preferring exact accessible count labels.
 English/French parsing returns `null` for unknown or contradictory data.
+Abbreviated counts are rounded to whole views (4.1M is 4,100,000, not a float
+just below it). French accepts `M de vues` and `Md` (milliard) forms.
 `getCreatorIdentifiers` reads the own X User-Name/status link or bounded YouTube
 channel/byline metadata. The settings normalizer canonicalizes X handles without
 @, YouTube handles with @ (NFC/lowercase), and case-sensitive `channel/ID` values.
@@ -38,7 +40,9 @@ and arbitrary title/body links cannot establish an exemption.
 
 `content.js` selects `xMinimumViews`/`xWhitelist` or the YouTube counterparts
 by host, merging any settings changes that arrive during startup. The whitelist
-Set is rebuilt only when relevant settings change. Creator and count metadata
+Set is rebuilt only when relevant settings change. Each card's count is read
+first; creator metadata is parsed only for cards that would otherwise be hidden,
+because the whitelist can only cancel a hide. Creator and count metadata
 are read fresh for each affected card, so reused nodes cannot inherit a decision.
 
 The observer watches site-specific attributes. X omits `class`/`title`, which its
@@ -106,7 +110,7 @@ Builds remain unsigned; Mozilla signing is a separate distribution step.
 
 Validation on 2026-09-27:
 
-- 105 tests passed: 29 parser/adapter, 64 runtime/popup, 8 settings, and 4
+- 106 tests passed: 29 parser/adapter, 64 runtime/popup, 8 settings, and 5
   background tests. Menu tests cover card authors versus mentions, two posts in
   one X cell, links outside cards, excluded pages, missing/one-shot right-click
   state, duplicate and
@@ -127,7 +131,9 @@ Validation on 2026-09-27:
   in jsdom and cover storage-startup races, changing/recycled/new cards,
   navigation, threshold/settings changes, missing metadata, and foreign styles.
 - `npm run build` produced both 13-file packages.
-- `npm run benchmark` against v1.4.0: every operation count unchanged.
+- `npm run benchmark` against v1.5.0 commit 2633d3c: creator reads fell 75%
+  (e.g. startup 200 → 50); every other operation count is unchanged. See
+  `docs/performance.md`.
 - Firefox `web-ext lint --warnings-as-errors`: 0 errors, 0 notices, 0 warnings.
 - The browser fixture passed in Brave and Firefox 156.0.1 using synthetic
   DOM: low cards hidden even with hidden counters, 1,000 kept, unknown kept,

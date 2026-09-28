@@ -30,7 +30,12 @@ function openBackground({style = 'chrome', sendMessage = async () => ({result: '
     tabs: {sendMessage: (...args) => { calls.push(['sendMessage', ...args]); return sendMessage(...args); }},
     action: {setBadgeText: record('setBadgeText'), setTitle: record('setTitle')},
   };
-  const context = vm.createContext({setTimeout: (callback, delay) => timers.push({callback, delay}), TextEncoder});
+  // Timer IDs are 1-based indexes into timers; cleared timers stay listed.
+  const context = vm.createContext({
+    setTimeout: (callback, delay) => timers.push({callback, delay, cleared: false}),
+    clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].cleared = true; },
+    TextEncoder,
+  });
   context.globalThis = context;
   context[style === 'firefox' ? 'browser' : 'chrome'] = api;
   if (style === 'chrome') context.importScripts = (name) => vm.runInContext(source(name), context);
@@ -64,6 +69,14 @@ test('menu click asks the clicked frame, shows the result, then restores the ico
     ['setBadgeText', {tabId: 7, text: ''}],
     ['setTitle', {tabId: 7, title: 'Minimum Views Filter'}],
   ]);
+});
+
+test('a second click on the same tab keeps its badge for the full duration', async () => {
+  const {timers, click} = openBackground();
+  await click({menuItemId: 'always-show-creator'}, {id: 7});
+  await click({menuItemId: 'always-show-creator'}, {id: 7});
+  await click({menuItemId: 'always-show-creator'}, {id: 8});
+  assert.deepEqual(timers.map(({cleared}) => cleared), [true, false, false]);
 });
 
 test('menu click reports tabs without a content script and ignores other menus', async () => {

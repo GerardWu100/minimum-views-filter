@@ -22,6 +22,8 @@ test('counts preserve boundaries, zero, grouping and abbreviated precision', () 
     ['1,234 views', 1234], ['0 views', 0], ['No views', 0],
     ['1.25M views', 1_250_000], ['2B views', 2_000_000_000],
     ['63 thousand views', 63_000], ['1.2 million views', 1_200_000],
+    // Binary floats put these just below face value without rounding.
+    ['4.1M views', 4_100_000], ['2.01K views', 2010], ['1.1B views', 1_100_000_000],
   ]) assert.equal(core.parseViewCount(text), expected, text);
   assert.equal(core.parseViewCount('999'), null);
   assert.equal(core.parseViewCount('999', { allowBare: true }), 999);
@@ -31,7 +33,11 @@ test('French formatting and region tags are explicit', () => {
   for (const [text, expected] of [
     ['1,2 k vues', 1200], ['1 234 vues', 1234], ['1\u202f234 vues', 1234],
     ['1\u00a0234 vues', 1234], ['Aucune vue', 0], ['0 vue', 0],
+    ['1,2 M de vues', 1_200_000], ['3 Md de vues', 3_000_000_000], ['4,1 M de vues', 4_100_000],
   ]) assert.equal(core.parseViewCount(text, { locale: 'fr-CA' }), expected, text);
+  assert.equal(core.parseViewCount('1 200 de vues', { locale: 'fr' }), null);
+  assert.equal(core.parseViewCount('3 Md views', { locale: 'en' }), null);
+  assert.equal(core.parseViewCount('1.2 M de views', { locale: 'en' }), null);
   assert.equal(core.parseViewCount('1.2K views', { locale: 'fr' }), null);
   assert.equal(core.parseViewCount('1,234 views', { locale: 'fr' }), null);
   assert.equal(core.parseViewCount('1,2K views', { locale: 'en' }), null);
@@ -141,6 +147,7 @@ test('live modern YouTube metadata uses the explicit aria-label', () => {
 test('YouTube Shorts metadata and French labels are supported without guessing absent counts', () => {
   assert.equal(readFirst(`<yt-shorts-lockup-view-model><div class="shortsLockupViewModelHostMetadataSubhead">1.2M views</div></yt-shorts-lockup-view-model>`), 1_200_000);
   assert.equal(readFirst(`<ytd-grid-video-renderer><div id="metadata-line"><span>1,2 k vues</span></div></ytd-grid-video-renderer>`, 'youtube', 'fr'), 1200);
+  assert.equal(readFirst(`<ytd-grid-video-renderer><div id="metadata-line"><span>1,2\u00a0M de vues</span><span>il y a 2 jours</span></div></ytd-grid-video-renderer>`, 'youtube', 'fr'), 1_200_000);
   assert.equal(readFirst(`<ytd-reel-item-renderer><span id="view-count">No views</span></ytd-reel-item-renderer>`), 0);
 });
 
@@ -148,6 +155,8 @@ test('YouTube accessible-title fallback removes the known title and rejects mult
   assert.equal(readFirst(`<ytd-video-renderer><a id="video-title" href="/watch?v=1" title="My 100M views experiment" aria-label="My 100M views experiment by Author 3 days ago 1,234 views 5 minutes">My 100M views experiment</a></ytd-video-renderer>`), 1234);
   assert.equal(readFirst(`<ytd-video-renderer><a id="video-title" href="/watch?v=1" aria-label="My 100M views experiment">My 100M views experiment</a></ytd-video-renderer>`), null);
   assert.equal(readFirst(`<ytd-video-renderer><a id="video-title" href="/watch?v=1" aria-label="Title by 100 views 200 views">Title</a></ytd-video-renderer>`), null);
+  assert.equal(readFirst(`<yt-lockup-view-model><a class="ytLockupMetadataViewModelTitle" href="/watch?v=1" aria-label="Title by Author 1,234 views 3 days ago">Title</a></yt-lockup-view-model>`), 1234);
+  assert.equal(readFirst(`<ytd-video-renderer><a id="video-title" href="/watch?v=1" aria-label="Title 4.1M views">Title</a></ytd-video-renderer>`), 4_100_000);
 });
 
 test('contradictory count metadata fails open', () => {
