@@ -30,8 +30,7 @@ that it showed it to you.
 Download version 1.7.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.7.0):
 
 - [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.7.0/minimum-views-filter-chrome-brave-1.7.0.zip)
-- Firefox XPI: Mozilla signing for 1.7.0 is pending. Until it is added to the
-  release, install the [signed 1.6.1 XPI](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.6.1/minimum-views-filter-firefox-1.6.1.xpi).
+- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.7.0/minimum-views-filter-firefox-1.7.0.xpi)
 
 Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 

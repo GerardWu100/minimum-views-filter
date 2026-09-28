@@ -344,10 +344,11 @@ reporting success. GitHub publication alone does not sign a Firefox build.
 `web-ext sign`, reading `WEB_EXT_API_KEY`/`WEB_EXT_API_SECRET` from the ignored
 `.env` through Node's `--env-file`, and saves the signed XPI in ignored
 `dist/signed/`. The runtime is unminified, so no review source upload is needed.
-Run it from a normal terminal (the agent sandbox cannot reach AMO). Release
-v1.7.0 was published on 2026-09-28 without an XPI because no `.env` existed and
-the browser route was unavailable; add the signed XPI, INSTALL.txt, and updated
-checksums to that release once signed, then point the README Firefox link at it.
+Run it outside the agent sandbox (the sandbox cannot reach AMO). On 2026-09-28
+this command signed v1.7.0 unlisted: all 18 runtime files matched the build
+byte for byte, the manifest was semantically equal, and five `META-INF` signature
+files were added. The XPI and updated checksums were added to release v1.7.0,
+and every published asset, including a logged-out XPI download, matched.
 
 ## Diagnosing a popup/page threshold mismatch
 
