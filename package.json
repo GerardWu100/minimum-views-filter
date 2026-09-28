@@ -9,7 +9,8 @@
     "build": "node scripts/build.cjs",
     "lint:firefox": "web-ext lint --source-dir dist/firefox --warnings-as-errors",
     "check": "npm test && npm run build && npm run lint:firefox",
-    "benchmark": "node scripts/benchmark.cjs"
+    "benchmark": "node scripts/benchmark.cjs",
+    "sign:firefox": "node --env-file=.env node_modules/web-ext/bin/web-ext.js sign --source-dir dist/firefox --channel unlisted --artifacts-dir dist/signed"
   },
   "engines": {
     "node": ">=22"

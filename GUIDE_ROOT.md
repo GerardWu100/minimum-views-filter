@@ -340,6 +340,15 @@ upload them against an explicit version tag and target commit. Download the
 published assets to a temporary directory and compare their hashes before
 reporting success. GitHub publication alone does not sign a Firefox build.
 
+`npm run sign:firefox` submits `dist/firefox` as an unlisted version with
+`web-ext sign`, reading `WEB_EXT_API_KEY`/`WEB_EXT_API_SECRET` from the ignored
+`.env` through Node's `--env-file`, and saves the signed XPI in ignored
+`dist/signed/`. The runtime is unminified, so no review source upload is needed.
+Run it from a normal terminal (the agent sandbox cannot reach AMO). Release
+v1.7.0 was published on 2026-09-28 without an XPI because no `.env` existed and
+the browser route was unavailable; add the signed XPI, INSTALL.txt, and updated
+checksums to that release once signed, then point the README Firefox link at it.
+
 ## Diagnosing a popup/page threshold mismatch
 
 Chromium caches content scripts independently of popup HTML/JavaScript. Updating
