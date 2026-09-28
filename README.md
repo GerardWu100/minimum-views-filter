@@ -7,10 +7,13 @@ do, and your feed fills up with posts that have a few dozen views. Clicking
 "Not interested" on each one just gives the platform more feedback to work with.
 
 This extension hides posts and videos below a view count you pick (1,000 by
-default). Views are the only thing it checks: a post with 6,000 views five
-minutes after it went up still shows. It never clicks anything and makes no
-network requests. Nothing is blocked for good either. If a hidden post later
-passes your minimum, it comes back.
+default). On X, it also filters low likes-to-views ratios and keeps posts with
+high likes-to-views or saves-to-views ratios, even below your view minimum.
+It never clicks anything or requests platform data. Hidden items become eligible
+again when their displayed counts meet your rules.
+
+Open **Filtered items** in the popup to see how many X posts and YouTube videos
+were filtered, plus recent links and reasons. This history stays in your browser.
 
 It filters X Home (For You and Following), YouTube Home, and the
 recommendations next to a video you're watching. Search, profiles, channels,
@@ -23,10 +26,10 @@ that it showed it to you.
 
 ## Install
 
-Download version 1.5.2 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.5.2):
+Download version 1.6.1 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.6.1):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.2/minimum-views-filter-chrome-brave-1.5.2.zip)
-- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.5.2/minimum-views-filter-firefox-1.5.2.xpi)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.6.1/minimum-views-filter-chrome-brave-1.6.1.zip)
+- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.6.1/minimum-views-filter-firefox-1.6.1.xpi)
 
 Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 
@@ -103,15 +106,17 @@ Official instructions: [Chrome unpacked extensions](https://developer.chrome.com
 | Item | Default behavior |
 | --- | --- |
 | Whitelisted creator | Kept by this extension, even with low/unknown views |
-| 0–999 views from other creators | Hidden |
-| Exactly 1,000 or more | Kept |
+| X likes/views below 0.5% | Hidden unless whitelisted or rescued by a high ratio |
+| X likes/views at least 2% OR saves/views at least 0.5% | Kept, even below the view minimum or low-like threshold |
+| 0–999 views, without an X ratio exception | Hidden |
+| Exactly 1,000 or more | Kept unless the X low-like rule applies |
 | Count missing, unsupported, or ambiguous | Kept |
 | Counter hidden by another extension's CSS | Read from underlying text/accessibility labels |
-| Count changes from 800 to 1,500 on the page | Restored automatically |
-| Same item appears later with enough views | Kept; there is no stored exclusion |
+| Count changes from 800 to 1,500 on the page | Restored if the X ratio rules also allow it |
+| Same item appears later with qualifying counts | Kept; history never acts as an exclusion |
 
-“Hide unknown view counts” is optional and off by default. Setting the minimum
-to zero allows every known count on that site. For example, set **X to 10,000**
+“Hide unknown view counts” is optional and off by default. Setting the view minimum
+to zero disables the view floor; X ratio rules still apply. For example, set **X to 10,000**
 and **YouTube to 1,000**. Each site can be disabled separately. Saving settings
 updates open supported pages automatically.
 
@@ -127,6 +132,55 @@ concurrent viewers are not interpreted as total views.
 
 When you navigate away from Home or a YouTube watch page, this extension removes
 its hiding marks from retained cards. Other extensions' hiding rules remain intact.
+
+## X engagement rules
+
+The popup has three independent switches and percentage thresholds. All three
+are on by default, including after an update:
+
+| Setting | Default | Example |
+| --- | --- | --- |
+| Minimum likes as % of views | 0.5% | 49 likes / 10,000 views is hidden; 50 meets the minimum |
+| Keep when likes reach this % of views | 2% | 10 likes / 500 views keeps the post |
+| Keep when saves reach this % of views | 0.5% | 2 bookmarks / 400 views keeps the post, even with zero likes |
+
+The creator whitelist wins first. Then either high-engagement exception wins.
+Otherwise, the low-like rule or view minimum can hide the post. Equal-to-threshold
+ratios qualify. If both hiding rules fail, history reports the low-like reason.
+YouTube uses only its view-count rules.
+
+With unknown or zero views, ratios are undefined and the view-count policy
+applies. Unknown likes skip the low-like rule; unknown saves cannot rescue a post.
+The extension reads only the post's own counts already in page text/accessibility
+labels, even when CSS hides them. It ignores quoted-post metrics and prefers
+exact accessibility counts to rounded ones. Saves means X bookmarks. The feature
+cannot use a bookmark count that X does not expose in the current card; it never
+opens posts to retrieve one. See [X's bookmark-count explanation](https://help.x.com/en/using-x/bookmark-counts).
+
+These are editable screening defaults, not evidence of quality. Ratios from very
+small view counts can swing sharply; this version has no minimum sample-size rule.
+
+## Filtered items and statistics
+
+Click **Filtered items** in the popup. It opens a page with separate X and YouTube
+hide-event totals and the latest **500 identifiable items** across both sites.
+Entries show a link, post snippet or video title, the reason, counts/ratios at the
+time of hiding, and the last filtering time. Repeated URLs share one recent entry.
+**Reset history** clears both totals and entries; current hidden cards are not
+counted again merely because history was reset.
+
+Totals count hide events since reset, not lifetime unique IDs and not the number
+currently hidden. Repeated appearances, reloads, and disabling/re-enabling filters
+can count again. Routine rescans of a continuously hidden item do not. Cards with
+no usable link count toward totals but cannot appear in the linked list; if a link
+arrives while the same card remains hidden, the entry is filled in without another
+hide event. Recycled cards lacking stable links cannot always be distinguished.
+The list is a snapshot, not a live feed of updated counts; opening a link is a
+normal navigation you initiate.
+
+History is stored only in extension **local storage**, never browser sync, settings
+exports, a server, or the repository. Clearing it does not change filtering. Past
+entries are never consulted to decide whether an item should be shown.
 
 ## Creator whitelists
 
@@ -146,14 +200,14 @@ with commas, then click **Save**.
 - YouTube accepts `@NASA`, `https://www.youtube.com/@NASA`, or a
   `https://www.youtube.com/channel/UC...` URL. Channel-page section links such
   as `/@NASA/videos` can also be pasted as full URLs.
-- Matching creators bypass this extension's low-view and unknown-count rules.
+- Matching creators bypass this extension's view-count, unknown-count, and X engagement rules.
   On X this means the post's author, not a quoted author or the account reposting it.
 - Use the channel link attached to the video card. Handles and channel IDs are
   matched as distinct identifiers; both can be listed, but the extension never
   contacts YouTube to find the relationship between them. Display names and
   legacy `/c/` or `/user/` URLs are not matched.
-- If creator metadata is missing or unrecognized, the ordinary view-count rule
-  applies. A whitelist never overrides another extension's hiding rules.
+- If creator metadata is missing or unrecognized, the ordinary filtering rules
+  apply. A whitelist never overrides another extension's hiding rules.
 
 Each whitelist must fit one browser sync item (8 KB): at least 450 X handles or
 230 YouTube channel IDs. The popup and right-click menu refuse additions beyond that.
@@ -214,8 +268,10 @@ See [compatibility evidence and references](docs/compatibility.md).
 
 ## Privacy and limitations
 
-- The extension makes no network requests, records no post/video IDs, and has
-  no analytics. Its small background script only handles the right-click menu.
+- The extension makes no platform requests and sends no analytics. Its background
+  script handles the right-click menu and bounded local filtering history.
+- Local history records item links (including IDs), short snippets/titles, counts,
+  reasons, and timestamps. It is never uploaded or synced and can be reset.
 - Thresholds, whitelists, and switches are in browser sync storage. **With Chrome
   or Firefox sync on, your browser's vendor stores them in your account**,
   including which creators you whitelisted. Brave keeps them on this computer.

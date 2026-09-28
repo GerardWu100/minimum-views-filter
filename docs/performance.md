@@ -133,3 +133,22 @@ delivers native MutationObserver records, and drains their scheduled callbacks
 without the artificial 80 ms throttle wait. Setup, fixture writes, waits and
 assertions are excluded from timing. Results are workload proxies; compare
 operation counts first. Do not equate callback time with total process CPU/RAM.
+
+## Engagement/history release validation (2026-09-28)
+
+The v1.6.1 runtime passed the existing 200-card, 20-batch synthetic workload.
+Each expected hiding mark was checked after every batch.
+
+| Site | Workload | Count reads | Card scans |
+| --- | --- | ---: | ---: |
+| x | unrelated-sidebar-player-noise | 0 | 0 |
+| x | one-card-count-changes | 20 | 20 |
+| x | hidden-tab-noise | 0 | 0 |
+| youtube | unrelated-sidebar-player-noise | 0 | 0 |
+| youtube | one-card-count-changes | 20 | 20 |
+| youtube | hidden-tab-noise | 0 | 0 |
+
+This is an operation-count regression check, not a speed comparison. History
+messages use a no-op mock here, so background storage costs are not measured.
+The workload does not represent every mix of X engagement labels. No new
+live-browser CPU or RAM claim is made. Run `npm run benchmark` to reproduce.

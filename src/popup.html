@@ -11,13 +11,30 @@
   <body>
     <main>
       <h1>Minimum Views Filter</h1>
-      <form id="settings-form">
+      <form id="settings-form" novalidate>
         <fieldset id="controls" disabled>
           <section class="site-settings" aria-label="X settings">
             <label class="toggle site-toggle"><span>X Home</span><input id="x-enabled" type="checkbox"></label>
             <div class="minimum-row">
               <label class="minimum" for="x-minimum-views">X minimum views</label>
               <input id="x-minimum-views" name="xMinimumViews" type="number" min="0" max="1000000000000" step="1" required>
+            </div>
+            <div class="ratio-settings">
+              <label class="toggle"><span>Hide X posts with low likes per view</span><input id="x-low-like-ratio-enabled" type="checkbox"></label>
+              <div class="percent-row">
+                <label for="x-minimum-like-percent">Minimum likes as % of views</label>
+                <div class="percent-input"><input id="x-minimum-like-percent" type="number" min="0" max="100" step="0.01" required><span>%</span></div>
+              </div>
+              <label class="toggle"><span>Keep X posts with high likes per view</span><input id="x-high-like-ratio-enabled" type="checkbox"></label>
+              <div class="percent-row">
+                <label for="x-keep-like-percent">Keep when likes reach this % of views</label>
+                <div class="percent-input"><input id="x-keep-like-percent" type="number" min="0" max="100" step="0.01" required><span>%</span></div>
+              </div>
+              <label class="toggle"><span>Keep X posts with high saves per view</span><input id="x-high-bookmark-ratio-enabled" type="checkbox"></label>
+              <div class="percent-row">
+                <label for="x-keep-bookmark-percent">Keep when saves reach this % of views</label>
+                <div class="percent-input"><input id="x-keep-bookmark-percent" type="number" min="0" max="100" step="0.01" required><span>%</span></div>
+              </div>
             </div>
             <details>
               <summary>X account whitelist</summary>
@@ -48,15 +65,17 @@
         </fieldset>
       </form>
       <p id="status" role="status" aria-live="polite"></p>
+      <button id="filtered-items" type="button" class="secondary">Filtered items</button>
       <details>
         <summary>How it works</summary>
         <p>Filters X Home, YouTube Home, and recommendations beside or below a video you are watching. Search and other pages stay unfiltered.</p>
         <p>Right-click a post or video and choose “Always show this creator” to add its author to the whitelist.</p>
         <p>Settings sync through your Chrome or Firefox account. Brave does not sync extension settings; use “Copy settings to another browser”.</p>
-        <p>Each site has its own minimum and whitelist. Enter one account per line or separate them with commas. Matching creators bypass this filter even when their view count is unknown.</p>
+        <p>Each site has its own minimum and whitelist. Enter one account per line or separate them with commas. Matching creators bypass all filtering rules, even when their view count is unknown.</p>
+        <p>On X, a high like ratio or high save ratio keeps a post regardless of its view count or low like ratio. A low like ratio hides a post when both views and likes are known. With zero or unknown views, ratios are undefined; unknown likes skip the low like rule.</p>
         <p>YouTube accepts @handles and /channel/ID URLs. Use the channel link shown on the video card; different links for the same channel are not resolved online. Display names are not matched.</p>
-        <p>Cards become eligible again when the site shows a view count at or above that site's minimum. Other extensions' hiding rules stay in effect.</p>
-        <p>No “Not interested” clicks, post blacklist, or data collection. The site can still record that it served a card.</p>
+        <p>Cards become eligible again when their current counts meet your rules. Other extensions' hiding rules stay in effect.</p>
+        <p>No “Not interested” clicks or post blacklist. Filtered item history is bounded and stored only in this browser; it is never uploaded. The site can still record that it served a card.</p>
         <p>Reload existing X and YouTube tabs after installing. Unknown counts stay visible unless you enable the option above.</p>
       </details>
     </main>

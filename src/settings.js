@@ -9,8 +9,25 @@
     xEnabled: true,
     youtubeEnabled: true,
     hideUnknown: false,
+    xLowLikeRatioEnabled: true,
+    xMinimumLikePercent: 0.5,
+    xHighLikeRatioEnabled: true,
+    xKeepLikePercent: 2,
+    xHighBookmarkRatioEnabled: true,
+    xKeepBookmarkPercent: 0.5,
   });
   const MAXIMUM_VIEWS = 1_000_000_000_000;
+  const X_RATIO_SETTING_KEYS = Object.freeze([
+    "xLowLikeRatioEnabled", "xMinimumLikePercent",
+    "xHighLikeRatioEnabled", "xKeepLikePercent",
+    "xHighBookmarkRatioEnabled", "xKeepBookmarkPercent",
+  ]);
+  const PERCENT_SETTING_KEYS = Object.freeze([
+    "xMinimumLikePercent", "xKeepLikePercent", "xKeepBookmarkPercent",
+  ]);
+  const X_RATIO_TOGGLE_KEYS = Object.freeze([
+    "xLowLikeRatioEnabled", "xHighLikeRatioEnabled", "xHighBookmarkRatioEnabled",
+  ]);
   // Browser-account sync storage: Chrome/Firefox copy it between computers;
   // Brave keeps it on this computer only.
   const STORAGE_AREA = "sync";
@@ -105,8 +122,13 @@
         ? [...new Set(value[whitelistKey].map((entry) => normalizeAccountIdentifier(entry, site)).filter(Boolean))]
         : [];
     }
-    for (const key of ["xEnabled", "youtubeEnabled", "hideUnknown"]) {
+    for (const key of ["xEnabled", "youtubeEnabled", "hideUnknown", ...X_RATIO_TOGGLE_KEYS]) {
       if (typeof value[key] === "boolean") settings[key] = value[key];
+    }
+    for (const key of PERCENT_SETTING_KEYS) {
+      if (typeof value[key] === "number" && Number.isFinite(value[key]) && value[key] >= 0 && value[key] <= 100) {
+        settings[key] = value[key];
+      }
     }
     return settings;
   }
@@ -129,8 +151,8 @@
    * ----------
    * text : string
    *     JSON produced by formatSettingsTransfer, possibly from another browser:
-   *     {format, xMinimumViews, youtubeMinimumViews, xWhitelist, youtubeWhitelist,
-   *     xEnabled, youtubeEnabled, hideUnknown}.
+   *     A JSON object containing the format marker, site minimums and toggles,
+   *     whitelists, unknown-count policy, and all X ratio settings.
    *
    * Returns
    * -------
@@ -158,7 +180,8 @@
   }
 
   const api = {
-    DEFAULTS, MAXIMUM_VIEWS, STORAGE_AREA, SITE_PAGE_PATTERNS, WHITELIST_CREATOR_MESSAGE,
+    DEFAULTS, MAXIMUM_VIEWS, X_RATIO_SETTING_KEYS, PERCENT_SETTING_KEYS,
+    STORAGE_AREA, SITE_PAGE_PATTERNS, WHITELIST_CREATOR_MESSAGE,
     normalizeAccountIdentifier, parseWhitelistInput, normalizeSettings,
     oversizedSyncKeys, formatSettingsTransfer, parseSettingsTransfer,
   };

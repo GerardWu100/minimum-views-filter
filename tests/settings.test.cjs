@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const {normalizeSettings, normalizeAccountIdentifier, parseWhitelistInput, formatSettingsTransfer, parseSettingsTransfer, oversizedSyncKeys} = require('../src/settings.js');
+const {DEFAULTS, X_RATIO_SETTING_KEYS, PERCENT_SETTING_KEYS, normalizeSettings, normalizeAccountIdentifier, parseWhitelistInput, formatSettingsTransfer, parseSettingsTransfer, oversizedSyncKeys} = require('../src/settings.js');
 
 test('thresholds default and validate independently without altering valid zero or high values', () => {
   assert.equal(normalizeSettings().xMinimumViews, 1000);
@@ -14,6 +14,30 @@ test('thresholds default and validate independently without altering valid zero 
     assert.equal(normalizeSettings({xMinimumViews: invalid, youtubeMinimumViews: 42}).xMinimumViews, 1000);
     assert.equal(normalizeSettings({xMinimumViews: invalid, youtubeMinimumViews: 42}).youtubeMinimumViews, 42);
     assert.equal(normalizeSettings({xMinimumViews: 42, youtubeMinimumViews: invalid}).youtubeMinimumViews, 1000);
+  }
+});
+
+test('X ratio settings default independently and accept finite percentages from 0 to 100', () => {
+  assert.deepEqual(X_RATIO_SETTING_KEYS, [
+    'xLowLikeRatioEnabled', 'xMinimumLikePercent',
+    'xHighLikeRatioEnabled', 'xKeepLikePercent',
+    'xHighBookmarkRatioEnabled', 'xKeepBookmarkPercent',
+  ]);
+  assert.deepEqual(PERCENT_SETTING_KEYS, ['xMinimumLikePercent', 'xKeepLikePercent', 'xKeepBookmarkPercent']);
+  assert.deepEqual(X_RATIO_SETTING_KEYS.map((key) => normalizeSettings()[key]), [true, 0.5, true, 2, true, 0.5]);
+  const settings = normalizeSettings({
+    xLowLikeRatioEnabled: false, xMinimumLikePercent: 0,
+    xHighLikeRatioEnabled: false, xKeepLikePercent: 12.345,
+    xHighBookmarkRatioEnabled: false, xKeepBookmarkPercent: 100,
+  });
+  assert.deepEqual(X_RATIO_SETTING_KEYS.map((key) => settings[key]), [false, 0, false, 12.345, false, 100]);
+  for (const key of PERCENT_SETTING_KEYS) {
+    for (const invalid of [-0.01, 100.01, NaN, Infinity, -Infinity, '2', null]) {
+      assert.equal(normalizeSettings({[key]: invalid})[key], DEFAULTS[key], `${key}: ${invalid}`);
+    }
+  }
+  for (const key of X_RATIO_SETTING_KEYS.filter((entry) => entry.endsWith('Enabled'))) {
+    assert.equal(normalizeSettings({[key]: 1})[key], true);
   }
 });
 
@@ -66,7 +90,7 @@ test('malformed stored whitelists are isolated and callers cannot mutate shared 
 });
 
 test('transfer text round-trips and rejects anything incomplete or invalid', () => {
-  const settings = {xMinimumViews: 10000, youtubeMinimumViews: 0, xWhitelist: ['nasa'], youtubeWhitelist: ['@science', 'channel/UCExample'], xEnabled: false, youtubeEnabled: true, hideUnknown: true};
+  const settings = {xMinimumViews: 10000, youtubeMinimumViews: 0, xWhitelist: ['nasa'], youtubeWhitelist: ['@science', 'channel/UCExample'], xEnabled: false, youtubeEnabled: true, hideUnknown: true, xLowLikeRatioEnabled: false, xMinimumLikePercent: 0.75, xHighLikeRatioEnabled: true, xKeepLikePercent: 3.25, xHighBookmarkRatioEnabled: false, xKeepBookmarkPercent: 0};
   const text = formatSettingsTransfer(settings);
   assert.deepEqual(parseSettingsTransfer(text), settings);
   const value = JSON.parse(text);
@@ -74,6 +98,9 @@ test('transfer text round-trips and rejects anything incomplete or invalid', () 
   for (const invalid of [
     {...value, format: undefined}, {...value, xMinimumViews: 1.5}, {...value, youtubeMinimumViews: '1000'},
     {...value, xWhitelist: 'nasa'}, {...value, youtubeWhitelist: ['Science Channel']}, {...value, xEnabled: 1},
+    {...value, xMinimumLikePercent: -1}, {...value, xKeepLikePercent: Infinity},
+    {...value, xKeepBookmarkPercent: '0.5'}, {...value, xHighLikeRatioEnabled: 1},
+    Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'xHighBookmarkRatioEnabled')),
     Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'hideUnknown')),
   ]) assert.equal(parseSettingsTransfer(JSON.stringify(invalid)), null);
   for (const invalid of ['', '{', 'null', '[]', '"text"']) assert.equal(parseSettingsTransfer(invalid), null);

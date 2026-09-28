@@ -71,6 +71,17 @@
 
   // French writes "1,2 M de vues"; the parser accepts "de" only for French units.
   const VIEW_COUNT_PATTERN = new RegExp(`(?<![\\p{L}\\p{N}.,+\\-])(${COUNT_TOKEN})\\s+(?:de\\s+)?${VIEW_WORD}(?![\\p{L}])`, 'giu');
+  const ENGAGEMENT_WORDS = {
+    likes: '(?:likes?|mentions? j[’\u0027]aime|j[’\u0027]aime)',
+    bookmarks: '(?:bookmarks?|signets?|enregistrements?)',
+  };
+  const ENGAGEMENT_SELECTORS = {
+    likes: '[data-testid="like"], [data-testid="unlike"]',
+    bookmarks: '[data-testid="bookmark"], [data-testid="removeBookmark"]',
+  };
+  const PERCENT_SCALE = 100;
+  const RATIO_COMPARISON_EPSILON = 2 * Number.EPSILON;
+  const HISTORY_TITLE_LENGTH = 240;
   // Lazily resolved: the browser fixture loads this file before settings.js.
   let settingsApi = null;
 
@@ -203,9 +214,17 @@
     return knownCounts.length === 1 ? knownCounts[0] : null;
   }
 
-  function labeledCounts(text, locale) {
-    if (!text) return [];
-    return Array.from(text.matchAll(VIEW_COUNT_PATTERN), (match) => parseViewCount(match[0], { locale }));
+  function viewCountCandidates(text, locale) {
+    return Array.from((text || '').matchAll(VIEW_COUNT_PATTERN), (match) => ({
+      count: parseViewCount(match[0], {locale}), rounded: /[a-z]/i.test(match[1].replace(/^(?:no|aucune)$/i, '0')),
+    })).filter(({count}) => count !== null);
+  }
+
+  /** Exact accessible counts take precedence; disagreements remain unknown. */
+  function preferredCount(accessible, visible) {
+    const exact = accessible.filter(({rounded}) => !rounded);
+    const candidates = exact.length ? exact : accessible.length ? accessible : visible;
+    return uniqueCount(candidates.map(({count}) => count));
   }
 
   function statusId(href) {
@@ -214,59 +233,50 @@
 
   function getXViewCount(card, locale) {
     const ownTime = Array.from(card.querySelectorAll('a[href*="/status/"] time'))
-      .find((time) => !isQuoteDescendant(time, card));
+      .find((time) => isOwnXAuthorMetadata(time, card));
     const ownId = statusId(ownTime?.closest('a')?.getAttribute('href'));
     const analytics = Array.from(card.querySelectorAll('a[href*="/analytics"]')).filter((link) => {
       const href = link.getAttribute('href');
       return /\/status\/\d+\/analytics(?:[/?#]|$)/.test(href)
-        && !isQuoteDescendant(link, card)
+        && isOwnXAuthorMetadata(link, card)
         && (!ownId || statusId(href) === ownId);
     });
-    const counts = analytics.map((link) => {
-      const labelCounts = labeledCounts(link.getAttribute('aria-label'), locale);
-      if (labelCounts.length) return uniqueCount(labelCounts);
-      return parseViewCount(link.textContent, { allowBare: true, locale });
-    });
-    if (counts.some((count) => count !== null)) return uniqueCount(counts);
+    const accessible = analytics.flatMap((link) => viewCountCandidates(link.getAttribute('aria-label'), locale));
     const groups = Array.from(card.querySelectorAll('[role="group"][aria-label]'))
-      .filter((group) => !isQuoteDescendant(group, card));
-    return uniqueCount(groups.flatMap((group) => labeledCounts(group.getAttribute('aria-label'), locale)));
+      .filter((group) => isOwnXAuthorMetadata(group, card));
+    for (const group of groups) accessible.push(...viewCountCandidates(group.getAttribute('aria-label'), locale));
+    const visible = accessible.length ? [] : analytics.map((link) => ({count: parseViewCount(link.textContent, {allowBare: true, locale})}));
+    return preferredCount(accessible, visible);
   }
 
   function getYoutubeViewCount(card, locale) {
-    const metadata = Array.from(card.querySelectorAll(YOUTUBE_METADATA_SELECTOR));
-    const counts = metadata.flatMap((element) => {
-      // Channel names share the same metadata class as counts on modern cards.
+    const accessible = [];
+    const visible = [];
+    for (const element of card.querySelectorAll(YOUTUBE_METADATA_SELECTOR)) {
+      // Channel names share metadata classes, but cannot supply view counts.
       if (element.closest(YOUTUBE_CHANNEL_SELECTOR)
-          || element.querySelector(YOUTUBE_LINK_OR_CHANNEL_SELECTOR)) return [];
+          || element.querySelector(YOUTUBE_LINK_OR_CHANNEL_SELECTOR)) continue;
       const label = element.getAttribute('aria-label');
-      if (label) {
-        const labeled = parseViewCount(label, { locale });
-        if (labeled !== null) return [labeled];
-        // A known views label establishes meaning even if a spoken unit is new.
-        if (/\s(?:views?|vues?)$/i.test(label)) {
-          return [parseViewCount(element.textContent, { allowBare: true, locale })];
+      if (label && parseViewCount(label, {locale}) !== null) {
+        accessible.push(...viewCountCandidates(label, locale));
+      } else if (label && /\s(?:views?|vues?)$/i.test(label)) {
+        visible.push({count: parseViewCount(element.textContent, {allowBare: true, locale})});
+      } else {
+        for (const part of element.textContent.split(/[•·\n]/)) {
+          if (/\s(?:views?|vues?)\s*$/i.test(part)) visible.push({count: parseViewCount(part, {locale})});
         }
       }
-      // Metadata may join count and age with a bullet; titles are never scanned.
-      return element.textContent.split(/[•·\n]/).map((part) => (
-        /\s(?:views?|vues?)\s*$/i.test(part) ? parseViewCount(part, { locale }) : null
-      ));
-    });
-    if (counts.some((count) => count !== null)) return uniqueCount(counts);
-
-    const links = card.querySelectorAll(YOUTUBE_TITLE_LABEL_SELECTOR);
-    const accessibleCounts = [];
-    for (const link of links) {
+    }
+    for (const link of card.querySelectorAll(YOUTUBE_TITLE_LABEL_SELECTOR)) {
       if (!/(?:\/watch\?|\/shorts\/)/.test(link.getAttribute('href') || '')) continue;
       const title = (link.getAttribute('title') || link.textContent).trim();
       const label = link.getAttribute('aria-label').trim();
-      // Removing a verified title prefix prevents numbers in titles becoming views.
+      // Only the suffix after a verified title can supply a count.
       if (!title || !label.startsWith(title)) continue;
-      const matches = labeledCounts(label.slice(title.length), locale);
-      if (matches.length === 1) accessibleCounts.push(matches[0]);
+      const matches = viewCountCandidates(label.slice(title.length), locale);
+      if (matches.length === 1) accessible.push(matches[0]);
     }
-    return uniqueCount(accessibleCounts);
+    return preferredCount(accessible, visible);
   }
 
   /**
@@ -283,6 +293,139 @@
     if (site === 'x') return getXViewCount(card, locale);
     if (site === 'youtube') return getYoutubeViewCount(card, locale);
     return null;
+  }
+
+  /** Read labeled engagement counts, retaining whether the source is rounded. */
+  function engagementCounts(text, metric, locale) {
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}.,+\\-])(${COUNT_TOKEN}|aucun)\\s+(?:de\\s+)?${ENGAGEMENT_WORDS[metric]}(?![\\p{L}])`, 'giu');
+    return Array.from((text || '').matchAll(pattern), (match) => {
+      const token = /^(?:no|aucune?)$/i.test(match[1]) ? '0' : match[1];
+      return {count: parseViewCount(token, {allowBare: true, locale}), rounded: /[a-z]/i.test(token)};
+    }).filter(({count}) => count !== null);
+  }
+
+  /**
+   * Read an X card's own likes and bookmark counts without clicking or fetching.
+   *
+   * Parameters
+   * ----------
+   * card : Element
+   *     Outer X post card; quote, body, and repost-context subtrees are excluded.
+   * locale : string
+   *     Page language; only English and French number formats are supported.
+   *
+   * Returns
+   * -------
+   * {likes: number|null, bookmarks: number|null}
+   *     Exact accessibility labels outrank rounded labels and visible counters.
+   *     Contradictory counts and missing counters return null, never implicit zero.
+   */
+  function getXEngagement(card, locale = 'en') {
+    const result = {likes: null, bookmarks: null};
+    const groups = Array.from(card.querySelectorAll('[role="group"][aria-label]'))
+      .filter((element) => isOwnXAuthorMetadata(element, card));
+    for (const metric of Object.keys(result)) {
+      const buttons = Array.from(card.querySelectorAll(ENGAGEMENT_SELECTORS[metric]))
+        .filter((element) => isOwnXAuthorMetadata(element, card));
+      const labels = [...buttons, ...groups].flatMap((element) => engagementCounts(element.getAttribute('aria-label'), metric, locale));
+      if (labels.length) {
+        const exact = labels.filter(({rounded}) => !rounded);
+        result[metric] = uniqueCount((exact.length ? exact : labels).map(({count}) => count));
+      } else {
+        result[metric] = uniqueCount(buttons.map((button) => parseViewCount(button.textContent, {allowBare: true, locale})));
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Decide whether counts fail the configured view or X engagement rules.
+   *
+   * Parameters
+   * ----------
+   * views : number|null
+   *     Displayed view count; null means unknown, zero is known but has no ratio.
+   * site : "x" | "youtube"
+   *     Site whose independent view minimum applies.
+   * settings : object
+   *     Normalized settings. Percent thresholds are in percentage points.
+   * engagement : {likes: number|null, bookmarks: number|null}
+   *     Own X metrics; missing values cannot hide or rescue through ratios.
+   *
+   * Returns
+   * -------
+   * string|null
+   *     low-views, low-like-ratio, unknown-views, or null to keep the card.
+   *     Whitelist exemptions are applied by the caller. High likes OR bookmarks
+   *     override both hiding rules. No history is consulted for this decision.
+   */
+  function getFilterReason(views, site, settings, engagement = {likes: null, bookmarks: null}) {
+    if (views === null) return settings.hideUnknown ? 'unknown-views' : null;
+    if (site === 'x' && views > 0) {
+      // For count c, views v, percent p: c/v >= p/100 iff 100*c >= p*v.
+      // A two-operation machine-precision allowance preserves decimal boundaries
+      // such as 7/10000 = 0.07%, whose binary product is slightly above 700.
+      const reaches = (count, percent) => {
+        if (count === null) return false;
+        const actual = count * PERCENT_SCALE;
+        const required = percent * views;
+        return actual >= required || required - actual <= RATIO_COMPARISON_EPSILON * Math.max(actual, required);
+      };
+      if ((settings.xHighLikeRatioEnabled && reaches(engagement.likes, settings.xKeepLikePercent))
+          || (settings.xHighBookmarkRatioEnabled && reaches(engagement.bookmarks, settings.xKeepBookmarkPercent))) return null;
+      if (settings.xLowLikeRatioEnabled && engagement.likes !== null
+          && !reaches(engagement.likes, settings.xMinimumLikePercent)) return 'low-like-ratio';
+    }
+    return views < settings[site + 'MinimumViews'] ? 'low-views' : null;
+  }
+
+  /**
+   * Extract a canonical item link and short title for local filtered-item history.
+   *
+   * Parameters
+   * ----------
+   * card : Element
+   *     Recognized outer card. X quote/body links cannot identify its post.
+   * site : "x" | "youtube"
+   *     Selects post permalinks or video-title links.
+   *
+   * Returns
+   * -------
+   * {url: string|null, title: string}
+   *     HTTPS permalink without tracking parameters, plus at most 240 characters.
+   *     Missing/ambiguous destinations produce null; no identity is fetched.
+   */
+  function getItemMetadata(card, site) {
+    let links;
+    let title = '';
+    if (site === 'x') {
+      links = Array.from(card.querySelectorAll('a[href] time'))
+        .filter((time) => isOwnXAuthorMetadata(time, card)).map((time) => time.closest('a'));
+      if (!links.length) links = Array.from(card.querySelectorAll('a[href*="/analytics"]'))
+        .filter((link) => isOwnXAuthorMetadata(link, card));
+      title = Array.from(card.querySelectorAll('[data-testid="tweetText"]'))
+        .find((element) => !isQuoteDescendant(element, card))?.textContent || 'X post';
+    } else {
+      links = Array.from(card.querySelectorAll(YOUTUBE_TITLE_HREF_SELECTOR));
+      if (!links.length) links = Array.from(card.querySelectorAll('a[href]'));
+      title = card.querySelector(YOUTUBE_TITLE_LINK_SELECTORS.join(','))?.textContent || 'YouTube video';
+    }
+    const destinations = new Set();
+    for (const link of links) {
+      try {
+        const url = new URL(link.getAttribute('href'), site === 'x' ? 'https://x.com' : 'https://www.youtube.com');
+        if (!PROFILE_HOST_PATTERNS[site].test(url.hostname) || !/^https?:$/.test(url.protocol)
+            || url.username || url.password || url.port) continue;
+        if (site === 'x') {
+          const match = url.pathname.match(/^\/([a-z0-9_]{1,15})\/status\/(\d+)(?:\/analytics)?\/?$/i);
+          if (match) destinations.add('https://x.com/' + match[1].toLowerCase() + '/status/' + match[2]);
+        } else {
+          const videoId = url.pathname === '/watch' ? url.searchParams.get('v') : url.pathname.match(/^\/shorts\/([a-z0-9_-]+)\/?$/i)?.[1];
+          if (videoId && /^[a-z0-9_-]+$/i.test(videoId)) destinations.add('https://www.youtube.com/watch?v=' + videoId);
+        }
+      } catch { /* Invalid page links cannot become history destinations. */ }
+    }
+    return {url: destinations.size === 1 ? [...destinations][0] : null, title: title.replace(/\s+/g, ' ').trim().slice(0, HISTORY_TITLE_LENGTH)};
   }
 
   // Only profile destinations in author metadata can establish creator identity.
@@ -403,7 +546,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget };
+  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterReason, getItemMetadata, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);

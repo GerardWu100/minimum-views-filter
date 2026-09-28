@@ -160,7 +160,7 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
       sync: settingsArea,
       onChanged: {addListener: (callback) => storageListeners.add(callback), removeListener: (callback) => storageListeners.delete(callback)},
     },
-    runtime: {onMessage: {addListener() {}, removeListener() {}}},
+    runtime: {sendMessage: async () => ({ok: true}), onMessage: {addListener() {}, removeListener() {}}},
   };
 
   async function flush() {

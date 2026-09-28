@@ -9,9 +9,20 @@ the platform through negative-feedback actions.
 
 - Filter locally in the page. Never click, like, dismiss, mute, block, unsubscribe,
   submit feedback, or call platform APIs on the user's behalf.
-- Each site defaults to a 1,000-view minimum: hide 0–999; keep 1,000 and above.
+- Each site defaults to a 1,000-view minimum: hide 0–999; keep 1,000 and above,
+  subject to the X engagement rules below.
+- On X, also hide posts below an adjustable likes/views percentage (default
+  0.5%). Keep posts at or above an adjustable likes/views percentage (default 2%)
+  OR bookmarks/views percentage (default 0.5%), overriding both hiding rules.
+  Each ratio rule has its own switch. Ratios require known, positive views and
+  a known numerator; missing likes/bookmarks are unknown, never implicit zero.
+- Whitelisted X accounts bypass all ratio rules as well as the view rules.
+- Keep local filtering-event totals and the latest 500 identifiable filtered
+  items with canonical links, snippets/titles, count snapshots, reasons, and
+  timestamps. Provide a reset action. This user-requested history must never
+  become a blacklist, be synced, be uploaded, or hold DOM references.
 - Do not permanently blacklist IDs. An item must become eligible again when the
-  site displays a view count at or above the threshold, including on a later visit.
+  site's displayed counts meet the current rules, including on a later visit.
 - Expose independent X and YouTube minimums and switches; the user may set a
   higher X threshold than YouTube.
 - Provide separate X account and YouTube channel whitelists. A matching creator

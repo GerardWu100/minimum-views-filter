@@ -13,7 +13,7 @@ globalThis.browser = {
       removeListener: callback => fixtureListeners.delete(callback),
     },
   },
-  runtime: {onMessage: {addListener() {}, removeListener() {}}},
+  runtime: {sendMessage: async () => ({ok: true}), onMessage: {addListener() {}, removeListener() {}}},
 };
 const fixtureSite = card => card.matches('article') ? "x" : "youtube";
 globalThis.MinimumViewsCore = {
@@ -22,6 +22,7 @@ globalThis.MinimumViewsCore = {
   getCardSelector: () => fixtureCore.getCardSelector("x") + "," + fixtureCore.getCardSelector("youtube"),
   getCards: root => [...fixtureCore.getCards(root, "x"), ...fixtureCore.getCards(root, "youtube")],
   getViewCount: (card, _site, locale) => fixtureCore.getViewCount(card, fixtureSite(card), locale),
+  getItemMetadata: card => fixtureCore.getItemMetadata(card, fixtureSite(card)),
   getHideTarget: card => fixtureCore.getHideTarget(card, fixtureSite(card)),
 };
 

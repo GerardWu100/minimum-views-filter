@@ -1,13 +1,18 @@
 (function () {
   "use strict";
 
-  // Chrome runs this file as a service worker; Firefox lists settings.js first
+  // Chrome runs this file as a service worker; Firefox lists dependencies first
   // in its background scripts.
   if (!globalThis.MinimumViewsSettings && typeof importScripts === "function") importScripts("settings.js");
+  if (!globalThis.MinimumViewsHistory && typeof importScripts === "function") importScripts("history-store.js");
 
   const {SITE_PAGE_PATTERNS, WHITELIST_CREATOR_MESSAGE} = globalThis.MinimumViewsSettings;
   const extension = globalThis.browser || globalThis.chrome;
+  const historyStore = globalThis.MinimumViewsHistory;
   const MENU_ITEM_ID = "always-show-creator";
+  const RECORD_MESSAGE = "minimum-views-filter:record-filtered";
+  const GET_HISTORY_MESSAGE = "minimum-views-filter:get-history";
+  const CLEAR_HISTORY_MESSAGE = "minimum-views-filter:clear-history";
   const RESULT_BADGE_MS = 4000;
   // Badge text and hover title shown on the toolbar icon after a menu click.
   const RESULT_FEEDBACK = {
@@ -19,6 +24,68 @@
   };
   // Tab ID -> pending restore timer, so a newer result is not cleared early.
   const badgeRestoreTimers = new Map();
+  // Chain every read-modify-write and reset, including requests from other tabs.
+  let historyQueue = Promise.resolve();
+
+  function queueHistory(operation) {
+    const result = historyQueue.then(operation);
+    historyQueue = result.catch(() => {});
+    return result;
+  }
+
+  /** Trust the browser-provided sender URL only on the two supported surfaces. */
+  function senderSite(sender) {
+    if (sender?.id !== extension.runtime.id || !sender.tab || (sender.frameId !== undefined && sender.frameId !== 0)) return null;
+    let url;
+    try { url = new URL(sender.url); } catch { return null; }
+    if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
+    if (["x.com", "www.x.com", "twitter.com", "www.twitter.com"].includes(url.hostname) && /^\/home\/?$/.test(url.pathname)) return "x";
+    if (["youtube.com", "www.youtube.com"].includes(url.hostname) && (url.pathname === "/" || /^\/watch\/?$/.test(url.pathname))) return "youtube";
+    return null;
+  }
+
+  function isHistoryPage(sender) {
+    // A history page opened in a browser tab may itself have sender.tab.
+    return sender?.id === extension.runtime.id && sender.url === extension.runtime.getURL("history.html");
+  }
+
+  async function processHistoryMessage(message, sender) {
+    if (message.type === RECORD_MESSAGE) {
+      const site = senderSite(sender);
+      if (!site) return {ok: false, error: "forbidden"};
+      if (!Array.isArray(message.items) || message.items.length < 1 || message.items.length > historyStore.MAX_BATCH_ITEMS) {
+        return {ok: false, error: "invalid-message"};
+      }
+      return queueHistory(async () => {
+        const stored = await extension.storage.local.get(historyStore.STORAGE_KEY);
+        const result = historyStore.addEvents(stored[historyStore.STORAGE_KEY], message.items, site, Date.now());
+        if (!result || !result.recorded) return {ok: false, error: "invalid-message"};
+        await extension.storage.local.set({[historyStore.STORAGE_KEY]: result.history});
+        return {ok: true, recorded: result.recorded};
+      });
+    }
+    if (!isHistoryPage(sender)) return {ok: false, error: "forbidden"};
+    if (message.type === GET_HISTORY_MESSAGE) {
+      return queueHistory(async () => {
+        const stored = await extension.storage.local.get(historyStore.STORAGE_KEY);
+        return {ok: true, history: historyStore.normalizeHistory(stored[historyStore.STORAGE_KEY])};
+      });
+    }
+    return queueHistory(async () => {
+      const history = historyStore.emptyHistory();
+      await extension.storage.local.set({[historyStore.STORAGE_KEY]: history});
+      return {ok: true, history};
+    });
+  }
+
+  /** Callback response works in both Chrome and Firefox message listeners. */
+  function onRuntimeMessage(message, sender, sendResponse) {
+    if (!message || ![RECORD_MESSAGE, GET_HISTORY_MESSAGE, CLEAR_HISTORY_MESSAGE].includes(message.type)) return false;
+    processHistoryMessage(message, sender)
+      .then(sendResponse)
+      .catch(() => sendResponse({ok: false, error: "storage-unavailable"}));
+    return true;
+  }
 
   /** Recreate the menu; Chrome keeps menus across restarts, Firefox event pages may not. */
   async function createMenu() {
@@ -63,4 +130,5 @@
   extension.runtime.onInstalled.addListener(createMenu);
   extension.runtime.onStartup.addListener(createMenu);
   extension.contextMenus.onClicked.addListener(onMenuClicked);
+  extension.runtime.onMessage.addListener(onRuntimeMessage);
 })();

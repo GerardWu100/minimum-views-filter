@@ -5,6 +5,7 @@ const {readFileSync} = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {JSDOM} = require('jsdom');
+const {normalizeSettings} = require('../src/settings.js');
 
 const SOURCE = path.join(__dirname, '..', 'src');
 const source = (name) => readFileSync(path.join(SOURCE, name), 'utf8');
@@ -17,8 +18,10 @@ function createStorage({stored = {}, get, set} = {}) {
   const listeners = new Set();
   const messageListeners = new Set();
   const writes = [];
+  const recordedMessages = [];
   const mock = {
     writes,
+    recordedMessages,
     listeners,
     messageListeners,
     api: {
@@ -37,7 +40,7 @@ function createStorage({stored = {}, get, set} = {}) {
           removeListener: (listener) => listeners.delete(listener),
         },
       },
-      runtime: {onMessage: {
+      runtime: {sendMessage: async (message) => {recordedMessages.push(JSON.parse(JSON.stringify(message))); return {ok: true};}, onMessage: {
         addListener: (listener) => messageListeners.add(listener),
         removeListener: (listener) => messageListeners.delete(listener),
       }},
@@ -249,7 +252,7 @@ for (const namespace of ['browser', 'chrome']) {
     document.querySelector('#hide-unknown').checked = false;
     submit();
     await wait(0);
-    assert.deepEqual(storage.writes, [{xMinimumViews: 2000, youtubeMinimumViews: 750, xWhitelist: ['nasa', 'spacex'], youtubeWhitelist: ['@science', 'channel/UCExample'], xEnabled: true, youtubeEnabled: false, hideUnknown: false}]);
+    assert.deepEqual(storage.writes, [normalizeSettings({xMinimumViews: 2000, youtubeMinimumViews: 750, xWhitelist: ['nasa', 'spacex'], youtubeWhitelist: ['@science', 'channel/UCExample'], xEnabled: true, youtubeEnabled: false, hideUnknown: false})]);
     assert.match(document.querySelector('#status').textContent, /Saved/);
     assert.equal(document.querySelector('#controls').disabled, false);
   });
@@ -828,7 +831,7 @@ test('popup copies settings as text and loads pasted text for review before savi
   document.querySelector('#copy-settings').click();
   await wait(0);
   const copied = document.querySelector('#transfer-text').value;
-  assert.deepEqual(JSON.parse(copied), {format: 'minimum-views-filter-settings', ...stored});
+  assert.deepEqual(JSON.parse(copied), {format: 'minimum-views-filter-settings', ...normalizeSettings(stored)});
   assert.match(document.querySelector('#status').textContent, /Cop/);
   document.querySelector('#x-minimum-views').value = '5';
   document.querySelector('#x-whitelist').value = '';
@@ -841,7 +844,7 @@ test('popup copies settings as text and loads pasted text for review before savi
   assert.equal(storage.writes.length, 0);
   submit();
   await wait(0);
-  assert.deepEqual(storage.writes, [{...stored, xWhitelist: ['spacex']}]);
+  assert.deepEqual(storage.writes, [normalizeSettings({...stored, xWhitelist: ['spacex']})]);
   assert.ok(window);
 });
 
@@ -868,4 +871,103 @@ test('popup blocks a whitelist too long to sync', async (t) => {
   assert.match(document.querySelector('#status').textContent, /YouTube whitelist is too long to sync/);
   assert.equal(document.activeElement, document.querySelector('#youtube-whitelist'));
   assert.equal(storage.writes.length, 0);
+});
+
+const xEngagementCard = (id, views, likes, bookmarks = null) => xCard(id, views).replace('</article>', `<button data-testid="like" aria-label="${likes} Likes. Like">${likes}</button>${bookmarks === null ? '' : `<button data-testid="bookmark" aria-label="${bookmarks} Bookmarks">${bookmarks}</button>`}</article>`);
+const historyItems = (storage) => storage.recordedMessages.flatMap((message) => message.items);
+
+test('X ratio decisions react to changed counts, missing likes, quote metrics and live settings', async (t) => {
+  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '10000', 1) + xEngagementCard(2, '500', 10) + xEngagementCard(3, '400', 0, 2)});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  assertVisible(window, '#cell-2', true);
+  assertVisible(window, '#cell-3', true);
+  document.querySelector('#post-1 [data-testid="like"]').setAttribute('aria-label', '50 Likes');
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  document.querySelector('#post-1 [data-testid="like"]').remove();
+  document.querySelector('#post-1').insertAdjacentHTML('beforeend', '<div role="link"><button data-testid="like" aria-label="0 Likes">0</button></div>');
+  storage.change({xMinimumLikePercent: 1});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  storage.change({xKeepLikePercent: 3, xHighBookmarkRatioEnabled: false});
+  await wait();
+  assertVisible(window, '#cell-2', false);
+  assertVisible(window, '#cell-3', false);
+  storage.change({xWhitelist: ['author']});
+  await wait();
+  assertVisible(window, '#cell-2', true);
+  assertVisible(window, '#cell-3', true);
+  storage.change({xWhitelist: []});
+  window.history.pushState({}, '', '/author');
+  window.dispatchEvent(new window.PopStateEvent('popstate'));
+  await wait();
+  assertVisible(window, '#cell-3', true);
+});
+
+test('history records hidden transitions and recycled identities, never rescans or rescued cards', async (t) => {
+  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '10000', 1) + xEngagementCard(2, '500', 10)});
+  await wait();
+  assert.equal(historyItems(storage).length, 1);
+  assert.equal(historyItems(storage)[0].reason, 'low-like-ratio');
+  assert.equal(historyItems(storage)[0].url, 'https://x.com/author/status/1');
+  assert.equal(historyItems(storage)[0].likes, 1);
+  document.querySelector('#post-1 [data-testid="like"]').setAttribute('aria-label', '2 Likes');
+  storage.change({xMinimumViews: 1100});
+  await wait();
+  assert.equal(historyItems(storage).length, 1);
+  document.querySelector('#post-1 a time').closest('a').href = '/author/status/3';
+  document.querySelector('#post-1 a[href$="/analytics"]').href = '/author/status/3/analytics';
+  await wait();
+  assert.equal(historyItems(storage).length, 2);
+  assert.equal(historyItems(storage)[1].url, 'https://x.com/author/status/3');
+  document.querySelector('#post-1 [data-testid="like"]').setAttribute('aria-label', '100 Likes');
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  document.querySelector('#post-1 [data-testid="like"]').setAttribute('aria-label', '0 Likes');
+  await wait();
+  assert.equal(historyItems(storage).length, 3);
+});
+
+test('history batches large scans, preserves YouTube decisions and tolerates reporting failure', async (t) => {
+  const {window, document, storage} = openContent(t, {url: 'https://www.youtube.com/', html: Array.from({length: 205}, (_, id) => youtubeCard(id, '10')).join('')});
+  await wait();
+  assert.equal(historyItems(storage).length, 205);
+  assert.equal(storage.recordedMessages.length, 3);
+  assert.ok(storage.recordedMessages.every((message) => message.items.length <= 100));
+  assert.ok(historyItems(storage).every((item) => item.reason === 'low-views' && item.site === 'youtube'));
+  window.browser.runtime.sendMessage = async () => {throw new Error('storage unavailable');};
+  document.body.insertAdjacentHTML('beforeend', youtubeCard(999, '1'));
+  await wait();
+  assertVisible(window, '#video-999', false);
+});
+
+test('a permalink arriving after a hidden card enriches history without another hide event', async (t) => {
+  const {document, storage} = openContent(t, {url: 'https://www.youtube.com/', html: '<ytd-video-renderer><a id="video-title">Loading video</a><span class="inline-metadata-item">5 views</span></ytd-video-renderer>'});
+  await wait();
+  assert.equal(historyItems(storage).length, 1);
+  assert.equal(historyItems(storage)[0].url, null);
+  document.querySelector('a').textContent = 'Actual title';
+  await wait();
+  assert.equal(historyItems(storage).length, 1);
+  document.querySelector('a').href = '/watch?v=newid';
+  await wait();
+  assert.equal(historyItems(storage).length, 2);
+  assert.equal(historyItems(storage)[1].enrich, true);
+  assert.equal(historyItems(storage)[1].title, 'Actual title');
+  document.querySelector('a').href = '/watch?v=anotherid';
+  await wait();
+  assert.equal(historyItems(storage).length, 3);
+  assert.equal(historyItems(storage)[2].enrich, undefined);
+});
+
+test('synchronous invalidated-extension reporting errors do not interrupt hiding or restoration', async (t) => {
+  const {window, document} = openContent(t, {html: xCard(1, '10')});
+  await wait();
+  window.browser.runtime.sendMessage = () => {throw new Error('Extension context invalidated');};
+  document.body.insertAdjacentHTML('beforeend', xCard(2, '10'));
+  document.querySelector('#post-1 a[href$="/analytics"]').setAttribute('aria-label', '2000 views');
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  assertVisible(window, '#cell-2', false);
 });

@@ -2,7 +2,7 @@
   "use strict";
 
   const core = globalThis.MinimumViewsCore;
-  const {normalizeSettings, oversizedSyncKeys, STORAGE_AREA, WHITELIST_CREATOR_MESSAGE} = globalThis.MinimumViewsSettings;
+  const {normalizeSettings, oversizedSyncKeys, STORAGE_AREA, WHITELIST_CREATOR_MESSAGE, X_RATIO_SETTING_KEYS} = globalThis.MinimumViewsSettings;
   const extension = globalThis.browser || globalThis.chrome;
   const HIDDEN_ATTRIBUTE = "data-minimum-views-hidden";
   const ACTIVE_ATTRIBUTE = "data-minimum-views-active";
@@ -11,11 +11,13 @@
   const SCAN_DELAY_MS = 80;
   const NAVIGATION_CHECK_MS = 1000;
   const MAX_PENDING_ROOTS = 32;
+  const HISTORY_BATCH_SIZE = 100;
+  const RECORD_FILTERED_MESSAGE = 'minimum-views-filter:record-filtered';
   const SITE = /(^|\.)youtube\.com$/.test(location.hostname) ? "youtube" : "x";
   const CARD_SELECTOR = core.getCardSelector(SITE);
   const CARD_OR_MARK_SELECTOR = CARD_SELECTOR + "," + HIDDEN_SELECTOR;
   const PAGE_EVENTS = ["popstate", "yt-navigate-finish", "pageshow"];
-  const SETTING_KEYS = [SITE + "MinimumViews", SITE + "Whitelist", SITE + "Enabled", "hideUnknown"];
+  const SETTING_KEYS = [SITE + "MinimumViews", SITE + "Whitelist", SITE + "Enabled", "hideUnknown", ...(SITE === 'x' ? X_RATIO_SETTING_KEYS : [])];
   const DECISION_CLASS_NAMES = core.getDecisionClassNames(SITE);
   const OBSERVER_OPTIONS = {
     childList: true,
@@ -32,6 +34,8 @@
   };
   let settings = normalizeSettings();
   let whitelist = new Set();
+  // Weak keys cannot keep removed cards alive; values contain only URL/title text.
+  let recordedCards = new WeakMap();
   const pendingRoots = new Set();
   const startupChanges = {};
   let fullScanRequired = false;
@@ -161,6 +165,7 @@
   }
 
   function restorePage() {
+    recordedCards = new WeakMap();
     document.documentElement.removeAttribute(ACTIVE_ATTRIBUTE);
     for (const target of document.querySelectorAll(HIDDEN_SELECTOR)) target.removeAttribute(HIDDEN_ATTRIBUTE);
   }
@@ -168,8 +173,8 @@
   /**
    * Reconcile only affected DOM subtrees with current settings and metadata.
    *
-   * Hiding attributes are the only durable card state. No Set/Map retains hidden
-   * DOM nodes or post IDs between passes; detached subtrees can be collected.
+   * Hiding attributes hold filter state. History's WeakMap cannot retain detached
+   * nodes, and its item identities are never used to decide whether to hide.
    * Both desired targets and existing marks are scoped to the changed roots.
    * Full passes are reserved for startup, navigation, settings and tab resume.
    */
@@ -194,7 +199,17 @@
     const nextHidden = new Set();
     const previousHidden = new Set();
     const locale = document.documentElement.lang || navigator.language || "en";
-    const minimumViews = settings[SITE + "MinimumViews"];
+    let historyItems = [];
+    const recordBatch = () => {
+      if (!historyItems.length) return;
+      // Statistics errors never interrupt filtering or unhide a qualifying card.
+      try {
+        extension.runtime.sendMessage({type: RECORD_FILTERED_MESSAGE, items: historyItems}).catch(() => {});
+      } catch {
+        // A replaced extension can invalidate messaging before the tab reloads.
+      }
+      historyItems = [];
+    };
     for (const root of roots) {
       if (!root.isConnected) continue;
       if (root.nodeType === 1) {
@@ -205,10 +220,32 @@
       for (const target of root.querySelectorAll(HIDDEN_SELECTOR)) previousHidden.add(target);
       for (const card of core.getCards(root, SITE)) {
         const views = core.getViewCount(card, SITE, locale);
-        if (!(views === null ? settings.hideUnknown : views < minimumViews)) continue;
+        const engagement = SITE === 'x' && views > 0 && (settings.xLowLikeRatioEnabled || settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled)
+          ? core.getXEngagement(card, locale) : {likes: null, bookmarks: null};
+        const reason = core.getFilterReason(views, SITE, settings, engagement);
+        if (!reason) {
+          recordedCards.delete(card);
+          continue;
+        }
         // The whitelist can only rescue a card that would otherwise be hidden.
-        if (whitelist.size && core.getCreatorIdentifiers(card, SITE).some((identifier) => whitelist.has(identifier))) continue;
+        if (whitelist.size && core.getCreatorIdentifiers(card, SITE).some((identifier) => whitelist.has(identifier))) {
+          recordedCards.delete(card);
+          continue;
+        }
         nextHidden.add(core.getHideTarget(card, SITE));
+        const metadata = core.getItemMetadata(card, SITE);
+        const previous = recordedCards.get(card);
+        // A permalink can arrive after the count. Enrich that first event instead
+        // of counting the same continuous hide twice. Lost links are not new IDs.
+        const enrich = !!previous && !previous.url && !!metadata.url;
+        // Text may hydrate or be rewritten by another extension. Only a changed
+        // stable URL proves a new item on a continuously hidden recycled node.
+        const newItem = !previous || (metadata.url && previous.url && metadata.url !== previous.url);
+        if (metadata.url || !previous?.url) recordedCards.set(card, metadata);
+        if (newItem || enrich) {
+          historyItems.push({site: SITE, ...metadata, reason, views, ...engagement, ...(enrich ? {enrich: true} : {})});
+          if (historyItems.length === HISTORY_BATCH_SIZE) recordBatch();
+        }
       }
     }
     for (const target of previousHidden) {
@@ -218,6 +255,7 @@
       if (!target.hasAttribute(HIDDEN_ATTRIBUTE)) target.setAttribute(HIDDEN_ATTRIBUTE, "");
     }
     if (!document.documentElement.hasAttribute(ACTIVE_ATTRIBUTE)) document.documentElement.setAttribute(ACTIVE_ATTRIBUTE, "");
+    recordBatch();
   }
 
   /** Poll only URL changes, only while visible; never poll counts or the network. */

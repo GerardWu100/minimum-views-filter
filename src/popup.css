@@ -23,6 +23,11 @@ details p { font-size: 14px; }
 .site-toggle { font-weight: 650; }
 .minimum-row { display: grid; grid-template-columns: 1fr 160px; gap: 12px; align-items: center; margin-bottom: 8px; }
 .minimum { font-size: 14px; margin-bottom: 0; }
+.ratio-settings { padding: 3px 0 10px; }
+.ratio-settings .toggle { font-size: 14px; }
+.percent-row { display: grid; grid-template-columns: 1fr 105px; gap: 12px; align-items: center; margin: 0 0 8px; font-size: 14px; }
+.percent-input { display: flex; align-items: center; gap: 5px; }
+.percent-input input { min-width: 0; font-size: 16px; padding: 5px 7px; }
 textarea { display: block; width: 100%; margin-top: 8px; padding: 8px; border: 1px solid #7b8da2; border-radius: 6px; font: 14px/1.4 system-ui, sans-serif; resize: vertical; }
 .transfer { margin-top: 12px; }
 .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

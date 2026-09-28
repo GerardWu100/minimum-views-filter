@@ -1,0 +1,217 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const {readFileSync} = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const vm = require('node:vm');
+const {JSDOM} = require('jsdom');
+const store = require('../src/history-store.js');
+
+const source = (name) => readFileSync(path.join(__dirname, '..', 'src', name), 'utf8');
+const clone = (value) => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+const xSender = {id: 'extension-id', tab: {id: 1}, frameId: 0, url: 'https://x.com/home'};
+const youtubeSender = {id: 'extension-id', tab: {id: 2}, frameId: 0, url: 'https://www.youtube.com/watch?v=active'};
+const pageSender = {id: 'extension-id', url: 'chrome-extension://extension-id/history.html'};
+const xEvent = (id, extra = {}) => ({site: 'x', url: `https://x.com/Author/status/${id}`, title: `Post ${id}`, reason: 'low-views', views: 999, likes: null, bookmarks: null, ...extra});
+const youtubeEvent = (id, extra = {}) => ({site: 'youtube', url: `https://www.youtube.com/watch?v=${id}`, title: `Video ${id}`, reason: 'low-like-ratio', views: 1000, likes: 1, bookmarks: null, ...extra});
+
+function openBackground({style = 'chrome', get, set} = {}) {
+  const onMessage = {listeners: [], addListener(listener) {this.listeners.push(listener);}};
+  let stored = {};
+  const local = {
+    get: get || (async () => clone(stored)),
+    set: set || (async (update) => {stored = {...stored, ...clone(update)};}),
+  };
+  const api = {
+    runtime: {id: 'extension-id', onMessage, onInstalled: {addListener() {}}, onStartup: {addListener() {}},
+      getURL: (name) => `chrome-extension://extension-id/${name}`},
+    storage: {local},
+    contextMenus: {onClicked: {addListener() {}}},
+  };
+  const context = vm.createContext({URL, setTimeout, clearTimeout, Date});
+  context.globalThis = context;
+  context[style === 'chrome' ? 'chrome' : 'browser'] = api;
+  if (style === 'chrome') context.importScripts = (name) => vm.runInContext(source(name), context);
+  else {
+    vm.runInContext(source('settings.js'), context);
+    vm.runInContext(source('history-store.js'), context);
+  }
+  vm.runInContext(source('background.js'), context);
+  return {
+    api,
+    read: () => clone(stored.filterHistory),
+    send(message, sender) {
+      return new Promise((resolve) => {
+        const keptOpen = onMessage.listeners[0](message, sender, resolve);
+        assert.equal(keptOpen, true);
+      });
+    },
+  };
+}
+
+test('canonical URL validation excludes redirects, foreign sites, credentials, and duplicate video IDs', () => {
+  assert.equal(store.canonicalItemUrl('https://twitter.com/Author/status/123?x=1', 'x'), 'https://x.com/author/status/123');
+  assert.equal(store.canonicalItemUrl('https://x.com/i/status/123/analytics', 'x'), null);
+  assert.equal(store.canonicalItemUrl('https://www.youtube.com/watch?feature=share&v=Ab_9', 'youtube'), 'https://www.youtube.com/watch?v=Ab_9');
+  for (const unsafe of ['javascript:alert(1)', 'https://x.com.evil.org/a/status/1', 'https://user@x.com/a/status/1',
+    'http://x.com/a/status/1', 'https://www.youtube.com/watch?v=one&v=two']) {
+    assert.equal(store.canonicalItemUrl(unsafe, unsafe.includes('youtube') ? 'youtube' : 'x'), null);
+  }
+});
+
+test('history caps recent links and deduplicates repeat appearances while preserving total events', () => {
+  let history = store.emptyHistory();
+  for (let id = 1; id <= 510; id++) history = store.addEvents(history, [xEvent(id)], 'x', id).history;
+  assert.equal(history.counts.x, 510);
+  assert.equal(history.entries.length, 500);
+  assert.equal(history.entries[0].url, 'https://x.com/author/status/510');
+  assert.equal(history.entries.at(-1).url, 'https://x.com/author/status/11');
+  const repeated = store.addEvents(history, [xEvent(42, {title: 'Updated'})], 'x', 999).history;
+  assert.equal(repeated.counts.x, 511);
+  assert.equal(repeated.entries.length, 500);
+  assert.equal(repeated.entries[0].title, 'Updated');
+  assert.equal(repeated.entries[0].events, 2);
+  assert.equal(repeated.entries.filter((entry) => entry.url.endsWith('/42')).length, 1);
+  assert.equal(store.addEvents(repeated, [xEvent(1, {url: null})], 'x', 1000).history.entries.length, 500);
+});
+
+test('malformed batches and unsafe fields cannot bloat storage or increment counts', () => {
+  assert.equal(store.addEvents(null, Array(101).fill(xEvent(1)), 'x', 1), null);
+  const result = store.addEvents(null, [
+    xEvent(1, {title: '<img onerror=alert(1)>'}),
+    xEvent(2, {url: 'https://evil.example/'}),
+    xEvent(3, {views: 1e18}),
+    xEvent(4, {site: 'youtube'}),
+    xEvent(5, {url: null, title: 'No permalink'}),
+    xEvent(6, {title: 'x'.repeat(500)}),
+  ], 'x', 1);
+  assert.equal(result.recorded, 2);
+  assert.equal(result.history.entries.length, 1);
+  assert.equal(result.history.counts.x, 2);
+  assert.equal(store.normalizeEvent(xEvent(1, {title: 'x'.repeat(500)}), 'x'), null);
+  assert.equal(store.normalizeEvent(xEvent(1, {enrich: 'yes'}), 'x'), null);
+  assert.equal(store.normalizeEvent(xEvent(1, {enrich: true, url: null}), 'x'), null);
+});
+
+test('a later permalink enriches a linkless hide without counting a second hide event', () => {
+  const initial = store.addEvents(null, [xEvent(1, {url: null})], 'x', 100);
+  assert.equal(initial.recorded, 1);
+  assert.equal(initial.history.counts.x, 1);
+  assert.equal(initial.history.entries.length, 0);
+  const enriched = store.addEvents(initial.history, [xEvent(1, {enrich: true})], 'x', 200);
+  assert.equal(enriched.recorded, 1);
+  assert.equal(enriched.history.counts.x, 1);
+  assert.equal(enriched.history.entries.length, 1);
+  assert.equal(enriched.history.entries[0].events, 1);
+  assert.equal(enriched.history.entries[0].lastFilteredAt, 200);
+  assert.equal(Object.hasOwn(enriched.history.entries[0], 'enrich'), false);
+  const laterAppearance = store.addEvents(enriched.history, [xEvent(1)], 'x', 300);
+  assert.equal(laterAppearance.history.counts.x, 2);
+  assert.equal(laterAppearance.history.entries[0].events, 2);
+});
+
+for (const style of ['chrome', 'firefox']) {
+  test(`${style}: background counts permalink enrichment as accepted without increasing total`, async () => {
+    const app = openBackground({style});
+    const type = 'minimum-views-filter:record-filtered';
+    assert.deepEqual(clone(await app.send({type, items: [xEvent(1, {url: null})]}, xSender)), {ok: true, recorded: 1});
+    assert.deepEqual(clone(await app.send({type, items: [xEvent(1, {enrich: true})]}, xSender)), {ok: true, recorded: 1});
+    assert.deepEqual(app.read().counts, {x: 1, youtube: 0});
+    assert.equal(app.read().entries[0].events, 1);
+  });
+
+  test(`${style}: concurrent X and YouTube messages serialize and clear is ordered`, async () => {
+    const app = openBackground({style});
+    const messages = [];
+    for (let id = 1; id <= 20; id++) {
+      messages.push(app.send({type: 'minimum-views-filter:record-filtered', items: [xEvent(id)]}, xSender));
+      messages.push(app.send({type: 'minimum-views-filter:record-filtered', items: [youtubeEvent(id)]}, youtubeSender));
+    }
+    assert.equal((await Promise.all(messages)).every((response) => response.ok), true);
+    let response = await app.send({type: 'minimum-views-filter:get-history'}, pageSender);
+    assert.deepEqual(clone(response.history.counts), {x: 20, youtube: 20});
+    assert.equal(response.history.entries.length, 40);
+    const clear = app.send({type: 'minimum-views-filter:clear-history'}, pageSender);
+    const after = app.send({type: 'minimum-views-filter:record-filtered', items: [xEvent(100)]}, xSender);
+    await Promise.all([clear, after]);
+    response = await app.send({type: 'minimum-views-filter:get-history'}, pageSender);
+    assert.deepEqual(clone(response.history.counts), {x: 1, youtube: 0});
+    assert.equal(response.history.entries.length, 1);
+  });
+}
+
+test('only verified main-frame content scripts may record; only history page may read or clear', async () => {
+  const app = openBackground();
+  const record = {type: 'minimum-views-filter:record-filtered', items: [xEvent(1)]};
+  for (const sender of [
+    {...xSender, id: 'other-extension'},
+    {...xSender, url: 'https://x.com/search'},
+    {...xSender, url: 'https://x.com.evil.org/home'},
+    {...xSender, url: 'https://x.com/home', frameId: 1},
+    {...xSender, url: 'https://x.com/home', tab: null},
+  ]) assert.deepEqual(clone(await app.send(record, sender)), {ok: false, error: 'forbidden'});
+  assert.deepEqual(clone(await app.send(record, youtubeSender)), {ok: false, error: 'invalid-message'});
+  assert.deepEqual(clone(await app.send({type: 'minimum-views-filter:get-history'}, xSender)), {ok: false, error: 'forbidden'});
+  assert.deepEqual(clone((await app.send({type: 'minimum-views-filter:get-history'}, {...pageSender, tab: {id: 9}})).history.counts), {x: 0, youtube: 0});
+  assert.deepEqual(clone(await app.send({type: 'minimum-views-filter:clear-history'}, {...pageSender, url: pageSender.url + '?fake'})), {ok: false, error: 'forbidden'});
+  assert.equal(app.read(), undefined);
+});
+
+test('storage failure returns a bounded error and a later operation can recover', async () => {
+  let fail = true;
+  let stored = {};
+  const app = openBackground({
+    get: async () => {if (fail) throw Error('offline'); return clone(stored);},
+    set: async (update) => {if (fail) throw Error('offline'); stored = {...stored, ...clone(update)};},
+  });
+  const record = {type: 'minimum-views-filter:record-filtered', items: [xEvent(1)]};
+  assert.deepEqual(clone(await app.send(record, xSender)), {ok: false, error: 'storage-unavailable'});
+  fail = false;
+  assert.deepEqual(clone(await app.send(record, xSender)), {ok: true, recorded: 1});
+  assert.deepEqual(clone((await app.send({type: 'minimum-views-filter:get-history'}, pageSender)).history.counts), {x: 1, youtube: 0});
+});
+
+test('history page renders titles as text and updates counters from local storage changes', async () => {
+  const dom = new JSDOM(source('history.html'), {url: pageSender.url, runScripts: 'outside-only'});
+  const xHistory = store.addEvents(null, [xEvent(1, {title: '<img src=x onerror=alert(1)>', views: 1000, likes: 3, bookmarks: 1})], 'x', Date.now()).history;
+  const history = store.addEvents(xHistory, [youtubeEvent('yt1')], 'youtube', Date.now()).history;
+  const listeners = [];
+  dom.window.chrome = {runtime: {sendMessage: async ({type}) => ({ok: true, history: type.endsWith('clear-history') ? store.emptyHistory() : history})},
+    storage: {onChanged: {addListener: (listener) => listeners.push(listener)}}};
+  dom.window.eval(source('history.js'));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(dom.window.document.querySelector('#x-count').textContent, '1');
+  const xRow = [...dom.window.document.querySelectorAll('#entries li')].find((row) => row.querySelector('a').href.includes('x.com'));
+  const youtubeRow = [...dom.window.document.querySelectorAll('#entries li')].find((row) => row.querySelector('a').href.includes('youtube.com'));
+  assert.equal(xRow.querySelector('a').textContent, '<img src=x onerror=alert(1)>');
+  assert.equal(dom.window.document.querySelector('#entries img'), null);
+  assert.equal(xRow.querySelector('a').href, 'https://x.com/author/status/1');
+  assert.match(xRow.querySelector('p').textContent, /Likes\/views: 0\.3%/);
+  assert.match(xRow.querySelector('p').textContent, /Bookmarks\/views: 0\.1%/);
+  assert.doesNotMatch(youtubeRow.querySelector('p').textContent, /Likes|Bookmarks/);
+  assert.ok(dom.window.document.querySelector('details.about-counts summary').textContent.includes('About these counts'));
+  dom.window.document.querySelector('#clear-history').click();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(dom.window.document.querySelector('#x-count').textContent, '0');
+  assert.equal(dom.window.document.querySelector('#entries').children.length, 0);
+  listeners[0]({filterHistory: {newValue: history}}, 'local');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(dom.window.document.querySelector('#x-count').textContent, '1');
+  dom.window.close();
+});
+
+test('history can clear a late enrichment entry even when reset left both totals at zero', async () => {
+  const history = store.addEvents(store.emptyHistory(), [xEvent(1, {enrich: true})], 'x', 1).history;
+  assert.equal(history.counts.x, 0);
+  const dom = new JSDOM(source('history.html'), {url: 'https://extension.invalid/history.html', runScripts: 'outside-only'});
+  dom.window.chrome = {runtime: {sendMessage: async ({type}) => ({ok: true, history: type.endsWith('clear-history') ? store.emptyHistory() : history})}, storage: {onChanged: {addListener() {}}}};
+  dom.window.eval(source('history.js'));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(dom.window.document.querySelector('#clear-history').disabled, false);
+  dom.window.document.querySelector('#clear-history').click();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(dom.window.document.querySelector('#entries').children.length, 0);
+  assert.equal(dom.window.document.querySelector('#clear-history').disabled, true);
+  dom.window.close();
+});

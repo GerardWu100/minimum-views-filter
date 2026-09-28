@@ -15,9 +15,9 @@ and removes obsolete hiding marks when navigating to an excluded page.
 
 The Manifest V3 content script loads `settings.js`, `filter-core.js`, and
 `content.js`, plus the single scoped CSS rule. `background.js` (a Chrome service
-worker, or a Firefox background script after `settings.js`) only owns the
-right-click menu. There is no page-world injection, network request, or
-dependency in the installed package.
+worker, or a Firefox background script after `settings.js` and `history-store.js`)
+owns the right-click menu and serializes local history reads/writes/resets. There
+is no page-world injection, network request, or dependency in the installed package.
 
 `settings.js` is the shared source of settings rules and constants: defaults,
 `STORAGE_AREA` (`sync`), the 8,192-byte per-item sync quota check, site URL
@@ -28,7 +28,10 @@ and the copy/paste transfer format.
 CommonJS tests. `getCards` selects outer independent cards. Generic YouTube
 wrappers must link to a video; playlists/channels/playables and known ad wrappers
 are excluded. X quote subtrees never supply the outer post's count.
-`getViewCount` reads bounded metadata, preferring exact accessible count labels.
+`getViewCount` reads bounded metadata across count and accessibility sources,
+preferring exact accessible count labels over rounded ones. Contradictory exact
+labels fail open. `getXEngagement` reads only own like/bookmark buttons and group
+labels, excluding quote, body, and social-context subtrees.
 English/French parsing returns `null` for unknown or contradictory data.
 Abbreviated counts are rounded to whole views (4.1M is 4,100,000, not a float
 just below it). French accepts `M de vues` and `Md` (milliard) forms.
@@ -78,13 +81,48 @@ one visible-page URL check per second so silent navigation into Home can resume
 filtering. This timer never fetches counts or scans the DOM. Storage failure and
 unload remove the active flag, restore connected marks, and release listeners.
 
-`popup.js` loads and validates the two thresholds, two whitelists, and three
-boolean switches defined in `settings.js`, then saves to extension sync storage.
+`popup.js` loads and validates view thresholds, whitelists, site/unknown switches,
+and the six X ratio settings defined in `settings.js`, then saves to extension
+sync storage. Percentage inputs accept finite values from 0 through 100.
 Invalid or over-quota whitelists prevent the whole save and focus the affected
 field. Storage changes update all open supported pages. **Copy** writes the
 validated form as JSON text (clipboard when allowed, selected text otherwise);
 **Load pasted** accepts only complete, valid text from this format and fills the
 form without saving. The popup never contacts the platforms.
+
+## X engagement decisions and history
+
+The 2026-09-28 feature request adds X low-like filtering and high-engagement
+exceptions. Defaults are 0.5% minimum likes/views, 2% rescue likes/views, and 0.5%
+rescue bookmarks/views; each rule has its own enabled switch. Settings normalize
+missing new keys to these enabled defaults while preserving existing settings.
+The settings transfer includes all six keys and validates the complete format.
+
+For a supported card, read current views, then X engagement when views are
+positive and any ratio rule is enabled. A high-like OR high-bookmark ratio keeps
+the card. Otherwise a low-like ratio or low views hides it; whitelist matches
+rescue any otherwise hidden card. Unknown likes do not establish a low ratio,
+and zero/unknown views have no ratio. Comparisons multiply count by 100 and
+threshold percentage by views, with a two-operation machine-precision allowance
+for decimal boundaries. No history value participates in this decision.
+
+When hiding a card, `getItemMetadata` extracts an own canonical permalink and a
+240-character snippet/title. A WeakMap tracks identity on that DOM node without
+retaining detached nodes. Stable hidden identities do not produce events on
+rescans. A permalink arriving after a linkless hide sends an enrichment event,
+which adds the linked entry without increasing totals. Metadata for unidentifiable
+recycled cards is inherently ambiguous; totals are hide events, not exact counts
+of lifetime unique posts. Reporting failure does not interrupt page filtering.
+
+Content messages contain at most 100 entries; the background verifies its own
+extension sender, top frame, exact supported route/host, same item site, reason,
+counts, and canonical URLs. Only the exact extension history page can read/reset
+through these messages. A promise queue serializes storage operations across tabs
+and resets, and recovers after failed writes. `history-store.js` keeps totals and
+500 recent URL entries under `storage.local.filterHistory`. Entries deduplicate by
+URL and retain count snapshots, reason, last filtering time, and event count.
+No IDs enter sync storage or settings exports, and no platform request is made.
+The history page renders through textContent, with links to validated destinations.
 
 ## Right-click whitelist and sync
 
@@ -105,6 +143,31 @@ the folder path, so the build adds a public `key` for the fixed ID
 storage ([brave-browser#4094](https://github.com/brave/brave-browser/issues/4094)),
 hence the copy/paste transfer. The move from `storage.local` plus the new ID
 resets settings once for 1.4.0 users; no migration code exists by design.
+
+## Current verification and limits
+
+For v1.6.1, run `npm ci`, `npm test`, `npm run build`, and
+`npm run lint:firefox`. If the shared npm cache is not writable, use a
+command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
+The packages now contain 17 files; the stable extension IDs and permissions are
+unchanged. Development tests cover both browser API namespaces, English/French
+engagement labels, zero/unknown counts, quote exclusion, ratio boundaries and
+precedence, exact labels over rounded counts, mutation-driven restoration,
+recycled identities, reporting batches/failures, history enrichment, validation,
+concurrent tab updates, reset ordering, history bounds, and safe page rendering.
+
+The new ratio controls and history have been executed in jsdom, not verified in
+a fresh installed browser session. Historical live compatibility observations
+below do not establish live X bookmark availability or universal DOM coverage
+for this release. Next check if a live card behaves unexpectedly: inspect its own
+like/bookmark button and group accessibility labels without altering the feed.
+Missing bookmark counts use the unknown policy; do not fetch them or open posts.
+Verification on 2026-09-28: 140 tests passed, both 17-file packages built, and
+Firefox lint reported 0 errors, 0 notices, and 0 warnings. The synthetic benchmark
+passed every expected hiding assertion: 20 one-card mutations required 20 count
+reads per site, while unrelated/sidebar and hidden-tab noise required zero. These
+workloads mock history messaging and do not measure background storage overhead.
+The extra metadata/history work has no live-browser CPU or RAM claim.
 
 ## Build and verify
 

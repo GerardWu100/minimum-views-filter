@@ -25,7 +25,8 @@ function openBackground({style = 'chrome', sendMessage = async () => ({result: '
   const timers = [];
   const record = (name) => async (...args) => { calls.push([name, ...args]); };
   const api = {
-    runtime: {onInstalled: listenerSlot(), onStartup: listenerSlot(), getManifest: () => ({action: {default_title: 'Minimum Views Filter'}})},
+    runtime: {id: 'extension-id', onInstalled: listenerSlot(), onStartup: listenerSlot(), onMessage: listenerSlot(), getURL: (name) => `chrome-extension://extension-id/${name}`, getManifest: () => ({action: {default_title: 'Minimum Views Filter'}})},
+    storage: {local: {get: async () => ({}), set: async () => {}}},
     contextMenus: {removeAll: record('removeAll'), create: (...args) => calls.push(['create', ...args]), onClicked: listenerSlot()},
     tabs: {sendMessage: (...args) => { calls.push(['sendMessage', ...args]); return sendMessage(...args); }},
     action: {setBadgeText: record('setBadgeText'), setTitle: record('setTitle')},
@@ -35,11 +36,15 @@ function openBackground({style = 'chrome', sendMessage = async () => ({result: '
     setTimeout: (callback, delay) => timers.push({callback, delay, cleared: false}),
     clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].cleared = true; },
     TextEncoder,
+    URL,
   });
   context.globalThis = context;
   context[style === 'firefox' ? 'browser' : 'chrome'] = api;
   if (style === 'chrome') context.importScripts = (name) => vm.runInContext(source(name), context);
-  else vm.runInContext(source('settings.js'), context);
+  else {
+    vm.runInContext(source('settings.js'), context);
+    vm.runInContext(source('history-store.js'), context);
+  }
   vm.runInContext(source('background.js'), context);
   return {api, calls, timers, click: (info, tab) => Promise.all(api.contextMenus.onClicked.listeners.map((listener) => listener(info, tab)))};
 }

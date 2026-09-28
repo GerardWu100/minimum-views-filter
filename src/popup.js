@@ -17,6 +17,14 @@
     enabled: document.getElementById(site + "-enabled"),
   }));
   const hideUnknown = document.getElementById("hide-unknown");
+  const ratioFields = [
+    {key: "xLowLikeRatioEnabled", input: document.getElementById("x-low-like-ratio-enabled")},
+    {key: "xMinimumLikePercent", input: document.getElementById("x-minimum-like-percent")},
+    {key: "xHighLikeRatioEnabled", input: document.getElementById("x-high-like-ratio-enabled")},
+    {key: "xKeepLikePercent", input: document.getElementById("x-keep-like-percent")},
+    {key: "xHighBookmarkRatioEnabled", input: document.getElementById("x-high-bookmark-ratio-enabled")},
+    {key: "xKeepBookmarkPercent", input: document.getElementById("x-keep-bookmark-percent")},
+  ];
   const transferText = document.getElementById("transfer-text");
   const status = document.getElementById("status");
 
@@ -27,6 +35,10 @@
       enabled.checked = settings[site + "Enabled"];
     }
     hideUnknown.checked = settings.hideUnknown;
+    for (const {key, input} of ratioFields) {
+      if (key.endsWith("Enabled")) input.checked = settings[key];
+      else input.value = settings[key];
+    }
   }
 
   function reportWhitelistProblem(whitelist, message) {
@@ -57,6 +69,19 @@
         reportWhitelistProblem(whitelist, name + " whitelist is too long to sync. Remove some entries.");
         return null;
       }
+    }
+    for (const {key, input} of ratioFields) {
+      if (key.endsWith("Enabled")) {
+        settings[key] = input.checked;
+        continue;
+      }
+      const percent = Number(input.value);
+      if (input.value.trim() === "" || !Number.isFinite(percent) || percent < 0 || percent > 100) {
+        status.textContent = "Enter a percentage from 0 to 100.";
+        input.focus();
+        return null;
+      }
+      settings[key] = percent;
     }
     return settings;
   }
@@ -105,5 +130,13 @@
     }
     showSettings(settings);
     status.textContent = "Loaded. Click Save to apply.";
+  });
+
+  document.getElementById("filtered-items").addEventListener("click", async () => {
+    try {
+      await extension.tabs.create({url: extension.runtime.getURL("history.html")});
+    } catch {
+      status.textContent = "Could not open filtered items. Please try again.";
+    }
   });
 })();
