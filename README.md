@@ -13,7 +13,8 @@ It never clicks anything or requests platform data. Hidden items become eligible
 again when their displayed counts meet your rules.
 
 X posts above your bookmarks/views highlight threshold get a thin amber edge on
-their left side with a soft fading wash, with no animation or layout change. It
+their left side; the background behind the text is unchanged, with no animation
+or layout change. It
 defaults to **above 1%**, works in X's light, Dim, and Lights out themes, and can
 be hidden while Statistics keeps recording those posts.
 
@@ -180,14 +181,13 @@ Settings → **Bookmark highlight** has two switches:
 | Switch | Effect |
 |---|---|
 | **Detect high bookmarks/views** | Finds visible X Home posts whose bookmarks divided by views is **strictly above** the percentage (default 1%), for Statistics and the feed edge |
-| **Show highlight in feed** | Draws a 3px amber edge on the post's left side and a soft wash that fades out within the first third of the post |
+| **Show highlight in feed** | Draws a 3px amber edge on the post's left side, leaving the post background unchanged |
 
 For example, 11 bookmarks / 1,000 views highlights; 10 / 1,000 does not. Turn
 **Show highlight in feed** off to keep the feed unchanged while Statistics keeps
 recording qualifying posts under **Highlighted**. The mid-tone amber reads on
 X's white, Dim, and Lights out backgrounds without detecting the theme. It adds no
-animation, badges, or layout shift, keeps X's hover color underneath, and leaves
-the outline free for X's keyboard focus ring. High-contrast (forced colors) mode
+animation, badges, background tint, or layout shift, and leaves the outline free for X's keyboard focus ring. High-contrast (forced colors) mode
 uses a system-colored outline instead.
 
 Detection has its own switch and threshold. It does not keep an otherwise

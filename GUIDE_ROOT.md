@@ -164,13 +164,12 @@ the edge is shown or statistics are collected; only then does the runtime read
 engagement on positive-view X cards that pass every filtering rule. A detected
 post is recorded as highlighted whether or not its edge is shown. With the edge
 shown, it adds only `data-minimum-views-highlighted` to the visible outer
-article. `content.css` draws a 3px inset amber `box-shadow` edge (80% alpha)
-plus a left-to-right `background-image` wash from 12% alpha to transparent at
-35% width. The mid-tone amber stays visible on X's white, Dim (#15202b), and
+article. `content.css` draws only a 3px inset amber `box-shadow` edge (80%
+alpha). A 1.10.0 fading background wash was removed in 1.10.1 at the user's
+request because it tinted the background behind post text. The mid-tone amber stays visible on X's white, Dim (#15202b), and
 Lights out (#000) themes without theme detection; the 1.9.0 teal outline at 35%
 alpha was nearly invisible on dark themes and also overrode X's focus outline.
-The background image layers over X's hover background color, and the outline
-stays free for X's focus ring; forced-colors mode gets a system-colored outline.
+X's own background and hover colors are untouched, and the outline stays free for X's focus ring; forced-colors mode gets a system-colored outline.
 There is no animation, injected content, layout shift, or inline-style rewrite. The highlight cannot override hiding; whitelisted
 posts may highlight. Cleanup reconciles both mark types on mutations, lost card
 identity, navigation, settings, and shutdown, with the same document active gate.
@@ -216,7 +215,7 @@ resets settings once for 1.4.0 users; no migration code exists by design.
 
 ## Current verification and limits
 
-For v1.10.0, run `npm ci`, `npm test`, `npm run build`, and
+For v1.10.1, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
 The packages now contain 22 files; the stable extension IDs and permissions are
