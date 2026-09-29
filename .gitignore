@@ -43,3 +43,18 @@ __MACOSX/
 *.swo
 .idea/
 .vscode/
+
+# Empty read-only placeholders the Claude Code sandbox mounts in the project root
+/.bash_profile
+/.bashrc
+/.gitconfig
+/.gitmodules
+/.mcp.json
+/.profile
+/.ripgreprc
+/.zprofile
+/.zshrc
+/.idea
+/.vscode
+/.claude/*
+!/.claude/skills
