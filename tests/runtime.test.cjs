@@ -126,8 +126,84 @@ test('X releases a recycled timeline wrapper when its replacement post qualifies
   await wait();
   assertVisible(window, '#cell-1', false);
   document.querySelector('#cell-1').innerHTML = '<article data-testid="tweet"><a href="/other/status/22"><time>Now</time></a><a href="/other/status/22/analytics" aria-label="2,000 views">2K</a></article>';
-  await wait();
+  await Promise.resolve();
   assertVisible(window, '#cell-1', true);
+  document.querySelector('#cell-1').innerHTML = '<article data-testid="tweet"><a href="/other/status/23"><time>Now</time></a><a href="/other/status/23/analytics" aria-label="999 views">999</a></article>';
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', false);
+});
+
+test('X filters an inserted batch before a timer can expose its low-view cards', async (t) => {
+  const {window, document, work} = openContent(t, {html: xCard(1, '2000')});
+  await wait();
+  const before = {...work};
+  document.body.insertAdjacentHTML('beforeend', xCard(2, '999') + xCard(3, '1000') + xCard(4, null));
+  // Mutation delivery is a microtask; do not advance to the next timer/paint task.
+  await Promise.resolve();
+  assertVisible(window, '#cell-2', false);
+  assertVisible(window, '#cell-3', true);
+  assertVisible(window, '#cell-4', true);
+  assert.equal(work.getViewCount - before.getViewCount, 3);
+  assert.equal(work.documentScans, before.documentScans);
+  const after = {...work};
+  await wait();
+  assert.deepEqual(work, after, 'Own hiding marks must not cause another pass');
+});
+
+test('X applies hydrated counts and recycled links at their mutation checkpoint', async (t) => {
+  const {window, document} = openContent(t, {html: xCard(1, null), stored: {xWhitelist: ['author']}});
+  await wait();
+  const article = document.querySelector('#post-1');
+  article.insertAdjacentHTML('beforeend', '<a href="/author/status/1/analytics" aria-label="999 views" style="display:none">999</a>');
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', true);
+  for (const link of article.querySelectorAll('a[href]')) link.href = link.href.replace('/author/status/1', '/other/status/2');
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', false);
+  const counter = article.querySelector('a[href$="/analytics"]');
+  counter.setAttribute('aria-label', '1000 views');
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', true);
+  assert.equal(counter.style.display, 'none', 'Preserve another extension\'s concealed counter');
+  counter.remove();
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', true);
+  article.insertAdjacentHTML('beforeend', '<a href="/other/status/2/analytics" aria-label="999 views">999</a>');
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', false);
+});
+
+test('X flushes pending settings with new cards and cancels the obsolete timer', async (t) => {
+  const {window, document, storage, work} = openContent(t, {html: xCard(1, '1500')});
+  await wait();
+  const before = {...work};
+  storage.change({xMinimumViews: 2000, hideUnknown: true});
+  document.body.insertAdjacentHTML('beforeend', xCard(2, '1999') + xCard(3, '2000') + xCard(4, null));
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', false);
+  assertVisible(window, '#cell-2', false);
+  assertVisible(window, '#cell-3', true);
+  assertVisible(window, '#cell-4', false);
+  assert.equal(work.documentScans - before.documentScans, 1);
+  const after = {...work};
+  await wait();
+  assert.deepEqual(work, after, 'The superseded timeout must not repeat the scan');
+});
+
+test('X mutation-driven navigation reconciles immediately and excluded pages stay idle', async (t) => {
+  const {window, document, work} = openContent(t, {html: xCard(1, '999')});
+  await wait();
+  window.history.pushState({}, '', '/search?q=example');
+  document.body.insertAdjacentHTML('beforeend', xCard(2, '999'));
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', true);
+  assertVisible(window, '#cell-2', true);
+  assert.equal(document.documentElement.hasAttribute('data-minimum-views-active'), false);
+  const before = {...work};
+  document.body.insertAdjacentHTML('beforeend', xCard(3, '999'));
+  await Promise.resolve();
+  assert.deepEqual(work, before);
+  assertVisible(window, '#cell-3', true);
 });
 
 test('X count metadata changing in place restores the hidden wrapper', async (t) => {

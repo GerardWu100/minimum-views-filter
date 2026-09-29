@@ -121,7 +121,11 @@
   /** Route mutations to cards; sidebar/player changes cannot trigger feed scans. */
   function onMutations(records) {
     if (stopped || !ready || isSuspended()) return;
-    if (checkNavigation() || fullScanRequired) return;
+    if (checkNavigation() || fullScanRequired) {
+      // A pending full pass must not leave newly arrived X cards waiting either.
+      if (SITE === "x") scan();
+      return;
+    }
     // Text/attribute bursts often repeat one target; route each target once.
     const routedTargets = new Set();
     for (const record of records) {
@@ -156,7 +160,10 @@
       }
       if (fullScanRequired) break;
     }
-    scheduleScan();
+    // Evaluate X once per delivered mutation batch, before yielding to rendering.
+    // Delaying these cards can let X report them as seen before they are hidden.
+    if (SITE === "x" && (fullScanRequired || pendingRoots.size)) scan();
+    else scheduleScan();
   }
 
   const observer = new MutationObserver(onMutations);
@@ -189,6 +196,8 @@
    * Full passes are reserved for startup, navigation, settings and tab resume.
    */
   function scan() {
+    // An immediate mutation pass can supersede a scheduled settings/navigation pass.
+    clearTimeout(pendingScan);
     pendingScan = null;
     if (stopped || !ready || isSuspended()) return;
     previousUrl = location.href;

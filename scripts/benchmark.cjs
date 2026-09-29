@@ -29,6 +29,7 @@ const DEFAULT_CARD_COUNT = 200;
 const DEFAULT_BATCH_COUNT = 20;
 const NEW_CARDS_PER_BATCH = 4;
 const HOVER_RESTYLES_PER_BATCH = 5;
+const STAGGERED_UPDATES_PER_BATCH = 4;
 const MAX_FLUSH_ROUNDS = 100;
 const SETTLED_CHECKPOINTS = 3;
 const HIDDEN_ATTRIBUTE = 'data-minimum-views-hidden';
@@ -281,6 +282,22 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
         assertMarks();
       }
     });
+    await scenario('staggered-count-bursts', async () => {
+      // Separate mutation deliveries before any timer expose the cost of removing
+      // X's throttle. YouTube can still coalesce the four updates into one read.
+      for (let batch = 0; batch < batchCount; batch++) {
+        for (let update = 0; update < STAGGERED_UPDATES_PER_BATCH; update++) {
+          const count = update % 2 === 0 ? 100 : 2000;
+          const metadata = document.querySelector('#card-0 [data-count]');
+          if (site === 'x') metadata.setAttribute('aria-label', `${count} views`);
+          else metadata.firstChild.data = `${count} views`;
+          expectedCounts.set(0, count);
+          await Promise.resolve();
+        }
+        await flush();
+        assertMarks();
+      }
+    });
     hidden = true;
     dispatch(document, new window.Event('visibilitychange'));
     await flush();
@@ -341,7 +358,7 @@ async function main() {
   }
   console.log(JSON.stringify({
     environment: {node: process.version, jsdom: require('jsdom/package.json').version},
-    fixture: {initialCards: options.cards, mutationBatches: options.batches, newCardsPerBatch: NEW_CARDS_PER_BATCH},
+    fixture: {initialCards: options.cards, mutationBatches: options.batches, newCardsPerBatch: NEW_CARDS_PER_BATCH, staggeredUpdatesPerBatch: STAGGERED_UPDATES_PER_BATCH},
     sources: Object.fromEntries(sources),
     timingScope: 'Synchronous production callback work in jsdom; excludes throttle waits, fixture writes, setup, and assertions. Not browser CPU, memory, or speed. Timing is noisy; operation counts are deterministic.',
     correctness: 'All expected hidden marks checked after every mutation batch and scenario.',

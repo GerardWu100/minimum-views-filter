@@ -28,8 +28,11 @@ and every other page are left alone. X and YouTube each have their own minimum
 and their own creator whitelist, and you can right-click a post to always show
 that creator. Works in Chrome, Brave, and Firefox.
 
-One limit: hiding a post in your browser doesn't stop the site from logging
-that it showed it to you.
+Hiding a post cannot guarantee that the site will not record it as seen. X still
+decides whether to recommend it again after its counts rise. While X Home
+filtering is active, affected posts are checked as soon as each batch of page
+changes arrives, reducing the chance of a brief appearance before hiding.
+Startup, missing counts, and the site's own logging can still leave gaps.
 
 ## Install
 

@@ -62,7 +62,11 @@ read no card. The observer routes remaining mutations through
 `getCardSelector` to the owning outer card or X cell. Added subtrees are
 inspected locally; unrelated sidebar/player changes are discarded.
 Overlapping scopes merge, and more than 32 pending scopes collapse into a full
-pass. An 80 ms throttle batches changes. `getCards` includes a matching
+pass. X flushes routed changes once at the end of each delivered mutation batch,
+before yielding to rendering. This covers inserted/recycled cards and hydrated
+metadata. YouTube retains an 80 ms throttle; settings and page events also
+schedule full passes. An X mutation flushes any pending full pass and cancels its
+timeout, including when that mutation detects navigation. `getCards` includes a matching
 Element root as well as descendants, so standalone inserted cards work.
 Startup, navigation, relevant settings, language changes and tab resume use full
 passes. X shared cells, lost card identities and quote-role changes reconcile their
@@ -217,6 +221,21 @@ hence the copy/paste transfer. The move from `storage.local` plus the new ID
 resets settings once for 1.4.0 users; no migration code exists by design.
 
 ## Current verification and limits
+
+Immediate X evaluation (v1.11.1, 2026-09-29): the full test suite, both 22-file
+builds, and Firefox validation passed (zero errors/notices/warnings). Four new
+tests and the strengthened recycled-wrapper test assert visibility at the DOM
+mutation checkpoint, without waiting for timers. They fail against source
+`403510f` and pass with the immediate path. Tests cover inserted 999/1,000/unknown
+cards, late counts, recycled creator links, foreign counter styles, pending
+settings passes, cancellation of obsolete timers, and route exit.
+The paired synthetic benchmark passes all hiding assertions. A four-delivery
+metadata burst now reads the X card four times instead of once; ordinary batch
+counts, YouTube work, and zero-work idle scenarios are unchanged. See
+[performance measurements](docs/performance.md).
+The installed Brave extension was observed before this change; the rebuilt
+package has not been installed, reloaded, or tested against live X. See the
+[sanitized seen-list investigation](docs/x-seen-list-check.md).
 
 For v1.11.0, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
@@ -506,6 +525,18 @@ and watch pages, including restoration at 1.2 thousand views. The diagnostic tab
 was closed; no installed extension or other extension setting was changed.
 
 ## Open issues and verification limits
+
+- **X can record a post before local hiding takes effect.** On 2026-09-29,
+  one of 39 observed hidden posts appeared briefly in the viewport and entered
+  a successful HomeTimeline request's `seenTweetIds`. It was hidden 45 ms after
+  first observation; no visible quote explained the match. No separate
+  `client_event`/`jot` requests were captured, so impression counters remain
+  unverified. The immediate X mutation pass removes the deliberate batching
+  delay on active Home pages, but initial settings loading, disconnected route
+  observation, missing counts, and X's own logging remain outside that guarantee.
+  Next step: after a user-requested extension reload, repeat the bounded passive
+  capture using the [documented method](docs/x-seen-list-check.md). Do not change
+  other extensions or intercept/rewrite requests to obtain a cleaner result.
 
 - **Creator addition, menu persistence, and cross-computer sync need checks.**
   Firefox displayed the menu and saved popup settings, while unit tests cover

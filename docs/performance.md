@@ -1,5 +1,39 @@
 # Performance measurements
 
+## Immediate X mutation evaluation, v1.11.1 (2026-09-29)
+
+Compared with source `403510f`, using Node.js v22.17.0 and jsdom 29.1.1.
+[Full synthetic measurements](immediate-x-performance-results.json) retain the
+single paired sample, including illustrative timings. Every expected hiding
+mark passed after every batch. These results measure work, not browser CPU or RAM.
+
+X now reconciles routed cards within each delivered DOM mutation batch, removing
+the intentional 80 ms wait on active Home pages. YouTube keeps that wait.
+The additional `staggered-count-bursts` workload delivers four alternating count
+updates per batch, at separate microtask checkpoints before timers are drained.
+There are 20 batches. It measures the coalescing sacrificed by the immediate path.
+
+| Workload | View-count reads before → after | DOM queries before → after |
+| --- | ---: | ---: |
+| X startup, 200 cards | 200 → 200 | 1,003 → 1,003 |
+| X new cards, 20 batches of four | 80 → 80 | 720 → 720 |
+| X one count update per batch | 20 → 20 | 190 → 190 |
+| X four staggered count updates per batch | 20 → 80 | 140 → 760 |
+| YouTube four staggered count updates per batch | 20 → 20 | 180 → 180 |
+| Either site, sidebar/player or hidden-tab noise | 0 → 0 | 0 → 0 |
+
+X mutation workloads use zero timer callbacks after the change (previously 20
+per workload). They still avoid document scans. Every YouTube operation count
+is unchanged. The extra X reads can also record short-lived filtering transitions
+that previously disappeared before the delayed scan. History remains bounded
+and never feeds back into filtering. Timing from one pair does not support a
+speed claim; this is a deliberate latency/work tradeoff, especially when X
+hydrates several metadata fields in separate deliveries.
+
+To reproduce, extract `src/` from commit `403510f` into a temporary directory and
+run the current `scripts/benchmark.cjs --baseline /path/to/baseline/src`.
+No installed browser was changed or measured after the fix.
+
 ## Review fixes, v1.8.1 (2026-09-28)
 
 Compared with v1.8.0 commit `550bd3d`, using Node.js v26.10.0 and jsdom 29.1.1.
