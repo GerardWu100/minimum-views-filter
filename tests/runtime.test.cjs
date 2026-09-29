@@ -970,6 +970,29 @@ const recordedItems = (storage) => storage.recordedMessages.flatMap((message) =>
 const historyItems = (storage) => recordedItems(storage).filter((item) => item.outcome === 'hidden');
 const keptItems = (storage) => recordedItems(storage).filter((item) => item.outcome === 'kept');
 
+test('X replies-only keep rule reads replies even with likes filtering and highlighting off', async (t) => {
+  const {window, document, storage, work} = openContent(t, {
+    html: xEngagementCard(1, '999', 0, null, 1) + xEngagementCard(2, '999', 0, null, null),
+    stored: {xLowLikeRatioEnabled: false, xBookmarkHighlightEnabled: false,
+      xHighLikeRatioEnabled: false, xHighBookmarkRatioEnabled: false, xHighReplyRatioEnabled: true},
+  });
+  await wait();
+  assert.equal(work.getXEngagement, 2);
+  assertVisible(window, '#cell-1', true);
+  assertVisible(window, '#cell-2', false);
+  assert.equal(keptItems(storage).length, 1);
+  assert.equal(keptItems(storage)[0].replies, 1);
+  document.querySelector('#post-1 [data-testid="reply"]').setAttribute('aria-label', '0 Replies');
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', false);
+  document.querySelector('#post-1 [data-testid="reply"]').setAttribute('aria-label', '1 Reply');
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', true);
+  storage.change({xHighReplyRatioEnabled: false});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+});
+
 for (const lowRule of [{xLowLikeRatioEnabled: false}, {xMinimumLikePercent: 0}]) {
   test('X skips irrelevant engagement reads but still rescues low-view cards: ' + JSON.stringify(lowRule), async (t) => {
     const {window, document, storage, work} = openContent(t, {

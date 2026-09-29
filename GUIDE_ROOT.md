@@ -30,7 +30,9 @@ wrappers must link to a video; playlists/channels/playables and known ad wrapper
 are excluded. X quote subtrees never supply the outer post's count.
 `getViewCount` reads bounded metadata across count and accessibility sources,
 preferring exact accessible count labels over rounded ones. Contradictory exact
-labels fail open. `getXEngagement` reads only own like/bookmark buttons and group
+labels use the unknown-count policy. Conflicting own timestamp status IDs also
+return unknown while an X article is being recycled. `getXEngagement` reads only
+own like/bookmark/reply buttons and group
 labels in one subtree query with reusable parsing patterns, excluding quote,
 body, and social-context subtrees.
 English/French parsing returns `null` for unknown or contradictory data.
@@ -139,8 +141,16 @@ counts, and canonical URLs. Reasons must apply to the item's site and have the
 required count snapshots: unknown views are null, while ratio decisions require
 positive views and the relevant known numerator. Already canonical stored links
 pass a strict format check without creating URL objects. Only the exact Statistics page (`history.html`) may read or reset history
-through these messages. A promise queue serializes storage operations across tabs
-and resets, and recovers after failed writes. `history-store.js` keeps
+through these messages. A bounded queue serializes storage operations across tabs
+and resets, and recovers after failed writes. Up to 32 adjacent record messages
+share one local read, history normalization, and write. Each retains its own
+fresh, ordered `statisticsEnabled` check. Reads/resets end a batch; responses
+wait for persistence. Messages arriving during settings reads can join, while
+messages arriving during local I/O form the next batch. There is no batching
+timer or persistent history cache. The queue holds sanitized snapshots only,
+with limits of 256 requests and 2,048 items including in-flight work. Overload
+returns `history-busy` without retry; statistics can omit these events while
+filtering continues. `history-store.js` keeps
 `counts[site][reason]` hide events (a site total is `siteTotal` of its reasons,
 so the two cannot disagree), `xKeptCounts[keptReason]`, and `xHighlightedCount`, with three independently bounded 500-entry URL
 lists: `entries` (hidden), `keptEntries` (kept), and `highlightedEntries`, under
@@ -151,12 +161,15 @@ list identifies it. Kept events must come from X, name `high-engagement`
 (`high-like-and-bookmark-ratio`, `high-like-ratio`, `high-bookmark-ratio`, which
 still need their numerators so existing statistics survive), and name the `bypassedReason` (`low-views` or
 `low-like-ratio`) the exception overrode.
+Combined `high-engagement` events require at least one known numerator;
+the validator does not re-evaluate past decisions against current switches.
 
 `getFilterDecision` returns `{reason, keptBy, bypassedReason}`; `getFilterReason`
-is its `reason`. `keptBy` is set only when an exception overrode a hide reason,
-crediting likes before bookmarks. `content.js` tracks hidden and kept identities
+is its `reason`. `keptBy` is `high-engagement` only when all enabled keep conditions
+pass and override a hide reason. `content.js` tracks hidden and kept identities
 in separate WeakMaps alongside highlighted identities, so each continuous state records once and a card that flips
-between them records each new state. Kept cards parse creator metadata only
+between them records each new state. Map values contain only a URL or null,
+never retained snippets or metadata objects. Kept cards parse creator metadata only
 because they would otherwise be hidden; whitelisted creators produce no hidden/kept events but may highlight. Entries deduplicate by
 URL and retain count snapshots, reason, last filtering time, and event count.
 No IDs enter sync storage or settings exports, and no platform request is made.
@@ -232,14 +245,26 @@ resets settings once for 1.4.0 users; no migration code exists by design.
 
 ## Current verification and limits
 
+The v1.13.1 review fixes replies-only rescue when other engagement rules are off,
+conflicting X status links during recycling, invalid all-unknown kept-event
+snapshots, and a stale Statistics page after a failed reset with an overlapping
+read. Focused regression tests exercise each case. Background batching tests
+cover both browser namespaces, settings changes, read/reset barriers, malformed
+messages, queue bounds, and storage failure recovery. The synthetic runtime
+comparison against `5608ce4` preserves all operation counts and hiding checks.
+Storage-burst measurements verify identical final histories with fewer local
+reads/writes; retained-state measurements verify identical event messages with
+no snippet objects left in card state. See [performance measurements](docs/performance.md).
+
 Independent v1.11.2 review (2026-09-29): full tests, both builds, and Firefox
 validation passed; the rebuilt files match the committed runtime. The YouTube
 timing test now hydrates the existing metadata container and checks rising,
 removed, and reinserted counts at mutation checkpoints. The paired benchmark
 reproduces the documented operation counts. A separate four-video probe also
 found four statistics messages instead of one when distinct hidden cards arrive
-in separate deliveries before timers. The background serializes a local history
-write per accepted message, so the cost is not restricted to rereading one card.
+in separate deliveries before timers. At that version, the background performed
+a local history write per accepted message. The v1.13.1 queue now combines
+adjacent messages without changing immediate filtering.
 See [performance measurements](docs/performance.md). No installed extension was
 reloaded and no live YouTube paint or scrolling performance was measured.
 
@@ -258,7 +283,7 @@ The installed Brave extension was observed before this change; the rebuilt
 package has not been installed, reloaded, or tested against live X. See the
 [sanitized seen-list investigation](docs/x-seen-list-check.md).
 
-For v1.13.0, run `npm ci`, `npm test`, `npm run build`, and
+For v1.13.1, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
 The packages now contain 22 files; the stable extension IDs and permissions are
@@ -549,14 +574,14 @@ was closed; no installed extension or other extension setting was changed.
 
 ## Open issues and verification limits
 
-- **Immediate filtering trades batching for responsiveness.** v1.11.2 retains
-  the affected-card routing and idle guards, but separate deliveries can cause
-  repeated reads or more statistics messages even for distinct cards. The
-  existing benchmark stubs background messaging and does not measure storage
-  latency or visible-page Statistics refreshes. Next step: measure a live scrolling
-  workload after a user-requested reload before deciding whether to batch history
-  messages independently of immediate visual filtering. Preserve event snapshots,
-  reset ordering, collection switches, and the bounded/no-DOM-reference rules.
+- **Immediate filtering still rereads separately hydrated cards.** v1.13.1
+  combines adjacent statistics messages in the background, with fewer storage
+  operations and identical fixture histories. Count reads on the page remain
+  immediate, so staggered updates can still require more work than a delayed
+  scan. Real-browser scrolling, storage latency, Statistics rendering cost,
+  CPU and RAM remain unmeasured for this version. Next step: profile a bounded
+  scrolling workload after a user-requested extension reload. History is
+  best-effort under storage failure or queue overload; no retry delays hiding.
 
 - **X can record a post before local hiding takes effect.** On 2026-09-29,
   one of 39 observed hidden posts appeared briefly in the viewport and entered

@@ -261,6 +261,9 @@ The Statistics page pauses refreshes while its tab is hidden and catches up when
 you return. Reset also cancels older pending snapshots, so a delayed refresh
 cannot bring cleared entries back.
 
+Statistics are best-effort: storage failures or an extreme burst beyond the
+bounded queue can omit events. Page filtering continues independently.
+
 History is stored only in extension **local storage**, never browser sync, settings
 exports, a server, or the repository. Clearing it does not change filtering. Past
 entries are never consulted to decide whether an item should be shown.
@@ -331,6 +334,12 @@ or set to zero, and highlight detection is off (or both its feed edge and
 statistics are off), cards meeting the view minimum skip engagement parsing.
 Detection needs bookmark reads even on otherwise eligible posts; disabling statistics skips history metadata and reporting.
 Local history also avoids reparsing links already in canonical form.
+
+Adjacent statistics messages share a local-storage read/write without delaying
+page filtering. Each message still checks the collection switch, and reads and
+resets preserve arrival order. A four-video burst benchmark reduced history
+writes from four to one with identical totals and entries. Per-card tracking
+retains only the URL, releasing title/snippet text after reporting the event.
 
 In a synthetic 200-card feed, 20 single-card count changes required **20 count
 reads instead of 4,000**. Unrelated mutations required **zero instead of 4,000**.

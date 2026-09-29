@@ -4,6 +4,7 @@
   const STORAGE_KEY = "filterHistory";
   const MAX_ENTRIES = 500;
   const MAX_BATCH_ITEMS = 100;
+  const MAX_EVENT_BATCHES = 32;
   const MAX_TITLE_LENGTH = 240;
   const MAX_COUNT = 1_000_000_000_000;
   const MAX_TOTAL = Number.MAX_SAFE_INTEGER;
@@ -119,6 +120,9 @@
       if (value.reason === "low-like-ratio" && (views === 0 || likes === null)) return null;
     } else if (outcome === "kept") {
       if (views === null || views === 0) return null;
+      // Enabled keep conditions vary, but at least one known numerator must
+      // establish any high-engagement exception.
+      if (value.reason === "high-engagement" && likes === null && bookmarks === null && replies === null) return null;
       const needsLikes = value.reason === "high-like-ratio" || value.reason === "high-like-and-bookmark-ratio";
       const needsBookmarks = value.reason === "high-bookmark-ratio" || value.reason === "high-like-and-bookmark-ratio";
       if ((needsLikes && likes === null) || (needsBookmarks && bookmarks === null)) return null;
@@ -173,35 +177,8 @@
     return history;
   }
 
-  /**
-   * Add validated hidden, kept, and highlighted transitions to history.
-   *
-   * Parameters
-   * ----------
-   * stored : object
-   *     Previous history in extension local storage (see emptyHistory), with
-   *     at most 500 recent URL entries per outcome (most recent first).
-   * items : object[]
-   *     Up to 100 content-script events from one verified site. Each event has
-   *     site, outcome ("hidden", "kept", or "highlighted"), URL or null, bounded
-   *     title, reason, bypassedReason for kept events, and optional numeric
-   *     views/likes/bookmarks/replies. Null URLs count without an entry. A
-   *     linked event with enrich: true identifies an earlier linkless event;
-   *     it adds an entry occurrence without incrementing any reason count.
-   * site : "x" | "youtube"
-   *     Site established from the trusted message sender URL.
-   * now : number
-   *     Milliseconds since the Unix epoch, provided by the caller.
-   *
-   * Returns
-   * -------
-   * object | null
-   *     {history, recorded}, or null for an invalid batch. "recorded" counts
-   *     accepted items, including enrichments. Invalid items are skipped.
-   */
-  function addEvents(stored, items, site, now) {
-    if (!Array.isArray(items) || items.length < 1 || items.length > MAX_BATCH_ITEMS || (site !== "x" && site !== "youtube")) return null;
-    const history = normalizeHistory(stored);
+  /** Apply one validated message to a normalized history object in place. */
+  function applyEvents(history, items, site, now) {
     let recorded = 0;
     for (const item of items) {
       const event = normalizeEvent(item, site, item?.outcome);
@@ -227,10 +204,45 @@
       });
       if (list.length > MAX_ENTRIES) list.length = MAX_ENTRIES;
     }
-    return {history, recorded};
+    return recorded;
   }
 
-  const api = {STORAGE_KEY, MAX_ENTRIES, MAX_BATCH_ITEMS, REASONS, KEPT_REASONS, emptyHistory, siteTotal, canonicalItemUrl, normalizeEvent, normalizeHistory, addEvents};
+  /**
+   * Add ordered, bounded content-script messages after normalizing history once.
+   *
+   * Parameters
+   * ----------
+   * stored : object
+   *     Previous history in extension local storage (see emptyHistory).
+   * batches : {site: 'x'|'youtube', items: object[]}[]
+   *     One to MAX_EVENT_BATCHES original messages, each with one to
+   *     MAX_BATCH_ITEMS events. Event fields are documented by normalizeEvent;
+   *     malformed individual events are skipped, while malformed batches fail.
+   * now : number
+   *     Milliseconds since the Unix epoch for each accepted entry.
+   *
+   * Returns
+   * -------
+   * object | null
+   *     {history, recorded, recordedByBatch}, or null for invalid batch shape.
+   *     Per-batch counts include accepted enrichments and preserve input order.
+   */
+  function addEventBatches(stored, batches, now) {
+    if (!Array.isArray(batches) || batches.length < 1 || batches.length > MAX_EVENT_BATCHES
+      || batches.some((batch) => (batch?.site !== "x" && batch?.site !== "youtube")
+        || !Array.isArray(batch.items) || batch.items.length < 1 || batch.items.length > MAX_BATCH_ITEMS)) return null;
+    const history = normalizeHistory(stored);
+    const recordedByBatch = batches.map(({site, items}) => applyEvents(history, items, site, now));
+    return {history, recorded: recordedByBatch.reduce((total, count) => total + count, 0), recordedByBatch};
+  }
+
+  /** Add one bounded content-script message and return its accepted event count. */
+  function addEvents(stored, items, site, now) {
+    const result = addEventBatches(stored, [{site, items}], now);
+    return result ? {history: result.history, recorded: result.recorded} : null;
+  }
+
+  const api = {STORAGE_KEY, MAX_ENTRIES, MAX_BATCH_ITEMS, MAX_EVENT_BATCHES, REASONS, KEPT_REASONS, emptyHistory, siteTotal, canonicalItemUrl, normalizeEvent, normalizeHistory, addEvents, addEventBatches};
   globalThis.MinimumViewsHistory = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -241,9 +241,15 @@
   }
 
   function getXViewCount(card, locale) {
-    const ownTime = Array.from(card.querySelectorAll('a[href*="/status/"] time'))
-      .find((time) => isOwnXAuthorMetadata(time, card));
-    const ownId = statusId(ownTime?.closest('a')?.getAttribute('href'));
+    let ownId = null;
+    for (const time of card.querySelectorAll('a[href*="/status/"] time')) {
+      if (!isOwnXAuthorMetadata(time, card)) continue;
+      const id = statusId(time.closest('a')?.getAttribute('href'));
+      // A recycled article can briefly contain the old and new permalinks.
+      // Neither post's analytics can safely determine the current view count.
+      if (id && ownId && id !== ownId) return null;
+      if (id) ownId = id;
+    }
     const analytics = Array.from(card.querySelectorAll('a[href*="/analytics"]')).filter((link) => {
       const href = link.getAttribute('href');
       return /\/status\/\d+\/analytics(?:[/?#]|$)/.test(href)
@@ -405,13 +411,13 @@
     const lowReason = settings.xLowLikeRatioEnabled && engagement.likes !== null
       && !reaches(engagement.likes, settings.xMinimumLikePercent) ? 'low-like-ratio'
       : belowMinimum ? 'low-views' : null;
-    // Each enabled keep rule is a required condition; unknown counts fail it.
-    const keepRules = [
-      [settings.xHighLikeRatioEnabled, engagement.likes, settings.xKeepLikePercent],
-      [settings.xHighBookmarkRatioEnabled, engagement.bookmarks, settings.xKeepBookmarkPercent],
-      [settings.xHighReplyRatioEnabled, engagement.replies ?? null, settings.xKeepReplyPercent],
-    ].filter(([enabled]) => enabled);
-    const keptBy = keepRules.length && keepRules.every(([, count, percent]) => reaches(count, percent))
+    // Each enabled keep rule is required. Short-circuiting avoids allocating
+    // per-card rule arrays during frequent feed updates.
+    const keepEnabled = settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled || settings.xHighReplyRatioEnabled;
+    const keptBy = keepEnabled
+      && (!settings.xHighLikeRatioEnabled || reaches(engagement.likes, settings.xKeepLikePercent))
+      && (!settings.xHighBookmarkRatioEnabled || reaches(engagement.bookmarks, settings.xKeepBookmarkPercent))
+      && (!settings.xHighReplyRatioEnabled || reaches(engagement.replies ?? null, settings.xKeepReplyPercent))
       ? 'high-engagement' : null;
     if (keptBy) return lowReason ? {reason: null, keptBy, bypassedReason: lowReason} : kept;
     return {...kept, reason: lowReason};

@@ -190,6 +190,10 @@
     } catch {
       status.textContent = "Could not reset history. Please try again.";
       clearButton.disabled = false;
+      // A read that was pending when reset began was invalidated by the new
+      // generation. Reload after failure so that discarded snapshot cannot
+      // leave the page showing stale totals or rows indefinitely.
+      historyNeedsRefresh = true;
     } finally {
       clearingHistory = false;
       if (historyNeedsRefresh) void loadHistory();

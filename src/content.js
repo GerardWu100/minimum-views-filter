@@ -37,7 +37,8 @@
   };
   let settings = normalizeSettings();
   let whitelist = new Set();
-  // Weak keys cannot keep removed cards alive; values contain only URL/title text.
+  // Weak keys cannot keep removed cards alive; values are only URLs or null.
+  // Snippets belong in bounded history messages, not in per-card state.
   // One map per recorded outcome, so a card that flips between hidden and kept
   // records each new continuous state once.
   let recordedHiddenCards = new WeakMap();
@@ -238,14 +239,15 @@
     const recordOutcome = (recordedCards, card, event) => {
       if (!settings.statisticsEnabled) return;
       const metadata = core.getItemMetadata(card, SITE);
-      const previous = recordedCards.get(card);
+      const hadPrevious = recordedCards.has(card);
+      const previousUrl = recordedCards.get(card);
       // A permalink can arrive after the count. Enrich that first event instead
       // of counting the same continuous state twice. Lost links are not new IDs.
-      const enrich = !!previous && !previous.url && !!metadata.url;
+      const enrich = hadPrevious && !previousUrl && !!metadata.url;
       // Text may hydrate or be rewritten by another extension. Only a changed
       // stable URL proves a new item on a continuously tracked recycled node.
-      const newItem = !previous || (metadata.url && previous.url && metadata.url !== previous.url);
-      if (metadata.url || !previous?.url) recordedCards.set(card, metadata);
+      const newItem = !hadPrevious || (metadata.url && previousUrl && metadata.url !== previousUrl);
+      if (metadata.url || !previousUrl) recordedCards.set(card, metadata.url);
       if (!newItem && !enrich) return;
       historyItems.push({site: SITE, ...metadata, ...event, ...(enrich ? {enrich: true} : {})});
       if (historyItems.length === HISTORY_BATCH_SIZE) recordBatch();
@@ -267,7 +269,8 @@
         const engagement = SITE === 'x' && views > 0 && (
           highlightDetected
           || (settings.xLowLikeRatioEnabled && settings.xMinimumLikePercent > 0)
-          || (settings.xMinimumViewsEnabled && views < settings.xMinimumViews && (settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled))
+          || (settings.xMinimumViewsEnabled && views < settings.xMinimumViews
+            && (settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled || settings.xHighReplyRatioEnabled))
         )
           ? core.getXEngagement(card, locale) : {likes: null, bookmarks: null, replies: null};
         const {reason, keptBy, bypassedReason} = core.getFilterDecision(views, SITE, settings, engagement);

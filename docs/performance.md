@@ -1,5 +1,71 @@
 # Performance measurements
 
+## Review and bounded statistics batching, v1.13.1 (2026-09-29)
+
+Compared with v1.13.0 commit `5608ce4`, using Node.js v22.17.0 and jsdom 29.1.1.
+Filtering remains immediate. Adjacent background record messages now share a
+local-storage transaction, with up to 32 messages per transaction. There is no
+new timer: messages waiting or arriving during ordered settings reads can join.
+Reads and resets end a batch; every response waits for the write to complete.
+
+The [background benchmark](audit-history-performance-results.json) uses real
+background listeners, three full 500-entry histories, and asynchronous storage
+mocks that serialize and copy each local read/write. All four workloads produce
+exactly equal final histories. Five measured samples alternate execution order.
+
+| Workload | Local reads and writes, each, before → after | Median synthetic ms, before → after |
+| --- | ---: | ---: |
+| 20 separate one-event messages | 20 → 20 | 134.52 → 135.48 |
+| 20 bursts of four YouTube messages | 80 → 20 | 531.76 → 137.73 |
+| 10 bursts of 32 messages across sites/outcomes | 320 → 10 | 1,985.34 → 71.38 |
+| 10 bursts of four 100-item messages | 40 → 10 | 288.71 → 109.21 |
+
+The four-video workload serializes about 51.18 MB → 12.79 MB of history over
+the entire run. This is cumulative mock storage traffic, not resident memory or
+browser messaging bytes. Sync settings reads stay at one per message. Isolated
+messages show no meaningful improvement; bursts benefit from fewer local reads,
+normalizations, writes, and associated history-change notifications.
+
+The background queue is now capped at 256 requests and 2,048 sanitized events,
+including in-flight work. Excess requests fail with `history-busy`; history can
+omit events during extreme overload or storage failure. Filtering continues.
+This replaces an unbounded chain of pending message closures and does not retain
+raw sender objects or a cached copy of history between transactions.
+
+The [card-state benchmark](audit-card-state-results.json) executes the real
+content script on 200 hidden YouTube cards with 240-character titles. With
+identical hiding marks and history messages, the per-card maps retain **zero
+metadata objects and zero title characters**, compared with 200 objects and
+48,000 characters before. Both retain the same 200 URL values. This counts
+references held by the extension; it does not measure heap bytes, string sharing,
+site-owned DOM memory, or total browser RAM.
+
+The [200-card runtime comparison](audit-runtime-performance-results.json) passes
+every expected hiding mark with unchanged operation counts across all scenarios
+on both sites. Sidebar/player noise and hidden-tab noise still read zero cards.
+The faster statistics path does not restore the old 80 ms filtering delay or
+reduce the separate count reads required by staggered metadata delivery.
+
+The X keep decision now uses short-circuit conditions instead of allocating and
+filtering arrays for every card. The [decision benchmark](audit-decision-performance-results.json)
+checks 109,760 decisions and 13,720 highlight results across switch combinations
+and unknown/zero/known counts, all equal to the baseline. Six alternating trials
+of 400,000 decision calls give median 114.312 → 81.427 ms. This isolates one
+JavaScript function; it is not a page-load or scrolling-speed improvement figure.
+
+To reproduce, extract `src/` from `5608ce4` into a temporary directory:
+
+```sh
+node scripts/benchmark.cjs --baseline /path/to/baseline/src
+node --expose-gc scripts/benchmark-history-messaging.cjs 5608ce4 /path/to/baseline
+node scripts/benchmark-card-state.cjs /path/to/baseline/src
+node scripts/benchmark-decisions.cjs --baseline /path/to/baseline/src/filter-core.js --baseline-revision 5608ce4
+```
+
+No installed extension was reloaded. Actual browser CPU, RAM, scrolling and paint
+remain unmeasured; the timings above include JavaScript/mock serialization work
+and exclude real extension storage and message transport latency.
+
 ## Immediate YouTube mutation evaluation, v1.11.2 (2026-09-29)
 
 Compared with v1.11.1 commit `fb7d0e8`, using Node.js v22.17.0 and jsdom 29.1.1
@@ -34,11 +100,12 @@ YouTube cards, inserted one per mutation delivery before timers were drained:
 | Items in each message | one batch of 4 → four batches of 1 |
 
 The fixture mocked `runtime.sendMessage`; it did not time browser storage. The
-background currently reads and writes local history for each accepted message,
+background at v1.11.2 reads and writes local history for each accepted message,
 so these messages can produce more storage work with collection enabled. The
 main benchmark's no-op message mock excludes that cost. Batching history
 separately could reduce it without delaying hiding, but that change is not
-implemented or verified here. The earlier X immediate path has the same limitation.
+implemented in that release. The v1.13.1 measurements above now verify this
+independent background batching for both sites.
 
 ## Immediate X mutation evaluation, v1.11.1 (2026-09-29)
 

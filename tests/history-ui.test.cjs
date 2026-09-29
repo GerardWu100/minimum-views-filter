@@ -100,6 +100,30 @@ test('a history read finishing after a successful reset cannot restore old rows 
   assert.equal(page.messages.length, 3);
 });
 
+test('a failed reset reloads history after invalidating an in-flight refresh', async (t) => {
+  const page = openHistory(t);
+  page.messages[0].resolve({ok: true, history: fullHistory()});
+  await tick();
+  assert.equal(page.document.querySelectorAll('#entries li').length, 500);
+
+  page.changed();
+  const staleRead = page.messages[1];
+  page.document.querySelector('#clear-history').click();
+  page.messages[2].resolve({ok: false});
+  await tick();
+
+  assert.match(page.document.querySelector('#status').textContent, /Could not reset/);
+  staleRead.resolve({ok: true, history: store.emptyHistory()});
+  await tick();
+  assert.equal(page.messages.length, 4, 'a fresh history read should follow the failed reset');
+  assert.equal(page.messages[3].message.type, 'minimum-views-filter:get-history');
+  page.messages[3].resolve({ok: true, history: fullHistory()});
+  await tick();
+
+  assert.equal(page.document.querySelectorAll('#entries li').length, 500);
+  assert.equal(page.document.querySelector('#clear-history').disabled, false);
+});
+
 test('a read finishing in a hidden history tab defers its row rebuild until return', async (t) => {
   const page = openHistory(t);
   page.setVisibility('hidden');

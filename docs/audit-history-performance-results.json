@@ -1,0 +1,180 @@
+{
+  "baselineRef": "5608ce4",
+  "samples": 5,
+  "conditions": "Synthetic Node VM; three 500-entry histories; asynchronous JSON-copy storage with no artificial latency. No browser memory or wall-clock claim.",
+  "results": [
+    {
+      "scenario": {
+        "name": "one event in one message",
+        "messages": 1,
+        "items": 1,
+        "bursts": 20
+      },
+      "snapshotEqual": true,
+      "baseline": {
+        "counts": {
+          "syncReads": 20,
+          "localReads": 20,
+          "localWrites": 20,
+          "historyApplications": 20,
+          "serializedHistoryBytes": 12770478
+        },
+        "medianElapsedMs": 134.52,
+        "elapsedMsSamples": [
+          141.57,
+          135.3,
+          134.52,
+          132.46,
+          132.1
+        ]
+      },
+      "current": {
+        "counts": {
+          "syncReads": 20,
+          "localReads": 20,
+          "localWrites": 20,
+          "historyApplications": 20,
+          "serializedHistoryBytes": 12770478
+        },
+        "medianElapsedMs": 135.48,
+        "elapsedMsSamples": [
+          146.14,
+          133.68,
+          140,
+          135.48,
+          133.16
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "four YouTube videos in four immediate messages",
+        "messages": 4,
+        "items": 1,
+        "bursts": 20,
+        "youtubeOnly": true
+      },
+      "snapshotEqual": true,
+      "baseline": {
+        "counts": {
+          "syncReads": 80,
+          "localReads": 80,
+          "localWrites": 80,
+          "historyApplications": 80,
+          "serializedHistoryBytes": 51175339
+        },
+        "medianElapsedMs": 531.76,
+        "elapsedMsSamples": [
+          531.76,
+          529.63,
+          531.12,
+          564.25,
+          561.5
+        ]
+      },
+      "current": {
+        "counts": {
+          "syncReads": 80,
+          "localReads": 20,
+          "localWrites": 20,
+          "historyApplications": 20,
+          "serializedHistoryBytes": 12793833
+        },
+        "medianElapsedMs": 137.73,
+        "elapsedMsSamples": [
+          135.97,
+          151.8,
+          137.02,
+          137.73,
+          147.88
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "32 events across tabs/sites/outcomes",
+        "messages": 32,
+        "items": 1,
+        "bursts": 10
+      },
+      "snapshotEqual": true,
+      "baseline": {
+        "counts": {
+          "syncReads": 320,
+          "localReads": 320,
+          "localWrites": 320,
+          "historyApplications": 320,
+          "serializedHistoryBytes": 205169857
+        },
+        "medianElapsedMs": 1985.34,
+        "elapsedMsSamples": [
+          2280.19,
+          2018.25,
+          1985.34,
+          1907.29,
+          1888.34
+        ]
+      },
+      "current": {
+        "counts": {
+          "syncReads": 320,
+          "localReads": 10,
+          "localWrites": 10,
+          "historyApplications": 10,
+          "serializedHistoryBytes": 6411525
+        },
+        "medianElapsedMs": 71.38,
+        "elapsedMsSamples": [
+          83.44,
+          80.41,
+          70.74,
+          71.38,
+          67.94
+        ]
+      }
+    },
+    {
+      "scenario": {
+        "name": "four full 100-item messages",
+        "messages": 4,
+        "items": 100,
+        "bursts": 10
+      },
+      "snapshotEqual": true,
+      "baseline": {
+        "counts": {
+          "syncReads": 40,
+          "localReads": 40,
+          "localWrites": 40,
+          "historyApplications": 40,
+          "serializedHistoryBytes": 26152962
+        },
+        "medianElapsedMs": 288.71,
+        "elapsedMsSamples": [
+          279,
+          295.05,
+          275.51,
+          288.71,
+          331.47
+        ]
+      },
+      "current": {
+        "counts": {
+          "syncReads": 40,
+          "localReads": 10,
+          "localWrites": 10,
+          "historyApplications": 10,
+          "serializedHistoryBytes": 6541944
+        },
+        "medianElapsedMs": 109.21,
+        "elapsedMsSamples": [
+          104.42,
+          113.15,
+          109.21,
+          107.85,
+          141.7
+        ]
+      }
+    }
+  ]
+}

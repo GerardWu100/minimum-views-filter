@@ -14,6 +14,8 @@
   const GET_HISTORY_MESSAGE = "minimum-views-filter:get-history";
   const CLEAR_HISTORY_MESSAGE = "minimum-views-filter:clear-history";
   const RESULT_BADGE_MS = 4000;
+  const MAX_PENDING_HISTORY_REQUESTS = 256;
+  const MAX_PENDING_HISTORY_ITEMS = 2048;
   // Badge text and hover title shown on the toolbar icon after a menu click.
   const RESULT_FEEDBACK = {
     added: {text: "✓", title: "Added to whitelist"},
@@ -25,13 +27,106 @@
   };
   // Tab ID -> pending restore timer, so a newer result is not cleared early.
   const badgeRestoreTimers = new Map();
-  // Chain every read-modify-write and reset, including requests from other tabs.
-  let historyQueue = Promise.resolve();
+  // Only sanitized events and response callbacks wait here, never sender/DOM
+  // objects. Limits include the in-flight batch until its responses settle.
+  const historyQueue = [];
+  let pendingHistoryRequests = 0;
+  let pendingHistoryItems = 0;
+  let drainingHistory = false;
 
-  function queueHistory(operation) {
-    const result = historyQueue.then(operation);
-    historyQueue = result.catch(() => {});
-    return result;
+  /** Queue a bounded history request; overload never delays page filtering. */
+  function queueHistory(request) {
+    const itemCount = request.items?.length || 0;
+    if (pendingHistoryRequests >= MAX_PENDING_HISTORY_REQUESTS || pendingHistoryItems + itemCount > MAX_PENDING_HISTORY_ITEMS) {
+      return Promise.resolve({ok: false, error: "history-busy"});
+    }
+    pendingHistoryRequests++;
+    pendingHistoryItems += itemCount;
+    return new Promise((resolve) => {
+      historyQueue.push({...request, itemCount, resolve});
+      if (!drainingHistory) {
+        drainingHistory = true;
+        // Start in the next microtask, with no collection timer or fixed delay.
+        Promise.resolve().then(drainHistoryQueue);
+      }
+    });
+  }
+
+  function finishHistoryRequest(request, response) {
+    pendingHistoryRequests--;
+    pendingHistoryItems -= request.itemCount;
+    request.resolve(response);
+  }
+
+  /**
+   * Persist up to MAX_EVENT_BATCHES adjacent record messages together.
+   *
+   * Messages arriving during settings reads may join this batch. Each gets a
+   * fresh settings read in arrival order; reads/resets terminate the batch.
+   * Responses wait for the local write, and no history cache survives it.
+   */
+  async function writeHistoryBatch() {
+    const requests = [];
+    const batches = [];
+    const responses = [];
+    while (historyQueue[0]?.type === RECORD_MESSAGE && requests.length < historyStore.MAX_EVENT_BATCHES) {
+      const request = historyQueue.shift();
+      requests.push(request);
+      try {
+        const settings = await extension.storage.sync.get("statisticsEnabled");
+        if (settings.statisticsEnabled === false) responses.push({ok: true, recorded: 0});
+        else if (!request.items.length) responses.push({ok: false, error: "invalid-message"});
+        else {
+          responses.push(null);
+          batches.push({items: request.items, site: request.site});
+        }
+      } catch {
+        responses.push({ok: false, error: "storage-unavailable"});
+      }
+    }
+    if (batches.length) {
+      try {
+        const stored = await extension.storage.local.get(historyStore.STORAGE_KEY);
+        const result = historyStore.addEventBatches(stored[historyStore.STORAGE_KEY], batches, Date.now());
+        await extension.storage.local.set({[historyStore.STORAGE_KEY]: result.history});
+        let batchIndex = 0;
+        for (let index = 0; index < responses.length; index++) {
+          if (!responses[index]) responses[index] = {ok: true, recorded: result.recordedByBatch[batchIndex++]};
+        }
+      } catch {
+        for (let index = 0; index < responses.length; index++) {
+          if (!responses[index]) responses[index] = {ok: false, error: "storage-unavailable"};
+        }
+      }
+    }
+    for (let index = 0; index < requests.length; index++) finishHistoryRequest(requests[index], responses[index]);
+  }
+
+  /** Serialize batches, reads, and resets across tabs without an unbounded promise chain. */
+  async function drainHistoryQueue() {
+    while (historyQueue.length) {
+      if (historyQueue[0].type === RECORD_MESSAGE) {
+        await writeHistoryBatch();
+        continue;
+      }
+      const request = historyQueue.shift();
+      let response;
+      try {
+        let history;
+        if (request.type === GET_HISTORY_MESSAGE) {
+          const stored = await extension.storage.local.get(historyStore.STORAGE_KEY);
+          history = historyStore.normalizeHistory(stored[historyStore.STORAGE_KEY]);
+        } else {
+          history = historyStore.emptyHistory();
+          await extension.storage.local.set({[historyStore.STORAGE_KEY]: history});
+        }
+        response = {ok: true, history};
+      } catch {
+        response = {ok: false, error: "storage-unavailable"};
+      }
+      finishHistoryRequest(request, response);
+    }
+    drainingHistory = false;
   }
 
   /** Trust the browser-provided sender URL only on the two supported surfaces. */
@@ -58,31 +153,21 @@
       if (!Array.isArray(message.items) || message.items.length < 1 || message.items.length > historyStore.MAX_BATCH_ITEMS) {
         return {ok: false, error: "invalid-message"};
       }
-      return queueHistory(async () => {
-        // Read inside the queue so events waiting behind a reset or another
-        // batch honor the current collection switch before any local write.
-        const settings = await extension.storage.sync.get("statisticsEnabled");
-        if (settings.statisticsEnabled === false) return {ok: true, recorded: 0};
-        const stored = await extension.storage.local.get(historyStore.STORAGE_KEY);
-        const result = historyStore.addEvents(stored[historyStore.STORAGE_KEY], message.items, site, Date.now());
-        if (!result || !result.recorded) return {ok: false, error: "invalid-message"};
-        await extension.storage.local.set({[historyStore.STORAGE_KEY]: result.history});
-        return {ok: true, recorded: result.recorded};
-      });
+      // Copy only bounded, validated fields before retaining a request. Invalid
+      // entries cannot retain large message payloads while storage is busy.
+      const items = [];
+      for (const item of message.items) {
+        const event = historyStore.normalizeEvent(item, site, item?.outcome);
+        if (event) items.push({...event, outcome: item.outcome, enrich: item.enrich === true});
+      }
+      return queueHistory({type: RECORD_MESSAGE, items, site});
     }
     const isHistoryPage = isExtensionPage(sender, "history.html");
     if (message.type === GET_HISTORY_MESSAGE && isHistoryPage) {
-      return queueHistory(async () => {
-        const stored = await extension.storage.local.get(historyStore.STORAGE_KEY);
-        return {ok: true, history: historyStore.normalizeHistory(stored[historyStore.STORAGE_KEY])};
-      });
+      return queueHistory({type: GET_HISTORY_MESSAGE});
     }
     if (!isHistoryPage) return {ok: false, error: "forbidden"};
-    return queueHistory(async () => {
-      const history = historyStore.emptyHistory();
-      await extension.storage.local.set({[historyStore.STORAGE_KEY]: history});
-      return {ok: true, history};
-    });
+    return queueHistory({type: CLEAR_HISTORY_MESSAGE});
   }
 
   /** Callback response works in both Chrome and Firefox message listeners. */

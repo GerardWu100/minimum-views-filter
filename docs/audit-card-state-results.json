@@ -1,0 +1,17 @@
+{
+  "cards": 200,
+  "titleLength": 240,
+  "conditions": "Connected synthetic YouTube cards; runtime WeakMap values only. Identical history messages and hiding marks. No browser heap/RAM measurement.",
+  "baseline": {
+    "entries": 200,
+    "metadataObjects": 200,
+    "titleCharacters": 48000,
+    "urlCharacters": 6890
+  },
+  "current": {
+    "entries": 200,
+    "metadataObjects": 0,
+    "titleCharacters": 0,
+    "urlCharacters": 6890
+  }
+}

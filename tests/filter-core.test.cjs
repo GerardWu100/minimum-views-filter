@@ -87,6 +87,20 @@ test('X excludes explicitly marked quotes and status mismatches', () => {
   </article>`, 'x'), null);
 });
 
+test('X treats conflicting own status links during card recycling as unknown', () => {
+  const document = documentOf(`<article data-testid="tweet">
+    <a href="/author/status/123"><time>Old post</time></a>
+    <a href="/author/status/124"><time>New post</time></a>
+    <a href="/author/status/123/analytics" aria-label="10 views">10</a>
+  </article>`);
+  const card = document.querySelector('article');
+  assert.equal(core.getViewCount(card, 'x'), null);
+  card.querySelector('a[href="/author/status/123"]').remove();
+  card.querySelector('a[href$="/analytics"]').setAttribute('href', '/author/status/124/analytics');
+  card.querySelector('a[href$="/analytics"]').setAttribute('aria-label', '2,000 views');
+  assert.equal(core.getViewCount(card, 'x'), 2000);
+});
+
 test('X footer labels distinguish views from replies, likes, bookmarks and quotes', () => {
   assert.equal(readFirst(`<article data-testid="tweet">
     <div role="group" aria-label="3 replies, 5 reposts, 45 likes, 10 bookmarks, 1,002 views"></div>

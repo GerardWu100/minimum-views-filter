@@ -1,0 +1,131 @@
+{
+  "environment": {
+    "node": "v22.17.0"
+  },
+  "sources": {
+    "baselineRevision": "5608ce4",
+    "baselineSha256": "066c2e913ff947901933e06f33e4a104a1266804dd694da49e6eb6d6cc88c812",
+    "currentSha256": "d1946f6a110c593af4eb898199ce72ae10944a01d3c64fae8d573deff53afe50"
+  },
+  "fixture": {
+    "iterationsPerTrial": 400000,
+    "trialCount": 6,
+    "timedCases": [
+      [
+        500,
+        {
+          "likes": 10,
+          "bookmarks": 3,
+          "replies": 1
+        }
+      ],
+      [
+        500,
+        {
+          "likes": 10,
+          "bookmarks": 3,
+          "replies": null
+        }
+      ],
+      [
+        500,
+        {
+          "likes": 0,
+          "bookmarks": 3,
+          "replies": 1
+        }
+      ],
+      [
+        10000,
+        {
+          "likes": 300,
+          "bookmarks": 70,
+          "replies": 20
+        }
+      ]
+    ]
+  },
+  "semanticChecks": {
+    "decisions": 109760,
+    "highlights": 13720
+  },
+  "timingScope": "Synchronous Node.js getFilterDecision calls only; excludes DOM, browser CPU, memory, rendering, and history storage.",
+  "trials": [
+    {
+      "trial": 0,
+      "version": "baseline",
+      "milliseconds": 112.434,
+      "keptCount": 100000
+    },
+    {
+      "trial": 0,
+      "version": "current",
+      "milliseconds": 81.095,
+      "keptCount": 100000
+    },
+    {
+      "trial": 1,
+      "version": "current",
+      "milliseconds": 80.444,
+      "keptCount": 100000
+    },
+    {
+      "trial": 1,
+      "version": "baseline",
+      "milliseconds": 113.513,
+      "keptCount": 100000
+    },
+    {
+      "trial": 2,
+      "version": "baseline",
+      "milliseconds": 116.804,
+      "keptCount": 100000
+    },
+    {
+      "trial": 2,
+      "version": "current",
+      "milliseconds": 81.85,
+      "keptCount": 100000
+    },
+    {
+      "trial": 3,
+      "version": "current",
+      "milliseconds": 84.175,
+      "keptCount": 100000
+    },
+    {
+      "trial": 3,
+      "version": "baseline",
+      "milliseconds": 114.767,
+      "keptCount": 100000
+    },
+    {
+      "trial": 4,
+      "version": "baseline",
+      "milliseconds": 117.877,
+      "keptCount": 100000
+    },
+    {
+      "trial": 4,
+      "version": "current",
+      "milliseconds": 79.682,
+      "keptCount": 100000
+    },
+    {
+      "trial": 5,
+      "version": "current",
+      "milliseconds": 81.758,
+      "keptCount": 100000
+    },
+    {
+      "trial": 5,
+      "version": "baseline",
+      "milliseconds": 113.857,
+      "keptCount": 100000
+    }
+  ],
+  "medianMilliseconds": {
+    "baseline": 114.312,
+    "current": 81.427
+  }
+}

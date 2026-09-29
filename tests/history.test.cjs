@@ -421,6 +421,43 @@ test('kept events have their own counts and list and are validated separately', 
   assert.equal(enriched.keptEntries.length, 1);
 });
 
+test('combined high-engagement history needs at least one known enabled numerator', () => {
+  const event = (id, metrics) => keptEvent(id, {
+    reason: 'high-engagement', likes: null, bookmarks: null, replies: null, ...metrics,
+  });
+  const events = [
+    event(1, {}),
+    event(2, {likes: 10}),
+    event(3, {bookmarks: 3}),
+    event(4, {replies: 1}),
+  ];
+  const result = store.addEvents(null, events, 'x', 1);
+  assert.equal(result.recorded, 3);
+  assert.equal(result.history.xKeptCounts['high-engagement'], 3);
+  assert.deepEqual(result.history.keptEntries.map((entry) => entry.url), [
+    'https://x.com/author/status/4',
+    'https://x.com/author/status/3',
+    'https://x.com/author/status/2',
+  ]);
+});
+
+test('ordered event batches match sequential history updates and report each message count', () => {
+  const batches = [
+    {site: 'x', items: [xEvent(1), xEvent(2, {views: null})]},
+    {site: 'youtube', items: [youtubeEvent('video')]},
+    {site: 'x', items: [xEvent(1), keptEvent(3)]},
+  ];
+  const grouped = store.addEventBatches(null, batches, 7);
+  let sequential = null;
+  for (const {site, items} of batches) sequential = store.addEvents(sequential, items, site, 7).history;
+  assert.deepEqual(grouped.history, sequential);
+  assert.deepEqual(grouped.recordedByBatch, [1, 1, 2]);
+  assert.equal(grouped.recorded, 4);
+  assert.equal(store.addEventBatches(null, [null], 7), null);
+  assert.equal(store.addEventBatches(null, Array(store.MAX_EVENT_BATCHES + 1).fill(batches[0]), 7), null);
+  assert.equal(store.addEventBatches(null, [{site: 'x', items: []}], 7), null);
+});
+
 test('reset clears kept counts and entries', async () => {
   const app = openBackground();
   await app.send({type: 'minimum-views-filter:record-filtered', items: [keptEvent(1)]}, xSender);
