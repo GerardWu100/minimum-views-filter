@@ -2,7 +2,8 @@
   "manifest_version": 3,
   "name": "Minimum Views Filter",
   "version": "1.12.0",
-  "description": "Filter X and YouTube feeds, subtly highlight X posts with high bookmarks/views, and review optional local statistics.",
+  "description": "Hide low-view X posts and YouTube videos, keep X posts with high likes and saves per view, and highlight standouts.",
+  "homepage_url": "https://github.com/GerardWu100/minimum-views-filter",
   "permissions": [
     "storage",
     "contextMenus"

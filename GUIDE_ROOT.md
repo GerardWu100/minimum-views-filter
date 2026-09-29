@@ -337,7 +337,9 @@ Mozilla signed v1.8.1 unlisted. All 19 runtime files match the tested build
 
 `scripts/build.cjs` writes a common runtime with separate manifests to
 `dist/chrome-brave` and `dist/firefox`. It also generates small PNG icons and
-deterministic ZIPs. Firefox declares no data collection and a fixed extension
+deterministic ZIPs. Both manifests set `homepage_url` to the GitHub repository (the
+extension website link in chrome://extensions and about:addons) and a description
+the build checks against the 132-character limit. Firefox declares no data collection and a fixed extension
 ID (`minimum-views-filter@gerardwu100.local`); its minimum version is 142.
 Builds remain unsigned; Mozilla signing is a separate distribution step.
 

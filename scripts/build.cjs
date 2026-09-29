@@ -11,6 +11,11 @@ const OUTPUT_DIRECTORY = path.join(PROJECT_ROOT, "dist");
 const VERSION = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8")).version;
 const ICON_SIZES = [16, 32, 48, 128];
 const ARCHIVE_DATE = new Date("2000-01-01T00:00:00Z");
+// Shown as the extension's website in chrome://extensions and about:addons.
+const REPOSITORY_URL = "https://github.com/GerardWu100/minimum-views-filter";
+// Chrome Web Store and Chromium cap manifest descriptions at 132 characters.
+const MAX_DESCRIPTION_LENGTH = 132;
+const DESCRIPTION = "Hide low-view X posts and YouTube videos, keep X posts with high likes and saves per view, and highlight standouts.";
 const SOURCE_FILES = ["filter-core.js", "settings.js", "content.js", "content.css", "popup.html", "popup-nav.js", "popup.js", "popup.css", "options.html", "options.css", "background.js", "history-store.js", "history.html", "history.js", "history.css", "theme.css", "reason-breakdown.js"];
 // Public half of an RSA key; Chromium derives the extension ID from it, so every
 // unpacked copy is ID lbjagemindgbhajfhagehgodegndnnhi wherever its folder lives. Sync storage
@@ -39,12 +44,14 @@ function iconPng(size) {
 
 /** Build an unpacked extension and an unsigned ZIP with identical contents. */
 function build(browser) {
+  if (DESCRIPTION.length > MAX_DESCRIPTION_LENGTH) throw new Error("Manifest description exceeds " + MAX_DESCRIPTION_LENGTH + " characters");
   const icons = Object.fromEntries(ICON_SIZES.map(size => [size, `icons/filter-${size}.png`]));
   const manifest = {
     manifest_version: 3,
     name: "Minimum Views Filter",
     version: VERSION,
-    description: "Filter X and YouTube feeds, subtly highlight X posts with high bookmarks/views, and review optional local statistics.",
+    description: DESCRIPTION,
+    homepage_url: REPOSITORY_URL,
     permissions: ["storage", "contextMenus"],
     host_permissions: [...SITE_PAGE_PATTERNS],
     icons,
