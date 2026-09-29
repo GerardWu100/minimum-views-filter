@@ -97,10 +97,13 @@ The 2026-09-28 feature request adds X low-like filtering and high-engagement
 exceptions. Defaults are 0.5% minimum likes/views, 2% rescue likes/views, and 0.5%
 rescue bookmarks/views; each rule has its own enabled switch. Settings normalize
 missing new keys to these enabled defaults while preserving existing settings.
-The settings transfer includes every current setting key and validates the complete format.
+The settings transfer writes every current setting key. Loading rejects a wrong
+format marker, text with no known setting, or any included invalid value; keys
+absent from an earlier release's export take their defaults, so a browser still
+on an older signed XPI can send settings to a newer one.
 
 For a supported card, read current views, then X engagement when views are
-positive and a ratio rule can change the decision. When highlighting is off and the low-like rule is
+positive and a ratio rule can change the decision. When highlight detection is inactive and the low-like rule is
 disabled or set to 0%, cards meeting the enabled view floor skip engagement reads;
 below-floor cards still read enabled rescue metrics. A high-like OR high-bookmark
 ratio keeps the card. Otherwise a low-like ratio or low views hides it; whitelist matches
@@ -152,14 +155,23 @@ The popup is a compact launcher: `popup-nav.js` opens either `options.html`
 (Settings) or `history.html` (Statistics). The manifest's `options_ui` also opens
 Settings in a browser tab. Settings and statistics no longer share a page.
 
-`xBookmarkHighlightEnabled` and `xHighlightBookmarkPercent` default to true
-and 1%. `shouldHighlightX` uses a strict greater-than comparison with the same
+`xBookmarkHighlightEnabled` (detection), `xHighlightBookmarkPercent`, and
+`xBookmarkHighlightShown` (feed edge) default to true, 1%, and true.
+`shouldHighlightX` uses a strict greater-than comparison with the same
 floating-point boundary allowance as filtering. Unknown bookmarks or
-zero/unknown views cannot highlight. The runtime reads engagement on positive-view
-X cards when highlighting is enabled, even if all filtering rules pass. It adds
-only `data-minimum-views-highlighted` to visible outer articles, using a 2px
-inset teal outline at 35% opacity. There is no animation, injected content, layout
-shift, or inline-style rewrite. The highlight cannot override hiding; whitelisted
+zero/unknown views cannot highlight. Detection is active when enabled and either
+the edge is shown or statistics are collected; only then does the runtime read
+engagement on positive-view X cards that pass every filtering rule. A detected
+post is recorded as highlighted whether or not its edge is shown. With the edge
+shown, it adds only `data-minimum-views-highlighted` to the visible outer
+article. `content.css` draws a 3px inset amber `box-shadow` edge (80% alpha)
+plus a left-to-right `background-image` wash from 12% alpha to transparent at
+35% width. The mid-tone amber stays visible on X's white, Dim (#15202b), and
+Lights out (#000) themes without theme detection; the 1.9.0 teal outline at 35%
+alpha was nearly invisible on dark themes and also overrode X's focus outline.
+The background image layers over X's hover background color, and the outline
+stays free for X's focus ring; forced-colors mode gets a system-colored outline.
+There is no animation, injected content, layout shift, or inline-style rewrite. The highlight cannot override hiding; whitelisted
 posts may highlight. Cleanup reconciles both mark types on mutations, lost card
 identity, navigation, settings, and shutdown, with the same document active gate.
 
@@ -189,7 +201,8 @@ card's single own author (`getCreatorIdentifiers`; ambiguous cards give none);
 outside cards it uses a profile/channel link (`getLinkCreatorIdentifier`). The
 menu click asks that frame's content script, which consumes the stored value
 once, appends it to the site's synced whitelist unless present or over quota,
-and replies. The background shows ✓, ? or ! on that tab's toolbar badge for 4 s.
+and replies. The background shows ✓, ? or ! on that tab's toolbar badge for 4 s; ! with
+the title "switched off" means the author was stored but that site's whitelist switch is off.
 This works on every X/YouTube page because the content script matches the whole
 site; the storage change then rescans filtered pages.
 
@@ -203,7 +216,7 @@ resets settings once for 1.4.0 users; no migration code exists by design.
 
 ## Current verification and limits
 
-For v1.9.0, run `npm ci`, `npm test`, `npm run build`, and
+For v1.10.0, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
 The packages now contain 22 files; the stable extension IDs and permissions are
@@ -231,6 +244,16 @@ highlight list, and faint outline appearance. Chrome was unavailable through the
 browser-control tool, so the permitted Brave fallback was used. No installed
 extension or real browser extension setting was changed. These previews do not
 establish live X bookmark-count availability or Firefox rendering.
+
+Version 1.10.0 (2026-09-29): a review of 1.9.0 found that settings text from an
+earlier release failed to load, the highlight outline overrode X's focus ring
+and was nearly invisible on Dim/Lights out, and the right-click menu reported
+"Added" while that site's whitelist was switched off. All three are fixed, and
+`xBookmarkHighlightShown` separates the feed edge from detection/recording.
+`npm test` (175 tests), build (22 files per package), and Firefox lint (zero
+errors, notices, warnings) passed. A synthetic three-theme mockup (white, #15202b,
+#000) rendered in the in-app browser confirmed the amber edge is visible on all
+three, where the 1.9.0 outline was not. Not yet observed on a live X feed.
 
 Initial engagement/history verification (v1.6.1, 2026-09-28): 140 tests passed,
 both 17-file packages built, and

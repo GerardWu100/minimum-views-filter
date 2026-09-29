@@ -22,19 +22,20 @@
     xKeepBookmarkPercent: 0.5,
     xBookmarkHighlightEnabled: true,
     xHighlightBookmarkPercent: 1,
+    xBookmarkHighlightShown: true,
   });
   const MAXIMUM_VIEWS = 1_000_000_000_000;
   const X_RATIO_SETTING_KEYS = Object.freeze([
     "xLowLikeRatioEnabled", "xMinimumLikePercent",
     "xHighLikeRatioEnabled", "xKeepLikePercent",
     "xHighBookmarkRatioEnabled", "xKeepBookmarkPercent",
-    "xBookmarkHighlightEnabled", "xHighlightBookmarkPercent",
+    "xBookmarkHighlightEnabled", "xHighlightBookmarkPercent", "xBookmarkHighlightShown",
   ]);
   const PERCENT_SETTING_KEYS = Object.freeze([
     "xMinimumLikePercent", "xKeepLikePercent", "xKeepBookmarkPercent", "xHighlightBookmarkPercent",
   ]);
   const X_RATIO_TOGGLE_KEYS = Object.freeze([
-    "xLowLikeRatioEnabled", "xHighLikeRatioEnabled", "xHighBookmarkRatioEnabled", "xBookmarkHighlightEnabled",
+    "xLowLikeRatioEnabled", "xHighLikeRatioEnabled", "xHighBookmarkRatioEnabled", "xBookmarkHighlightEnabled", "xBookmarkHighlightShown",
   ]);
   // Browser-account sync storage: Chrome/Firefox copy it between computers;
   // Brave keeps it on this computer only.
@@ -164,13 +165,15 @@
    * text : string
    *     JSON produced by formatSettingsTransfer, possibly from another browser:
    *     A JSON object containing the format marker, site minimums and toggles,
-   *     whitelists, unknown-count policy, and all X ratio settings.
+   *     whitelists, unknown-count policy, and X ratio/highlight settings.
+   *     Text from an earlier release may lack settings added since then.
    *
    * Returns
    * -------
    * object | null
-   *     Normalized settings, or null when the format marker or any setting is
-   *     missing or invalid. Whitelist entries may use any accepted spelling.
+   *     Normalized settings, or null when the format marker or every setting
+   *     is missing, or any included setting is invalid. Absent settings take their defaults.
+   *     Whitelist entries may use any accepted spelling.
    */
   function parseSettingsTransfer(text) {
     let value;
@@ -180,8 +183,12 @@
       return null;
     }
     if (!value || typeof value !== "object" || Array.isArray(value) || value.format !== TRANSFER_FORMAT) return null;
+    // A marker without any setting is not a settings export from any release.
+    if (!Object.keys(DEFAULTS).some((key) => Object.hasOwn(value, key))) return null;
     const settings = normalizeSettings(value);
     for (const key of Object.keys(DEFAULTS)) {
+      // Another browser may run an earlier release that lacks newer settings.
+      if (!Object.hasOwn(value, key)) continue;
       const raw = value[key];
       const valid = Array.isArray(settings[key])
         ? Array.isArray(raw) && raw.every((entry) => normalizeAccountIdentifier(entry, key.replace("Whitelist", "")) !== null)

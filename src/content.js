@@ -211,6 +211,9 @@
     const nextHighlighted = new Set();
     const previousHighlighted = new Set();
     const locale = document.documentElement.lang || navigator.language || "en";
+    // Detection needs bookmark reads only when its result is shown or recorded.
+    const highlightDetected = SITE === "x" && settings.xBookmarkHighlightEnabled
+      && (settings.xBookmarkHighlightShown || settings.statisticsEnabled);
     let historyItems = [];
     const recordBatch = () => {
       if (!historyItems.length) return;
@@ -251,11 +254,10 @@
       for (const card of core.getCards(root, SITE)) {
         const views = core.getViewCount(card, SITE, locale);
         // The highlight also needs bookmarks on posts that pass all hide rules.
-        // When it is disabled, keep the shortcut for irrelevant engagement reads.
+        // When it is inactive, keep the shortcut for irrelevant engagement reads.
         const engagement = SITE === 'x' && views > 0 && (
-          settings.xBookmarkHighlightEnabled
-          ||
-          (settings.xLowLikeRatioEnabled && settings.xMinimumLikePercent > 0)
+          highlightDetected
+          || (settings.xLowLikeRatioEnabled && settings.xMinimumLikePercent > 0)
           || (settings.xMinimumViewsEnabled && views < settings.xMinimumViews && (settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled))
         )
           ? core.getXEngagement(card, locale) : {likes: null, bookmarks: null};
@@ -265,10 +267,11 @@
           && core.getCreatorIdentifiers(card, SITE).some((identifier) => whitelist.has(identifier));
         if (!reason) recordedHiddenCards.delete(card);
         if (!keptBy) recordedKeptCards.delete(card);
-        const highlighted = SITE === 'x' && (!reason || whitelisted)
+        // A qualifying post is recorded even while its outline is switched off.
+        const highlighted = highlightDetected && (!reason || whitelisted)
           && core.shouldHighlightX(views, engagement.bookmarks, settings);
         if (highlighted) {
-          nextHighlighted.add(card);
+          if (settings.xBookmarkHighlightShown) nextHighlighted.add(card);
           recordOutcome(recordedHighlightedCards, card, {outcome: "highlighted", reason: "high-bookmark-ratio", views, ...engagement});
         } else {
           recordedHighlightedCards.delete(card);
@@ -380,15 +383,23 @@
     contextMenuCreator = creatorAt(event.target);
   }
 
-  /** Add an identifier to this site's synced whitelist; storage change rescans. */
+  /**
+   * Add an identifier to this site's synced whitelist; storage change rescans.
+   * Returns "added", "present", "full", or "switched-off" when the entry is
+   * stored but the site's whitelist switch keeps it from taking effect.
+   */
   async function whitelistCreator(identifier) {
     const key = SITE + "Whitelist";
-    const current = normalizeSettings(await extension.storage[STORAGE_AREA].get(key))[key];
-    if (current.includes(identifier)) return "present";
-    const update = {[key]: [...current, identifier]};
-    if (oversizedSyncKeys(update).length) return "full";
-    await extension.storage[STORAGE_AREA].set(update);
-    return "added";
+    const switchKey = SITE + "WhitelistEnabled";
+    const stored = normalizeSettings(await extension.storage[STORAGE_AREA].get([key, switchKey]));
+    const current = stored[key];
+    const result = current.includes(identifier) ? "present" : "added";
+    if (result === "added") {
+      const update = {[key]: [...current, identifier]};
+      if (oversizedSyncKeys(update).length) return "full";
+      await extension.storage[STORAGE_AREA].set(update);
+    }
+    return stored[switchKey] ? result : "switched-off";
   }
 
   /** Answer the background's context-menu request with sendResponse (Chrome and Firefox). */

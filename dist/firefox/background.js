@@ -18,6 +18,7 @@
   const RESULT_FEEDBACK = {
     added: {text: "✓", title: "Added to whitelist"},
     present: {text: "✓", title: "Already in whitelist"},
+    "switched-off": {text: "!", title: "In whitelist, but the whitelist is switched off in Settings"},
     missing: {text: "?", title: "No creator found where you right-clicked"},
     full: {text: "!", title: "Whitelist is too long to sync"},
     failed: {text: "!", title: "Could not update whitelist"},

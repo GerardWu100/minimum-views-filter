@@ -32,15 +32,19 @@
     {key: "xKeepBookmarkPercent", input: document.getElementById("x-keep-bookmark-percent")},
     {key: "xBookmarkHighlightEnabled", input: document.getElementById("x-bookmark-highlight-enabled")},
     {key: "xHighlightBookmarkPercent", input: document.getElementById("x-highlight-bookmark-percent")},
+    {key: "xBookmarkHighlightShown", input: document.getElementById("x-bookmark-highlight-shown")},
   ];
+  const highlightDetection = document.getElementById("x-bookmark-highlight-enabled");
+  const highlightShown = document.getElementById("x-bookmark-highlight-shown");
   const ratioThresholds = [
     ["x-low-like-ratio-enabled", "x-minimum-like-percent", "xMinimumLikePercent"],
     ["x-high-like-ratio-enabled", "x-keep-like-percent", "xKeepLikePercent"],
     ["x-high-bookmark-ratio-enabled", "x-keep-bookmark-percent", "xKeepBookmarkPercent"],
     ["x-bookmark-highlight-enabled", "x-highlight-bookmark-percent", "xHighlightBookmarkPercent"],
   ];
+  const DEFAULT_SETTINGS = normalizeSettings();
   const SWITCH_ANIMATION_DELAY_MS = 100;
-  let lastSavedSettings = normalizeSettings();
+  let lastSavedSettings = DEFAULT_SETTINGS;
 
   function validMinimum(input) {
     const value = Number(input.value);
@@ -83,6 +87,8 @@
       threshold.disabled = !xActive || !toggle.checked;
       if (threshold.disabled && !validPercent(threshold)) threshold.value = lastSavedSettings[settingKey];
     }
+    // Showing the edge depends on detection; recording depends on statistics.
+    highlightShown.disabled = !xActive || !highlightDetection.checked;
   }
 
   function showSettings(settings) {
@@ -98,7 +104,7 @@
     hideUnknown.checked = settings.hideUnknown;
     statisticsEnabled.checked = settings.statisticsEnabled;
     for (const {key, input} of ratioFields) {
-      if (key.endsWith("Enabled")) input.checked = settings[key];
+      if (typeof DEFAULT_SETTINGS[key] === "boolean") input.checked = settings[key];
       else input.value = settings[key];
     }
     updateControlAvailability();
@@ -136,7 +142,7 @@
       }
     }
     for (const {key, input} of ratioFields) {
-      if (key.endsWith("Enabled")) {
+      if (typeof DEFAULT_SETTINGS[key] === "boolean") {
         settings[key] = input.checked;
         continue;
       }

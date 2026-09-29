@@ -773,6 +773,19 @@ test('context menu whitelists the X card author, not a mentioned account, and re
   assert.equal(storage.writes.length, 1);
 });
 
+test('context menu stores the author but reports a switched-off whitelist', async (t) => {
+  const {window, document, storage} = openContent(t, {html: xCard(1, '800', 'writer'), stored: {xWhitelistEnabled: false}});
+  await wait();
+  rightClick(window, document.querySelector('#post-1 time'));
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'switched-off', identifier: 'writer'});
+  assert.deepEqual(storage.writes, [{xWhitelist: ['writer']}]);
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  rightClick(window, document.querySelector('#post-1 time'));
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'switched-off', identifier: 'writer'});
+  assert.equal(storage.writes.length, 1);
+});
+
 test('context menu uses the right-clicked post when one X cell holds two posts', async (t) => {
   const html = '<div data-testid="cellInnerDiv" id="thread">' + xCard(1, '800', 'first').replace(/^<div[^>]*>|<\/div>$/g, '') + xCard(2, '800', 'second').replace(/^<div[^>]*>|<\/div>$/g, '') + '</div>';
   const {window, document, storage} = openContent(t, {html});
@@ -848,7 +861,7 @@ test('popup copies settings as text and loads pasted text for review before savi
   assert.ok(window);
 });
 
-test('popup rejects incomplete or invalid pasted settings without changing the form', async (t) => {
+test('popup rejects invalid or empty pasted settings without changing the form', async (t) => {
   const {document, storage} = openPopup(t, {stored: {xMinimumViews: 2500}});
   await wait(0);
   const valid = JSON.parse(require('../src/settings.js').formatSettingsTransfer({}));
@@ -1159,4 +1172,35 @@ test('view minimum and whitelist switches apply independently on YouTube', async
   storage.change({hideUnknown: false});
   await wait();
   assertVisible(window, '#video-2', true);
+});
+
+test('hiding the feed highlight keeps recording qualifying posts until detection or statistics stop', async (t) => {
+  const {document, storage} = openContent(t, {
+    html: xEngagementCard(1, '1000', 10, 20),
+    stored: {xBookmarkHighlightShown: false},
+  });
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  assert.equal(highlightedItems(storage).length, 1);
+  storage.change({xBookmarkHighlightShown: true});
+  await wait();
+  assert.equal(hasHighlight(document), true);
+  // The same continuous state is not recorded again when only the edge changes.
+  assert.equal(highlightedItems(storage).length, 1);
+  storage.change({xBookmarkHighlightShown: false});
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  document.body.insertAdjacentHTML('beforeend', xEngagementCard(2, '1000', 10, 20));
+  await wait();
+  assert.equal(hasHighlight(document, 2), false);
+  assert.equal(highlightedItems(storage).length, 2);
+  storage.change({statisticsEnabled: false});
+  document.body.insertAdjacentHTML('beforeend', xEngagementCard(3, '1000', 10, 20));
+  await wait();
+  assert.equal(highlightedItems(storage).length, 2);
+  storage.change({statisticsEnabled: true, xBookmarkHighlightEnabled: false});
+  document.body.insertAdjacentHTML('beforeend', xEngagementCard(4, '1000', 10, 20));
+  await wait();
+  assert.equal(highlightedItems(storage).length, 2);
+  assert.equal(document.querySelectorAll('[data-minimum-views-highlighted]').length, 0);
 });

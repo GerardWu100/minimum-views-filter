@@ -12,9 +12,10 @@ high likes-to-views or saves-to-views ratios, even below your view minimum.
 It never clicks anything or requests platform data. Hidden items become eligible
 again when their displayed counts meet your rules.
 
-X posts above your bookmarks/views highlight threshold get a faint inset teal
-outline, with no animation or layout change. It defaults to **above 1%** and can
-be switched off independently of filtering.
+X posts above your bookmarks/views highlight threshold get a thin amber edge on
+their left side with a soft fading wash, with no animation or layout change. It
+defaults to **above 1%**, works in X's light, Dim, and Lights out themes, and can
+be hidden while Statistics keeps recording those posts.
 
 The toolbar popup opens separate **Settings** and **Statistics** pages. Statistics
 shows hidden, kept-by-engagement, and highlighted posts with separate recent-link
@@ -126,7 +127,8 @@ Official instructions: [Chrome unpacked extensions](https://developer.chrome.com
 
 “Hide unknown view counts” is optional and off by default. Every behavior has an
 off switch: each site's master switch, view minimum, whitelist, each X engagement
-rule, bookmark highlighting, unknown-count hiding, and statistics collection.
+rule, bookmark highlight detection and its feed edge, unknown-count hiding, and
+statistics collection.
 Switches preserve their thresholds and lists for later use. Disabling a view
 minimum leaves the other rules active. For example, set **X to 10,000** and
 **YouTube to 1,000**. Saving settings updates open supported pages automatically.
@@ -173,16 +175,26 @@ small view counts can swing sharply; this version has no minimum sample-size rul
 
 ## Subtle bookmark highlighting
 
-**Highlight high bookmarks/views** applies a faint inset teal outline to visible X
-Home posts when bookmarks divided by views is **strictly above** your percentage
-(default 1%). For example, 11 bookmarks / 1,000 views highlights; 10 / 1,000 does
-not. This accent has no animation, badges, or layout shift.
+Settings → **Bookmark highlight** has two switches:
 
-The highlight has its own switch and threshold. It does not keep an otherwise
+| Switch | Effect |
+|---|---|
+| **Detect high bookmarks/views** | Finds visible X Home posts whose bookmarks divided by views is **strictly above** the percentage (default 1%), for Statistics and the feed edge |
+| **Show highlight in feed** | Draws a 3px amber edge on the post's left side and a soft wash that fades out within the first third of the post |
+
+For example, 11 bookmarks / 1,000 views highlights; 10 / 1,000 does not. Turn
+**Show highlight in feed** off to keep the feed unchanged while Statistics keeps
+recording qualifying posts under **Highlighted**. The mid-tone amber reads on
+X's white, Dim, and Lights out backgrounds without detecting the theme. It adds no
+animation, badges, or layout shift, keeps X's hover color underneath, and leaves
+the outline free for X's keyboard focus ring. High-contrast (forced colors) mode
+uses a system-colored outline instead.
+
+Detection has its own switch and threshold. It does not keep an otherwise
 hidden post visible; the filtering and keep rules decide that separately.
 Whitelisted posts can highlight. Zero/unknown views or unknown bookmarks cannot
 highlight, and quoted-post counts never qualify the containing post. Counts and
-settings changes remove or apply the outline automatically. X's master switch
+settings changes remove or apply the edge automatically. X's master switch
 disables both filtering and highlighting. The feature operates on X Home only.
 
 ## Filtered items and statistics
@@ -205,7 +217,8 @@ pass your rules anyway, and whitelisted creators, are not counted.
 The **Hidden** tab lists the latest **500 identifiable items** across both sites.
 Chips filter by site and reason. **Kept by high engagement** lists the latest 500
 kept X posts separately, each labeled with the rule that would have hidden it.
-**Highlighted** has its own total and latest 500 links. A post may be both kept
+**Highlighted** has its own total and latest 500 links, including posts detected
+while **Show highlight in feed** is off. A post may be both kept
 and highlighted, so these totals overlap and should not be added together.
 Entries show a link, post snippet or video title, the reason, counts/ratios at the
 time of the event, and the last event time. Repeated URLs share one recent entry.
@@ -238,7 +251,9 @@ entries are never consulted to decide whether an item should be shown.
 
 **Right-click** a post or video on X or YouTube and choose **Always show this
 creator**. The toolbar icon briefly shows ✓ (added or already listed), ? (no creator
-found where you clicked) or ! (whitelist too long to sync, or storage failed).
+found where you clicked) or ! (whitelist too long to sync, storage failed, or the
+creator was saved while that site's whitelist switch is off; hover the icon for
+which).
 Inside a card this is always the card's author, never a mentioned or quoted
 account. Outside cards, right-click a profile or channel link, such as the
 channel name below a YouTube video. It works on every X/YouTube page, not only
@@ -281,7 +296,8 @@ Settings are saved in the browser's extension **sync storage**:
 To move settings anywhere, including between Brave and Firefox, open **Copy
 settings to another browser** in Settings and click **Copy**. In the other
 browser, paste the text into the same box, click **Load pasted**, check the
-values, and click **Save**.
+values, and click **Save**. Text copied from an earlier version loads too;
+settings it does not contain use their defaults.
 
 ## Performance
 
@@ -293,9 +309,9 @@ Creator metadata is checked only when a card would otherwise be hidden. Nested
 YouTube author containers share one link scan; X author checks stop as soon as
 conflicting identities rule out an exemption. Creator links are read fresh each time.
 X engagement counters share one subtree query. If the low-like rule is disabled
-or set to zero, and highlighting is off, cards meeting the view minimum skip
-engagement parsing. Highlighting needs bookmark reads even on otherwise eligible
-posts; disabling statistics skips history metadata and reporting.
+or set to zero, and highlight detection is off (or both its feed edge and
+statistics are off), cards meeting the view minimum skip engagement parsing.
+Detection needs bookmark reads even on otherwise eligible posts; disabling statistics skips history metadata and reporting.
 Local history also avoids reparsing links already in canonical form.
 
 In a synthetic 200-card feed, 20 single-card count changes required **20 count

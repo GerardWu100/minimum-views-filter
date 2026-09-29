@@ -1,7 +1,21 @@
 html[data-minimum-views-active] [data-minimum-views-hidden] { display: none !important; }
 
-/* A faint inset outline adds no layout shift, overlay, animation, or controls. */
+/*
+ * Bookmark highlight: a thin warm edge on the post's left side with a soft
+ * wash that fades out within the first third of the post. The mid-tone amber
+ * reads on X's Default (white), Dim (#15202b) and Lights out (#000) themes
+ * without a theme check. An inset shadow and a background image add no layout
+ * shift, keep X's hover background color underneath, and leave the outline
+ * free for X's keyboard focus ring.
+ */
 html[data-minimum-views-active] [data-minimum-views-highlighted] {
-  outline: 2px solid rgb(38 153 137 / 35%);
-  outline-offset: -2px;
+  box-shadow: inset 3px 0 0 rgb(232 170 60 / 80%);
+  background-image: linear-gradient(90deg, rgb(232 170 60 / 12%), rgb(232 170 60 / 0%) 35%);
+}
+/* Forced-colors mode drops shadows and backgrounds; keep a system-colored outline. */
+@media (forced-colors: active) {
+  html[data-minimum-views-active] [data-minimum-views-highlighted] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }

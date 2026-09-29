@@ -56,7 +56,7 @@ for (const namespace of ['browser', 'chrome']) {
     const {document, writes, submit, change} = openPage(t, 'options.html', namespace, {
       xMinimumViews: 1200, xMinimumLikePercent: 1.25,
       xHighLikeRatioEnabled: false, xKeepLikePercent: 4.5,
-      xBookmarkHighlightEnabled: false, xHighlightBookmarkPercent: 1.8,
+      xBookmarkHighlightEnabled: false, xHighlightBookmarkPercent: 1.8, xBookmarkHighlightShown: false,
     });
     await tick();
     assert.equal(document.title, 'Settings · Minimum Views Filter');
@@ -66,7 +66,11 @@ for (const namespace of ['browser', 'chrome']) {
     assert.equal(document.querySelector('#x-keep-like-percent').value, '4.5');
     assert.equal(document.querySelector('#x-highlight-bookmark-percent').value, '1.8');
     assert.equal(document.querySelector('#x-highlight-bookmark-percent').disabled, true);
+    assert.equal(document.querySelector('#x-bookmark-highlight-shown').checked, false);
+    assert.equal(document.querySelector('#x-bookmark-highlight-shown').disabled, true);
     change('#x-bookmark-highlight-enabled', true);
+    assert.equal(document.querySelector('#x-bookmark-highlight-shown').disabled, false);
+    change('#x-bookmark-highlight-shown', true);
     document.querySelector('#x-highlight-bookmark-percent').value = '2.3';
     change('#x-minimum-views-enabled', false);
     change('#youtube-whitelist-enabled', false);
@@ -82,6 +86,7 @@ for (const namespace of ['browser', 'chrome']) {
     assert.equal(writes[0].hideUnknown, true);
     assert.equal(writes[0].xBookmarkHighlightEnabled, true);
     assert.equal(writes[0].xHighlightBookmarkPercent, 2.3);
+    assert.equal(writes[0].xBookmarkHighlightShown, true);
     assert.match(document.querySelector('#status').textContent, /Saved/);
   });
 }
@@ -97,7 +102,7 @@ test('site and rule switches disable child editing without deleting stored value
     '#x-minimum-views-enabled', '#x-minimum-views', '#x-whitelist-enabled', '#x-whitelist',
     '#x-low-like-ratio-enabled', '#x-minimum-like-percent', '#x-high-like-ratio-enabled',
     '#x-keep-like-percent', '#x-high-bookmark-ratio-enabled', '#x-keep-bookmark-percent',
-    '#x-bookmark-highlight-enabled', '#x-highlight-bookmark-percent',
+    '#x-bookmark-highlight-enabled', '#x-highlight-bookmark-percent', '#x-bookmark-highlight-shown',
   ]) assert.equal(document.querySelector(selector).disabled, true, selector);
   assert.equal(document.querySelector('#youtube-enabled').disabled, false);
   assert.equal(document.querySelector('#hide-unknown').disabled, false);
