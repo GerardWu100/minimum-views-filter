@@ -38,10 +38,10 @@ counts, and the site's own logging can still leave gaps.
 
 ## Install
 
-Download version 1.12.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.12.0):
+Download version 1.13.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.13.0):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.12.0/minimum-views-filter-chrome-brave-1.12.0.zip)
-- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.12.0/minimum-views-filter-firefox-1.12.0.xpi)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.13.0/minimum-views-filter-chrome-brave-1.13.0.zip)
+- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.13.0/minimum-views-filter-firefox-1.13.0.xpi)
 
 Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 
