@@ -18,8 +18,11 @@ the platform through negative-feedback actions.
   a known numerator; missing likes/bookmarks are unknown, never implicit zero.
 - Whitelisted X accounts bypass all filtering ratio rules as well as the view rules.
 - Optionally highlight visible X Home posts strictly above an adjustable
-  bookmarks/views percentage (default 1%) using a faint inset outline. This
-  independent switch never rescues a hidden post; whitelisted posts may highlight.
+  bookmarks/views percentage (default 1%) AND, while its switch is on, strictly
+  above an adjustable likes/views percentage (default 2%) (user request
+  2026-09-29), using a thin left-edge accent with no background tint. A
+  separate switch hides the accent while statistics keep recording. This
+  independent rule never rescues a hidden post; whitelisted posts may highlight.
   Track highlighted events and a separate 500-link list locally, under the same
   bounded, never-a-blacklist history rules.
 - Keep Settings and Statistics on separate pages. Give every behavioral setting

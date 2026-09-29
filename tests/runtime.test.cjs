@@ -1042,10 +1042,13 @@ test('X posts kept by high engagement are recorded once per continuous kept stat
 });
 
 const highlightedItems = (storage) => recordedItems(storage).filter((item) => item.outcome === 'highlighted');
+// These cards have 1% likes/views, below the 2% default likes condition; tests of
+// the bookmark side switch that condition off.
+const BOOKMARK_ONLY_HIGHLIGHT = {xHighlightLikeRequired: false};
 const hasHighlight = (document, id = 1) => document.querySelector('#post-' + id).hasAttribute('data-minimum-views-highlighted');
 
 test('X highlight reacts to strict boundaries, hidden counters, missing counts and recycled URLs', async (t) => {
-  const {document, storage} = openContent(t, {html: xEngagementCard(1, '1000', 10, 10)});
+  const {document, storage} = openContent(t, {html: xEngagementCard(1, '1000', 10, 10), stored: BOOKMARK_ONLY_HIGHLIGHT});
   await wait();
   assert.equal(hasHighlight(document), false);
   const bookmarks = document.querySelector('[data-testid="bookmark"]');
@@ -1076,7 +1079,7 @@ test('X highlight reacts to strict boundaries, hidden counters, missing counts a
 test('highlight alone never rescues a hidden card and can coexist with kept and whitelisted posts', async (t) => {
   const {window, document, storage} = openContent(t, {
     html: xEngagementCard(1, '500', 0, 20),
-    stored: {xHighBookmarkRatioEnabled: false},
+    stored: {...BOOKMARK_ONLY_HIGHLIGHT, xHighBookmarkRatioEnabled: false},
   });
   await wait();
   assertVisible(window, '#cell-1', false);
@@ -1100,7 +1103,7 @@ test('highlight alone never rescues a hidden card and can coexist with kept and 
 });
 
 test('highlight marks clean up on settings, route changes and lost identities without touching foreign state', async (t) => {
-  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '1000', 10, 20)});
+  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '1000', 10, 20), stored: BOOKMARK_ONLY_HIGHLIGHT});
   const card = document.querySelector('article');
   card.className = 'foreign';
   card.style.color = 'red';
@@ -1135,7 +1138,7 @@ test('highlight marks clean up on settings, route changes and lost identities wi
 test('statistics switch stops all recording while filters and highlight remain active', async (t) => {
   const {window, document, storage} = openContent(t, {
     html: xEngagementCard(1, '500', 0) + xEngagementCard(2, '1000', 10, 20),
-    stored: {statisticsEnabled: false},
+    stored: {...BOOKMARK_ONLY_HIGHLIGHT, statisticsEnabled: false},
   });
   await wait();
   assertVisible(window, '#cell-1', false);
@@ -1177,7 +1180,7 @@ test('view minimum and whitelist switches apply independently on YouTube', async
 test('hiding the feed highlight keeps recording qualifying posts until detection or statistics stop', async (t) => {
   const {document, storage} = openContent(t, {
     html: xEngagementCard(1, '1000', 10, 20),
-    stored: {xBookmarkHighlightShown: false},
+    stored: {...BOOKMARK_ONLY_HIGHLIGHT, xBookmarkHighlightShown: false},
   });
   await wait();
   assert.equal(hasHighlight(document), false);
@@ -1203,4 +1206,28 @@ test('hiding the feed highlight keeps recording qualifying posts until detection
   await wait();
   assert.equal(highlightedItems(storage).length, 2);
   assert.equal(document.querySelectorAll('[data-minimum-views-highlighted]').length, 0);
+});
+
+test('default highlight needs both high bookmarks/views and high likes/views', async (t) => {
+  // 1,000 views, 10 likes (1%), 20 bookmarks (2%): bookmarks qualify, likes do not.
+  const {document, storage} = openContent(t, {html: xEngagementCard(1, '1000', 10, 20)});
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  assert.equal(highlightedItems(storage).length, 0);
+  const like = document.querySelector('#post-1 [data-testid="like"]');
+  like.setAttribute('aria-label', '20 Likes');
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  like.setAttribute('aria-label', '21 Likes');
+  await wait();
+  assert.equal(hasHighlight(document), true);
+  assert.equal(highlightedItems(storage).length, 1);
+  assert.equal(highlightedItems(storage)[0].likes, 21);
+  // A removed likes counter is unknown, which cannot satisfy the condition.
+  like.remove();
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  storage.change({xHighlightLikeRequired: false});
+  await wait();
+  assert.equal(hasHighlight(document), true);
 });

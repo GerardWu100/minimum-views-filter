@@ -33,9 +33,13 @@
     {key: "xBookmarkHighlightEnabled", input: document.getElementById("x-bookmark-highlight-enabled")},
     {key: "xHighlightBookmarkPercent", input: document.getElementById("x-highlight-bookmark-percent")},
     {key: "xBookmarkHighlightShown", input: document.getElementById("x-bookmark-highlight-shown")},
+    {key: "xHighlightLikeRequired", input: document.getElementById("x-highlight-like-required")},
+    {key: "xHighlightLikePercent", input: document.getElementById("x-highlight-like-percent")},
   ];
   const highlightDetection = document.getElementById("x-bookmark-highlight-enabled");
   const highlightShown = document.getElementById("x-bookmark-highlight-shown");
+  const highlightLikeRequired = document.getElementById("x-highlight-like-required");
+  const highlightLikePercent = document.getElementById("x-highlight-like-percent");
   const ratioThresholds = [
     ["x-low-like-ratio-enabled", "x-minimum-like-percent", "xMinimumLikePercent"],
     ["x-high-like-ratio-enabled", "x-keep-like-percent", "xKeepLikePercent"],
@@ -87,8 +91,14 @@
       threshold.disabled = !xActive || !toggle.checked;
       if (threshold.disabled && !validPercent(threshold)) threshold.value = lastSavedSettings[settingKey];
     }
-    // Showing the edge depends on detection; recording depends on statistics.
+    // Showing the edge and the likes condition depend on detection;
+    // recording depends on statistics.
     highlightShown.disabled = !xActive || !highlightDetection.checked;
+    highlightLikeRequired.disabled = !xActive || !highlightDetection.checked;
+    highlightLikePercent.disabled = highlightLikeRequired.disabled || !highlightLikeRequired.checked;
+    if (highlightLikePercent.disabled && !validPercent(highlightLikePercent)) {
+      highlightLikePercent.value = lastSavedSettings.xHighlightLikePercent;
+    }
   }
 
   function showSettings(settings) {

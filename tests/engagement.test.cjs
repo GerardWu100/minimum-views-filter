@@ -120,17 +120,35 @@ test('decision reports which high-engagement rule kept a card and the hide rule 
 });
 
 test('bookmark highlighting is strict at integer and decimal thresholds and needs known positive views', () => {
-  const settings = normalizeSettings({xHighlightBookmarkPercent: 1});
-  assert.equal(core.shouldHighlightX(1000, 9, settings), false);
-  assert.equal(core.shouldHighlightX(1000, 10, settings), false);
-  assert.equal(core.shouldHighlightX(1000, 11, settings), true);
-  assert.equal(core.shouldHighlightX(10000, 7, {...settings, xHighlightBookmarkPercent: 0.07}), false);
-  assert.equal(core.shouldHighlightX(10000, 8, {...settings, xHighlightBookmarkPercent: 0.07}), true);
-  for (const views of [null, 0]) assert.equal(core.shouldHighlightX(views, 100, settings), false);
-  assert.equal(core.shouldHighlightX(1000, null, settings), false);
-  assert.equal(core.shouldHighlightX(1000, 100, {...settings, xBookmarkHighlightEnabled: false}), false);
-  assert.equal(core.shouldHighlightX(1000, 0, {...settings, xHighlightBookmarkPercent: 0}), false);
-  assert.equal(core.shouldHighlightX(1000, 1, {...settings, xHighlightBookmarkPercent: 0}), true);
+  // The likes condition is off here; the next test covers the combined rule.
+  const settings = normalizeSettings({xHighlightBookmarkPercent: 1, xHighlightLikeRequired: false});
+  const highlight = (views, bookmarks, overrides = {}) => core.shouldHighlightX(views, {likes: null, bookmarks}, {...settings, ...overrides});
+  assert.equal(highlight(1000, 9), false);
+  assert.equal(highlight(1000, 10), false);
+  assert.equal(highlight(1000, 11), true);
+  assert.equal(highlight(10000, 7, {xHighlightBookmarkPercent: 0.07}), false);
+  assert.equal(highlight(10000, 8, {xHighlightBookmarkPercent: 0.07}), true);
+  for (const views of [null, 0]) assert.equal(highlight(views, 100), false);
+  assert.equal(highlight(1000, null), false);
+  assert.equal(highlight(1000, 100, {xBookmarkHighlightEnabled: false}), false);
+  assert.equal(highlight(1000, 0, {xHighlightBookmarkPercent: 0}), false);
+  assert.equal(highlight(1000, 1, {xHighlightBookmarkPercent: 0}), true);
+});
+
+test('highlighting with the likes condition needs both ratios strictly above their thresholds', () => {
+  // Defaults: bookmarks/views > 1% AND likes/views > 2%.
+  const settings = normalizeSettings();
+  const highlight = (likes, bookmarks, overrides = {}) => core.shouldHighlightX(1000, {likes, bookmarks}, {...settings, ...overrides});
+  assert.equal(highlight(21, 11), true);
+  assert.equal(highlight(20, 11), false);
+  assert.equal(highlight(21, 10), false);
+  assert.equal(highlight(500, 5), false);
+  assert.equal(highlight(5, 500), false);
+  // Unknown likes cannot satisfy the condition; they never count as zero or as high.
+  assert.equal(highlight(null, 11), false);
+  assert.equal(highlight(null, 11, {xHighlightLikeRequired: false}), true);
+  assert.equal(highlight(8, 11, {xHighlightLikePercent: 0.7}), true);
+  assert.equal(highlight(7, 11, {xHighlightLikePercent: 0.7}), false);
 });
 
 test('view-floor switches leave unknown-view and X engagement rules independent', () => {

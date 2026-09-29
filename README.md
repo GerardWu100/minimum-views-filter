@@ -12,11 +12,11 @@ high likes-to-views or saves-to-views ratios, even below your view minimum.
 It never clicks anything or requests platform data. Hidden items become eligible
 again when their displayed counts meet your rules.
 
-X posts above your bookmarks/views highlight threshold get a thin amber edge on
-their left side; the background behind the text is unchanged, with no animation
-or layout change. It
-defaults to **above 1%**, works in X's light, Dim, and Lights out themes, and can
-be hidden while Statistics keeps recording those posts.
+X posts with both high bookmarks/views (default **above 1%**) and high
+likes/views (default **above 2%**) get a thin amber edge on their left side; the
+background behind the text is unchanged, with no animation or layout change. It
+works in X's light, Dim, and Lights out themes, and can be hidden while
+Statistics keeps recording those posts.
 
 The toolbar popup opens separate **Settings** and **Statistics** pages. Statistics
 shows hidden, kept-by-engagement, and highlighted posts with separate recent-link
@@ -174,16 +174,19 @@ opens posts to retrieve one. See [X's bookmark-count explanation](https://help.x
 These are editable screening defaults, not evidence of quality. Ratios from very
 small view counts can swing sharply; this version has no minimum sample-size rule.
 
-## Subtle bookmark highlighting
+## Subtle engagement highlighting
 
-Settings → **Bookmark highlight** has two switches:
+Settings → **Highlight** has these switches:
 
 | Switch | Effect |
 |---|---|
 | **Detect high bookmarks/views** | Finds visible X Home posts whose bookmarks divided by views is **strictly above** the percentage (default 1%), for Statistics and the feed edge |
+| **Also require high likes/views** | The post must also have likes divided by views **strictly above** its percentage (default 2%); both conditions must hold |
 | **Show highlight in feed** | Draws a 3px amber edge on the post's left side, leaving the post background unchanged |
 
-For example, 11 bookmarks / 1,000 views highlights; 10 / 1,000 does not. Turn
+For example, with 1,000 views, 11 bookmarks and 21 likes highlights; 11 bookmarks
+and 20 likes does not, and neither do 10 bookmarks and 500 likes. Unknown likes
+cannot satisfy the likes condition; switch it off to highlight on bookmarks alone. Turn
 **Show highlight in feed** off to keep the feed unchanged while Statistics keeps
 recording qualifying posts under **Highlighted**. The mid-tone amber reads on
 X's white, Dim, and Lights out backgrounds without detecting the theme. It adds no
@@ -193,7 +196,7 @@ uses a system-colored outline instead.
 Detection has its own switch and threshold. It does not keep an otherwise
 hidden post visible; the filtering and keep rules decide that separately.
 Whitelisted posts can highlight. Zero/unknown views or unknown bookmarks cannot
-highlight, and quoted-post counts never qualify the containing post. Counts and
+highlight, nor can unknown likes while the likes condition is on, and quoted-post counts never qualify the containing post. Counts and
 settings changes remove or apply the edge automatically. X's master switch
 disables both filtering and highlighting. The feature operates on X Home only.
 

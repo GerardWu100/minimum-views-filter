@@ -411,30 +411,38 @@
   }
 
   /**
-   * Test the independent X bookmark highlight threshold.
+   * Test the independent X highlight thresholds.
    *
    * Parameters
    * ----------
    * views : number|null
    *     Current own-post views; only positive known counts can form a ratio.
-   * bookmarks : number|null
-   *     Current own-post bookmarks; missing counts remain unknown.
+   * engagement : {likes: number|null, bookmarks: number|null}
+   *     Current own-post counts; missing counts remain unknown.
    * settings : object
-   *     Normalized settings, with xHighlightBookmarkPercent in percent units.
+   *     Normalized settings. xHighlightBookmarkPercent and xHighlightLikePercent
+   *     are in percent units; xHighlightLikeRequired adds the likes condition.
    *
    * Returns
    * -------
    * boolean
-   *     True only when enabled and bookmarks/views is strictly above the
-   *     threshold. The caller limits this presentation to visible X Home cards.
+   *     True only when enabled, bookmarks/views is strictly above its
+   *     threshold, AND (when required) likes/views is strictly above its
+   *     threshold. Unknown likes cannot satisfy a required likes condition.
+   *     The caller limits this presentation to visible X Home cards.
    */
-  function shouldHighlightX(views, bookmarks, settings) {
-    if (!settings.xBookmarkHighlightEnabled || !(views > 0) || bookmarks === null) return false;
-    // For bookmarks b, views v and percent p: b/v > p/100 iff 100*b > p*v.
+  function shouldHighlightX(views, engagement, settings) {
+    if (!settings.xBookmarkHighlightEnabled || !(views > 0)) return false;
+    // For count c, views v and percent p: c/v > p/100 iff 100*c > p*v.
     // Treat floating-point rounding at equality as equality, not as a highlight.
-    const actual = bookmarks * PERCENT_SCALE;
-    const required = settings.xHighlightBookmarkPercent * views;
-    return actual - required > RATIO_COMPARISON_EPSILON * Math.max(actual, required);
+    const exceeds = (count, percent) => {
+      if (count === null) return false;
+      const actual = count * PERCENT_SCALE;
+      const required = percent * views;
+      return actual - required > RATIO_COMPARISON_EPSILON * Math.max(actual, required);
+    };
+    return exceeds(engagement.bookmarks, settings.xHighlightBookmarkPercent)
+      && (!settings.xHighlightLikeRequired || exceeds(engagement.likes, settings.xHighlightLikePercent));
   }
 
   /**

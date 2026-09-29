@@ -68,7 +68,14 @@ for (const namespace of ['browser', 'chrome']) {
     assert.equal(document.querySelector('#x-highlight-bookmark-percent').disabled, true);
     assert.equal(document.querySelector('#x-bookmark-highlight-shown').checked, false);
     assert.equal(document.querySelector('#x-bookmark-highlight-shown').disabled, true);
+    assert.equal(document.querySelector('#x-highlight-like-required').disabled, true);
+    assert.equal(document.querySelector('#x-highlight-like-percent').disabled, true);
     change('#x-bookmark-highlight-enabled', true);
+    assert.equal(document.querySelector('#x-highlight-like-percent').disabled, false);
+    change('#x-highlight-like-required', false);
+    assert.equal(document.querySelector('#x-highlight-like-percent').disabled, true);
+    change('#x-highlight-like-required', true);
+    document.querySelector('#x-highlight-like-percent').value = '3.1';
     assert.equal(document.querySelector('#x-bookmark-highlight-shown').disabled, false);
     change('#x-bookmark-highlight-shown', true);
     document.querySelector('#x-highlight-bookmark-percent').value = '2.3';
@@ -87,6 +94,8 @@ for (const namespace of ['browser', 'chrome']) {
     assert.equal(writes[0].xBookmarkHighlightEnabled, true);
     assert.equal(writes[0].xHighlightBookmarkPercent, 2.3);
     assert.equal(writes[0].xBookmarkHighlightShown, true);
+    assert.equal(writes[0].xHighlightLikeRequired, true);
+    assert.equal(writes[0].xHighlightLikePercent, 3.1);
     assert.match(document.querySelector('#status').textContent, /Saved/);
   });
 }
@@ -103,6 +112,7 @@ test('site and rule switches disable child editing without deleting stored value
     '#x-low-like-ratio-enabled', '#x-minimum-like-percent', '#x-high-like-ratio-enabled',
     '#x-keep-like-percent', '#x-high-bookmark-ratio-enabled', '#x-keep-bookmark-percent',
     '#x-bookmark-highlight-enabled', '#x-highlight-bookmark-percent', '#x-bookmark-highlight-shown',
+    '#x-highlight-like-required', '#x-highlight-like-percent',
   ]) assert.equal(document.querySelector(selector).disabled, true, selector);
   assert.equal(document.querySelector('#youtube-enabled').disabled, false);
   assert.equal(document.querySelector('#hide-unknown').disabled, false);

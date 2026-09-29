@@ -155,10 +155,13 @@ The popup is a compact launcher: `popup-nav.js` opens either `options.html`
 (Settings) or `history.html` (Statistics). The manifest's `options_ui` also opens
 Settings in a browser tab. Settings and statistics no longer share a page.
 
-`xBookmarkHighlightEnabled` (detection), `xHighlightBookmarkPercent`, and
-`xBookmarkHighlightShown` (feed edge) default to true, 1%, and true.
-`shouldHighlightX` uses a strict greater-than comparison with the same
-floating-point boundary allowance as filtering. Unknown bookmarks or
+`xBookmarkHighlightEnabled` (detection), `xHighlightBookmarkPercent`,
+`xBookmarkHighlightShown` (feed edge), `xHighlightLikeRequired`, and
+`xHighlightLikePercent` default to true, 1%, true, true, and 2%.
+`shouldHighlightX(views, engagement, settings)` requires bookmarks/views AND,
+when `xHighlightLikeRequired` is on, likes/views to be strictly above their
+thresholds (user request 2026-09-29), with the same floating-point boundary
+allowance as filtering. Unknown bookmarks, unknown likes while required, or
 zero/unknown views cannot highlight. Detection is active when enabled and either
 the edge is shown or statistics are collected; only then does the runtime read
 engagement on positive-view X cards that pass every filtering rule. A detected
@@ -215,7 +218,7 @@ resets settings once for 1.4.0 users; no migration code exists by design.
 
 ## Current verification and limits
 
-For v1.10.1, run `npm ci`, `npm test`, `npm run build`, and
+For v1.11.0, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
 The packages now contain 22 files; the stable extension IDs and permissions are
@@ -253,6 +256,10 @@ and was nearly invisible on Dim/Lights out, and the right-click menu reported
 errors, notices, warnings) passed. A synthetic three-theme mockup (white, #15202b,
 #000) rendered in the in-app browser confirmed the amber edge is visible on all
 three, where the 1.9.0 outline was not. Not yet observed on a live X feed.
+
+Version 1.11.0 (2026-09-29): the highlight requires high bookmarks/views AND high
+likes/views by default (`xHighlightLikeRequired`, `xHighlightLikePercent`). 177
+tests, build, and Firefox lint passed. Not released as a GitHub release or signed.
 
 Initial engagement/history verification (v1.6.1, 2026-09-28): 140 tests passed,
 both 17-file packages built, and

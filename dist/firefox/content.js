@@ -269,7 +269,7 @@
         if (!keptBy) recordedKeptCards.delete(card);
         // A qualifying post is recorded even while its outline is switched off.
         const highlighted = highlightDetected && (!reason || whitelisted)
-          && core.shouldHighlightX(views, engagement.bookmarks, settings);
+          && core.shouldHighlightX(views, engagement, settings);
         if (highlighted) {
           if (settings.xBookmarkHighlightShown) nextHighlighted.add(card);
           recordOutcome(recordedHighlightedCards, card, {outcome: "highlighted", reason: "high-bookmark-ratio", views, ...engagement});
