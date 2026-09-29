@@ -122,8 +122,8 @@
   function onMutations(records) {
     if (stopped || !ready || isSuspended()) return;
     if (checkNavigation() || fullScanRequired) {
-      // A pending full pass must not leave newly arrived X cards waiting either.
-      if (SITE === "x") scan();
+      // A pending full pass must not leave newly arrived cards waiting either.
+      scan();
       return;
     }
     // Text/attribute bursts often repeat one target; route each target once.
@@ -160,10 +160,10 @@
       }
       if (fullScanRequired) break;
     }
-    // Evaluate X once per delivered mutation batch, before yielding to rendering.
-    // Delaying these cards can let X report them as seen before they are hidden.
-    if (SITE === "x" && (fullScanRequired || pendingRoots.size)) scan();
-    else scheduleScan();
+    // Evaluate once per delivered mutation batch, before the browser paints.
+    // A delay lets a failing card blink on screen, and on X lets the site
+    // report it as seen, before it is hidden.
+    if (fullScanRequired || pendingRoots.size) scan();
   }
 
   const observer = new MutationObserver(onMutations);

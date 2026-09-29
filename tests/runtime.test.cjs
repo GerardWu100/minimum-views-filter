@@ -1307,3 +1307,24 @@ test('default highlight needs both high bookmarks/views and high likes/views', a
   await wait();
   assert.equal(hasHighlight(document), true);
 });
+
+test('YouTube filters inserted and hydrated cards before a timer can let them blink', async (t) => {
+  const {window, document, work} = openContent(t, {url: 'https://www.youtube.com/', html: youtubeCard(1, '2000')});
+  await wait();
+  const before = {...work};
+  document.body.insertAdjacentHTML('beforeend', youtubeCard(2, '999') + youtubeCard(3, '1000') + youtubeCard(4, null));
+  // Mutation delivery is a microtask; do not advance to the next timer/paint task.
+  await Promise.resolve();
+  assertVisible(window, '#video-2', false);
+  assertVisible(window, '#video-3', true);
+  assertVisible(window, '#video-4', true);
+  assert.equal(work.documentScans, before.documentScans);
+  // A card whose count hydrates later is hidden at that mutation checkpoint.
+  const card = document.querySelector('#video-4');
+  card.insertAdjacentHTML('beforeend', '<div id="metadata-line"><span class="inline-metadata-item">12 views</span></div>');
+  await Promise.resolve();
+  assertVisible(window, '#video-4', false);
+  const after = {...work};
+  await wait();
+  assert.deepEqual(work, after, 'Own hiding marks must not cause another pass');
+});

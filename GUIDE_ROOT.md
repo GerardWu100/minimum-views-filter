@@ -62,11 +62,12 @@ read no card. The observer routes remaining mutations through
 `getCardSelector` to the owning outer card or X cell. Added subtrees are
 inspected locally; unrelated sidebar/player changes are discarded.
 Overlapping scopes merge, and more than 32 pending scopes collapse into a full
-pass. X flushes routed changes once at the end of each delivered mutation batch,
-before yielding to rendering. This covers inserted/recycled cards and hydrated
-metadata. YouTube retains an 80 ms throttle; settings and page events also
-schedule full passes. An X mutation flushes any pending full pass and cancels its
-timeout, including when that mutation detects navigation. `getCards` includes a matching
+pass. Both sites flush routed changes once at the end of each delivered mutation
+batch, before the browser paints, so a failing card never blinks on screen when
+its count arrives with it (X since 1.11.1; YouTube since 1.11.2 at the user's
+request). This covers inserted/recycled cards and hydrated metadata. Settings and
+page events still schedule 80 ms full passes; a mutation flushes any pending full
+pass and cancels its timeout, including when that mutation detects navigation. `getCards` includes a matching
 Element root as well as descendants, so standalone inserted cards work.
 Startup, navigation, relevant settings, language changes and tab resume use full
 passes. X shared cells, lost card identities and quote-role changes reconcile their
@@ -237,7 +238,7 @@ The installed Brave extension was observed before this change; the rebuilt
 package has not been installed, reloaded, or tested against live X. See the
 [sanitized seen-list investigation](docs/x-seen-list-check.md).
 
-For v1.11.0, run `npm ci`, `npm test`, `npm run build`, and
+For v1.11.2, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
 The packages now contain 22 files; the stable extension IDs and permissions are

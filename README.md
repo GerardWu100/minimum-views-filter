@@ -29,9 +29,10 @@ and their own creator whitelist, and you can right-click a post to always show
 that creator. Works in Chrome, Brave, and Firefox.
 
 Hiding a post cannot guarantee that the site will not record it as seen. X still
-decides whether to recommend it again after its counts rise. While X Home
-filtering is active, affected posts are checked as soon as each batch of page
-changes arrives, reducing the chance of a brief appearance before hiding.
+decides whether to recommend it again after its counts rise. On both sites,
+affected posts and videos are checked as soon as each batch of page changes
+arrives, before the browser draws it, so a low-view item that arrives with its
+count does not blink on screen or reach X's seen-post list.
 Startup, missing counts, and the site's own logging can still leave gaps.
 
 ## Install
@@ -363,7 +364,8 @@ See [compatibility evidence and references](docs/compatibility.md).
   fetch fresh counts. A stale page may need a reload to obtain newer counts.
 - English and French formats are supported. Unknown languages/formats remain
   visible by default.
-- A brief flash is possible before the content script or metadata loads.
+- A brief flash is still possible before the content script starts, or when a
+  card's count loads after the card itself (it stays visible while unknown).
 - Site markup changes, custom CSS priority, or removed/replaced metadata can
   reduce coverage. See the guide for how to investigate safely.
 

@@ -65,7 +65,8 @@ credentials, post IDs, authors, or feed text are saved in this repository.
 Version 1.11.1 evaluates affected X cards immediately at each mutation delivery,
 reusing the normal filtering, whitelist, highlight, and history decisions. It
 cancels an obsolete pending scan, including pending settings/full passes.
-YouTube remains throttled. No request is intercepted, blocked, or rewritten.
+YouTube remained throttled in 1.11.1; 1.11.2 applies the same immediate path to
+YouTube to stop blinking. No request is intercepted, blocked, or rewritten.
 
 Synthetic regression tests verify decisions before the next timer, including
 card insertion, replacement, metadata hydration, and pending settings changes.

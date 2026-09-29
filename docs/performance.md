@@ -1,5 +1,25 @@
 # Performance measurements
 
+## Immediate YouTube mutation evaluation, v1.11.2 (2026-09-29)
+
+Compared with v1.11.1 commit `fb7d0e8`, using Node.js v22.17.0 and jsdom 29.1.1
+(`node scripts/benchmark.cjs --baseline <fb7d0e8 src>`). YouTube now uses the
+immediate mutation path X adopted in 1.11.1, so a failing card that arrives with
+its count is hidden before paint instead of up to 80 ms later. Every expected
+hiding mark passed; X results are unchanged.
+
+| YouTube workload | View-count reads before → after | DOM queries before → after | Timer callbacks |
+| --- | ---: | ---: | ---: |
+| Startup, 200 cards | 200 → 200 | 1,353 → 1,353 | 0 → 0 |
+| New cards, 20 batches of four | 80 → 80 | 780 → 780 | 20 → 0 |
+| One count update per batch | 20 → 20 | 220 → 220 | 20 → 0 |
+| Four staggered count updates per batch | 20 → 80 | 180 → 880 | 20 → 0 |
+| Sidebar/player, hover, hidden-tab noise | 0 → 0 | 0 → 0 | 0 → 0 |
+
+The cost appears only when one card's metadata changes in several separate
+mutation deliveries; routing of unrelated player/sidebar mutations is unchanged.
+These are synthetic operation counts, not browser CPU or scrolling smoothness.
+
 ## Immediate X mutation evaluation, v1.11.1 (2026-09-29)
 
 Compared with source `403510f`, using Node.js v22.17.0 and jsdom 29.1.1.
