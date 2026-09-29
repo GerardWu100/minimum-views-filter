@@ -81,9 +81,10 @@
     metrics.className = "entry-metrics";
     metrics.append(metric("Views", formatCount(item.views)));
     if (item.site === "x") {
-      metrics.append(metric("Likes", formatCount(item.likes)), metric("Bookmarks", formatCount(item.bookmarks)));
+      metrics.append(metric("Likes", formatCount(item.likes)), metric("Bookmarks", formatCount(item.bookmarks)), metric("Replies", formatCount(item.replies)));
       if (item.views > 0 && item.likes !== null) metrics.append(metric("Likes/views", ratioPercent(item.likes, item.views)));
       if (item.views > 0 && item.bookmarks !== null) metrics.append(metric("Bookmarks/views", ratioPercent(item.bookmarks, item.views)));
+      if (item.views > 0 && item.replies !== null) metrics.append(metric("Replies/views", ratioPercent(item.replies, item.views)));
     }
     row.append(link, meta, metrics);
     return row;

@@ -114,6 +114,7 @@ button:disabled { opacity: .5; cursor: default; }
 [data-reason="low-views"] { --reason-color: var(--reason-low-views); }
 [data-reason="low-like-ratio"] { --reason-color: var(--reason-low-like-ratio); }
 [data-reason="unknown-views"] { --reason-color: var(--reason-unknown-views); }
+[data-reason="high-engagement"],
 [data-reason="high-like-and-bookmark-ratio"] { --reason-color: var(--reason-high-like-and-bookmark-ratio); }
 [data-reason="high-like-ratio"] { --reason-color: var(--reason-high-like-ratio); }
 [data-reason="high-bookmark-ratio"] { --reason-color: var(--reason-high-bookmark-ratio); }

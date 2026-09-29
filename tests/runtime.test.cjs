@@ -962,7 +962,10 @@ test('popup blocks a whitelist too long to sync', async (t) => {
   assert.equal(storage.writes.length, 0);
 });
 
-const xEngagementCard = (id, views, likes, bookmarks = null) => xCard(id, views).replace('</article>', `<button data-testid="like" aria-label="${likes} Likes. Like">${likes}</button>${bookmarks === null ? '' : `<button data-testid="bookmark" aria-label="${bookmarks} Bookmarks">${bookmarks}</button>`}</article>`);
+// Fixtures default to a reply count far above any replies/views threshold, so
+// likes/bookmarks cases stay isolated; pass null for an unknown reply count.
+const PASSING_REPLIES = 1000;
+const xEngagementCard = (id, views, likes, bookmarks = null, replies = PASSING_REPLIES) => xCard(id, views).replace('</article>', `<button data-testid="like" aria-label="${likes} Likes. Like">${likes}</button>${bookmarks === null ? '' : `<button data-testid="bookmark" aria-label="${bookmarks} Bookmarks">${bookmarks}</button>`}${replies === null ? '' : `<button data-testid="reply" aria-label="${replies} Replies. Reply">${replies}</button>`}</article>`);
 const recordedItems = (storage) => storage.recordedMessages.flatMap((message) => message.items);
 const historyItems = (storage) => recordedItems(storage).filter((item) => item.outcome === 'hidden');
 const keptItems = (storage) => recordedItems(storage).filter((item) => item.outcome === 'kept');
@@ -1094,7 +1097,7 @@ test('X posts kept by high engagement are recorded once per continuous kept stat
   assertVisible(window, '#cell-2', true);
   assert.equal(historyItems(storage).length, 0);
   assert.equal(keptItems(storage).length, 1);
-  assert.equal(keptItems(storage)[0].reason, 'high-like-and-bookmark-ratio');
+  assert.equal(keptItems(storage)[0].reason, 'high-engagement');
   assert.equal(keptItems(storage)[0].bypassedReason, 'low-views');
   assert.equal(keptItems(storage)[0].bookmarks, 3);
   assert.equal(keptItems(storage)[0].url, 'https://x.com/author/status/2');
@@ -1157,8 +1160,9 @@ test('X highlight reacts to strict boundaries, hidden counters, missing counts a
 test('highlight alone never rescues a hidden card and can coexist with kept and whitelisted posts', async (t) => {
   const {window, document, storage} = openContent(t, {
     html: xEngagementCard(1, '500', 0, 20),
-    // Only the bookmarks keep rule is used here, so zero likes cannot block it.
-    stored: {...BOOKMARK_ONLY_HIGHLIGHT, xHighLikeRatioEnabled: false, xHighBookmarkRatioEnabled: false},
+    // Only the bookmarks keep rule is used here, so zero likes cannot block it
+    // and replies cannot keep it on their own.
+    stored: {...BOOKMARK_ONLY_HIGHLIGHT, xHighLikeRatioEnabled: false, xHighBookmarkRatioEnabled: false, xHighReplyRatioEnabled: false},
   });
   await wait();
   assertVisible(window, '#cell-1', false);
@@ -1342,4 +1346,25 @@ test('YouTube filters inserted and hydrated cards before a timer can let them bl
   const after = {...work};
   await wait();
   assert.deepEqual(work, after, 'Own hiding marks must not cause another pass');
+});
+
+test('X keep and highlight react to reply counts at their mutation checkpoints', async (t) => {
+  // 500 views: 10 likes (2%) and 3 bookmarks (0.6%) pass; 0 replies fails 0.1%.
+  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '500', 10, 3, 0) + xEngagementCard(2, '1000', 21, 11, 1)});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  // 1 reply / 1,000 views = 0.1% is not strictly above the highlight threshold.
+  assert.equal(document.querySelector('#post-2').hasAttribute('data-minimum-views-highlighted'), false);
+  document.querySelector('#post-1 [data-testid="reply"]').setAttribute('aria-label', '1 Reply');
+  document.querySelector('#post-2 [data-testid="reply"]').setAttribute('aria-label', '2 Replies');
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', true);
+  assert.equal(document.querySelector('#post-2').hasAttribute('data-minimum-views-highlighted'), true);
+  await wait();
+  assert.equal(keptItems(storage).at(-1).replies, 1);
+  assert.equal(keptItems(storage).at(-1).reason, 'high-engagement');
+  storage.change({xHighReplyRatioEnabled: false, xHighlightReplyRequired: false});
+  document.querySelector('#post-1 [data-testid="reply"]').remove();
+  await wait();
+  assertVisible(window, '#cell-1', true);
 });

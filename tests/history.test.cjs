@@ -392,7 +392,7 @@ test('paused collection rejects queued writes while retaining readable statistic
 test('kept events have their own counts and list and are validated separately', () => {
   let history = store.addEvents(null, [xEvent(1), keptEvent(2), keptEvent(3, {reason: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio', bookmarks: 3}),
     keptEvent(11, {reason: 'high-like-and-bookmark-ratio', bookmarks: 3})], 'x', 1).history;
-  assert.deepEqual(clone(history.xKeptCounts), {'high-like-and-bookmark-ratio': 1, 'high-like-ratio': 1, 'high-bookmark-ratio': 1});
+  assert.deepEqual(clone(history.xKeptCounts), {'high-engagement': 0, 'high-like-and-bookmark-ratio': 1, 'high-like-ratio': 1, 'high-bookmark-ratio': 1});
   assert.deepEqual(totals(history), {x: 1, youtube: 0});
   assert.deepEqual(history.entries.map((entry) => entry.url), ['https://x.com/author/status/1']);
   assert.deepEqual(history.keptEntries.map((entry) => entry.url), ['https://x.com/author/status/11', 'https://x.com/author/status/3', 'https://x.com/author/status/2']);
@@ -413,7 +413,7 @@ test('kept events have their own counts and list and are validated separately', 
   const normalized = store.normalizeHistory({entries: [{...history.keptEntries[0]}], keptEntries: history.keptEntries, xKeptCounts: {'high-like-ratio': 4, other: 2}});
   assert.equal(normalized.entries.length, 0);
   assert.equal(normalized.keptEntries.length, 2);
-  assert.deepEqual(clone(normalized.xKeptCounts), {'high-like-and-bookmark-ratio': 0, 'high-like-ratio': 4, 'high-bookmark-ratio': 0});
+  assert.deepEqual(clone(normalized.xKeptCounts), {'high-engagement': 0, 'high-like-and-bookmark-ratio': 0, 'high-like-ratio': 4, 'high-bookmark-ratio': 0});
   // Enrichment adds a kept entry without counting another kept event.
   const linkless = store.addEvents(null, [keptEvent(10, {url: null})], 'x', 1).history;
   const enriched = store.addEvents(linkless, [keptEvent(10, {enrich: true})], 'x', 2).history;
@@ -432,26 +432,33 @@ test('reset clears kept counts and entries', async () => {
 
 test('history page shows kept totals and switches the list to kept posts', async () => {
   const dom = new JSDOM(source('history.html'), {url: pageSender.url, runScripts: 'outside-only'});
-  let history = store.addEvents(null, [xEvent(1), keptEvent(2), keptEvent(3, {reason: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio', likes: 0, bookmarks: 3})], 'x', 1).history;
-  history = store.addEvents(history, [keptEvent(2)], 'x', 2).history;
+  // Post 3 uses a per-rule reason recorded by 1.12.0 and earlier.
+  const engagementKeep = (id) => keptEvent(id, {reason: 'high-engagement', bookmarks: 3, replies: 1});
+  let history = store.addEvents(null, [xEvent(1), engagementKeep(2), keptEvent(3, {reason: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio', likes: 0, bookmarks: 3})], 'x', 1).history;
+  history = store.addEvents(history, [engagementKeep(2)], 'x', 2).history;
   dom.window.chrome = {runtime: {sendMessage: async () => ({ok: true, history})}, storage: {sync: {get: async () => ({})}, onChanged: {addListener() {}}}};
   loadHistoryPageScripts(dom);
   await new Promise((resolve) => setImmediate(resolve));
   const document = dom.window.document;
   assert.equal(document.querySelector('#x-kept-count').textContent, '3');
+  assert.equal(document.querySelector('#x-kept-reasons li[data-reason="high-engagement"] .reason-count').textContent, '2');
   assert.equal(document.querySelector('#x-kept-reasons li[data-reason="high-bookmark-ratio"] .reason-count').textContent, '1');
+  // Earlier-release reasons without events are not listed.
+  assert.equal(document.querySelector('#x-kept-reasons li[data-reason="high-like-ratio"]'), null);
   assert.equal(document.querySelector('#kept-entry-count').textContent, '2');
   assert.equal(document.querySelectorAll('#entries li').length, 1);
   document.querySelector('#site-filter [data-value="youtube"]').click();
   document.querySelector('#outcome-filter [data-value="kept"]').click();
   assert.equal(document.querySelector('#site-filter').hidden, true);
   assert.equal(document.querySelector('#reason-filter [data-value="low-views"]').hidden, true);
-  assert.equal(document.querySelector('#reason-filter [data-value="high-like-ratio"]').hidden, false);
+  assert.equal(document.querySelector('#reason-filter [data-value="high-engagement"]').hidden, false);
   assert.equal(document.querySelectorAll('#entries li').length, 2);
   const bookmarkRow = document.querySelector('#entries li[data-reason="high-bookmark-ratio"]');
   assert.match(bookmarkRow.querySelector('.entry-meta').textContent, /High bookmarks\/views · X · kept despite low likes\/views/);
-  assert.match(document.querySelector('#entries li[data-reason="high-like-ratio"] .entry-meta').textContent, /kept 2 times/);
-  document.querySelector('#reason-filter [data-value="high-like-ratio"]').click();
+  const engagementRow = document.querySelector('#entries li[data-reason="high-engagement"]');
+  assert.match(engagementRow.querySelector('.entry-meta').textContent, /High engagement · X · kept despite low views · kept 2 times/);
+  assert.match(engagementRow.querySelector('.entry-metrics').textContent, /Replies 1.*Replies\/views 0\.2%/);
+  document.querySelector('#reason-filter [data-value="high-engagement"]').click();
   assert.equal(document.querySelectorAll('#entries li').length, 1);
   document.querySelector('#outcome-filter [data-value="hidden"]').click();
   assert.equal(document.querySelector('#reason-filter [data-value="all"]').getAttribute('aria-pressed'), 'true');

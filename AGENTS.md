@@ -13,16 +13,18 @@ the platform through negative-feedback actions.
   subject to the X engagement rules below.
 - On X, also hide posts below an adjustable likes/views percentage (default
   0.5%). Keep posts at or above an adjustable likes/views percentage (default 2%)
-  AND bookmarks/views percentage (default 0.5%) at the same time (user request
-  2026-09-29; previously OR), overriding both hiding rules. Every enabled keep
-  rule must pass; switching one off keeps on the other alone.
+  AND bookmarks/views percentage (default 0.5%) AND replies/views (comments)
+  percentage (default 0.1%) at the same time (user requests 2026-09-29;
+  previously OR), overriding both hiding rules. Every enabled keep rule must
+  pass; switching one off drops that condition.
   Each ratio rule has its own switch. Ratios require known, positive views and
-  a known numerator; missing likes/bookmarks are unknown, never implicit zero.
+  a known numerator; missing likes/bookmarks/replies are unknown, never implicit zero.
 - Whitelisted X accounts bypass all filtering ratio rules as well as the view rules.
 - Optionally highlight visible X Home posts strictly above an adjustable
   bookmarks/views percentage (default 1%) AND, while its switch is on, strictly
-  above an adjustable likes/views percentage (default 2%) (user request
-  2026-09-29), using a thin left-edge accent with no background tint. A
+  above an adjustable likes/views percentage (default 2%) AND, while its switch
+  is on, strictly above an adjustable replies/views percentage (default 0.1%)
+  (user requests 2026-09-29), using a thin left-edge accent with no background tint. A
   separate switch hides the accent while statistics keep recording. This
   independent rule never rescues a hidden post; whitelisted posts may highlight.
   Track highlighted events and a separate 500-link list locally, under the same
@@ -34,7 +36,7 @@ the platform through negative-feedback actions.
   items with canonical links, snippets/titles, count snapshots, reasons, and
   timestamps. Provide a reset action. This user-requested history must never
   become a blacklist, be synced, be uploaded, or hold DOM references.
-- Also count and list X posts that the high likes/views and bookmarks/views rules
+- Also count and list X posts that the high likes/bookmarks/replies-per-view rules
   kept visible when they would otherwise be hidden (user request 2026-09-28),
   under the same local, bounded, never-a-blacklist rules and a separate
   500-link list, so kept posts never displace filtered items.

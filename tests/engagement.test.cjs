@@ -4,6 +4,8 @@ const test = require('node:test');
 const {JSDOM} = require('jsdom');
 const core = require('../src/filter-core.js');
 const {normalizeSettings} = require('../src/settings.js');
+// Older ratio cases isolate likes and bookmarks; replies have their own tests.
+const NO_REPLY_RULES = {xHighReplyRatioEnabled: false, xHighlightReplyRequired: false};
 const read = (html, locale = 'en') => core.getXEngagement(new JSDOM(`<article data-testid="tweet">${html}</article>`).window.document.querySelector('article'), locale);
 
 test('own exact engagement labels outrank rounded counters and exclude quotes and body text', () => {
@@ -11,24 +13,24 @@ test('own exact engagement labels outrank rounded counters and exclude quotes an
     <div role="link"><div role="group" aria-label="1M likes, 2M bookmarks"></div></div>
     <button data-testid="like" aria-label="1.2K Likes. Like" style="display:none">1.2K</button>
     <button data-testid="bookmark" aria-label="50 Bookmarks. Bookmark">50</button>
-    <div role="group" aria-label="3 replies, 1,234 likes, 50 bookmarks, 100,000 views"></div>`), {likes: 1234, bookmarks: 50});
-  assert.deepEqual(read('<button data-testid="unlike" aria-label="0 Likes. Liked">0</button><button data-testid="removeBookmark">2K</button>'), {likes: 0, bookmarks: 2000});
+    <div role="group" aria-label="3 replies, 1,234 likes, 50 bookmarks, 100,000 views"></div>`), {likes: 1234, bookmarks: 50, replies: 3});
+  assert.deepEqual(read('<button data-testid="unlike" aria-label="0 Likes. Liked">0</button><button data-testid="removeBookmark">2K</button>'), {likes: 0, bookmarks: 2000, replies: null});
 });
 
 test('missing, removed, contradictory and foreign-language engagement remains unknown', () => {
-  assert.deepEqual(read('<button data-testid="like" aria-label="Like"></button><button data-testid="bookmark" aria-label="Bookmark"></button>'), {likes: null, bookmarks: null});
-  assert.deepEqual(read('<button data-testid="like" aria-label="10 Likes">10</button><div role="group" aria-label="11 likes"></div>'), {likes: null, bookmarks: null});
-  assert.deepEqual(read('<button data-testid="like" aria-label="No likes"></button><button data-testid="bookmark" aria-label="0 Bookmarks"></button>'), {likes: 0, bookmarks: 0});
-  assert.deepEqual(read('<button data-testid="like" aria-label="100 Likes">100</button>', 'ja'), {likes: null, bookmarks: null});
+  assert.deepEqual(read('<button data-testid="like" aria-label="Like"></button><button data-testid="bookmark" aria-label="Bookmark"></button>'), {likes: null, bookmarks: null, replies: null});
+  assert.deepEqual(read('<button data-testid="like" aria-label="10 Likes">10</button><div role="group" aria-label="11 likes"></div>'), {likes: null, bookmarks: null, replies: null});
+  assert.deepEqual(read('<button data-testid="like" aria-label="No likes"></button><button data-testid="bookmark" aria-label="0 Bookmarks"></button>'), {likes: 0, bookmarks: 0, replies: null});
+  assert.deepEqual(read('<button data-testid="like" aria-label="100 Likes">100</button>', 'ja'), {likes: null, bookmarks: null, replies: null});
 });
 
 test('French engagement supports exact and abbreviated labels without guessing separators', () => {
-  assert.deepEqual(read('<button data-testid="like" aria-label="1 234 J’aime. Aimer">1,2 k</button><div role="group" aria-label="1 234 J’aime, 1,2 k signets, 10 000 vues"></div>', 'fr-CA'), {likes: 1234, bookmarks: 1200});
-  assert.deepEqual(read('<button data-testid="like" aria-label="Aucun J’aime"></button><button data-testid="bookmark" aria-label="Aucun signet"></button>', 'fr'), {likes: 0, bookmarks: 0});
+  assert.deepEqual(read('<button data-testid="like" aria-label="1 234 J’aime. Aimer">1,2 k</button><div role="group" aria-label="1 234 J’aime, 1,2 k signets, 10 000 vues"></div>', 'fr-CA'), {likes: 1234, bookmarks: 1200, replies: null});
+  assert.deepEqual(read('<button data-testid="like" aria-label="Aucun J’aime"></button><button data-testid="bookmark" aria-label="Aucun signet"></button>', 'fr'), {likes: 0, bookmarks: 0, replies: null});
 });
 
 test('ratio boundaries, AND rescue and zero or unknown denominator are explicit', () => {
-  const settings = normalizeSettings();
+  const settings = normalizeSettings(NO_REPLY_RULES);
   const reason = (views, likes, bookmarks = null, override = {}) => core.getFilterReason(views, 'x', {...settings, ...override}, {likes, bookmarks});
   assert.equal(reason(10000, 49), 'low-like-ratio');
   assert.equal(reason(10000, 50), null);
@@ -98,21 +100,21 @@ test('exact view labels across the card take precedence over rounded counters fo
 
 test('decimal percentages include exact boundaries without accepting a materially higher threshold', () => {
   const metrics = {likes: 7, bookmarks: 7};
-  const settings = normalizeSettings({xMinimumLikePercent: 0.07, xHighLikeRatioEnabled: false, xHighBookmarkRatioEnabled: false});
+  const settings = normalizeSettings({...NO_REPLY_RULES, xMinimumLikePercent: 0.07, xHighLikeRatioEnabled: false, xHighBookmarkRatioEnabled: false});
   assert.equal(core.getFilterReason(10000, 'x', settings, metrics), null);
   assert.equal(core.getFilterReason(10000, 'x', {...settings, xMinimumLikePercent: 0.0700001}, metrics), 'low-like-ratio');
   assert.equal(core.getFilterReason(10000, 'x', {...settings, xMinimumViews: 20000, xHighLikeRatioEnabled: true, xKeepLikePercent: 0.07}, metrics), null);
   assert.equal(core.getFilterReason(10000, 'x', {...settings, xMinimumViews: 20000, xHighBookmarkRatioEnabled: true, xKeepBookmarkPercent: 0.07}, metrics), null);
 });
 
-test('decision reports which high-engagement rule kept a card and the hide rule it overrode', () => {
-  const settings = normalizeSettings();
+test('decision reports a high-engagement keep and the hide rule it overrode', () => {
+  const settings = normalizeSettings(NO_REPLY_RULES);
   const decide = (views, likes, bookmarks = null, override = {}, site = 'x') => ({...core.getFilterDecision(views, site, {...settings, ...override}, {likes, bookmarks})});
   // 500 views is below the 1,000 minimum. Defaults need likes/views >= 2% AND
   // bookmarks/views >= 0.5%: 10 likes = 2% and 3 bookmarks = 0.6% keep it.
-  assert.deepEqual(decide(500, 10, 3), {reason: null, keptBy: 'high-like-and-bookmark-ratio', bypassedReason: 'low-views'});
+  assert.deepEqual(decide(500, 10, 3), {reason: null, keptBy: 'high-engagement', bypassedReason: 'low-views'});
   // Exact boundaries on both ratios keep: 16/800 = 2%, 4/800 = 0.5%.
-  assert.deepEqual(decide(800, 16, 4), {reason: null, keptBy: 'high-like-and-bookmark-ratio', bypassedReason: 'low-views'});
+  assert.deepEqual(decide(800, 16, 4), {reason: null, keptBy: 'high-engagement', bypassedReason: 'low-views'});
   // One high ratio alone no longer rescues while both keep rules are on.
   assert.deepEqual(decide(500, 10, 2), {reason: 'low-views', keptBy: null, bypassedReason: null});
   assert.deepEqual(decide(500, 9, 100), {reason: 'low-views', keptBy: null, bypassedReason: null});
@@ -120,8 +122,8 @@ test('decision reports which high-engagement rule kept a card and the hide rule 
   // 0 likes fails the 0.5% minimum and cannot satisfy the likes keep rule.
   assert.deepEqual(decide(400, 0, 2), {reason: 'low-like-ratio', keptBy: null, bypassedReason: null});
   // Switching one keep rule off keeps on the other ratio alone.
-  assert.deepEqual(decide(500, 10, null, {xHighBookmarkRatioEnabled: false}), {reason: null, keptBy: 'high-like-ratio', bypassedReason: 'low-views'});
-  assert.deepEqual(decide(400, 0, 2, {xHighLikeRatioEnabled: false}), {reason: null, keptBy: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio'});
+  assert.deepEqual(decide(500, 10, null, {xHighBookmarkRatioEnabled: false}), {reason: null, keptBy: 'high-engagement', bypassedReason: 'low-views'});
+  assert.deepEqual(decide(400, 0, 2, {xHighLikeRatioEnabled: false}), {reason: null, keptBy: 'high-engagement', bypassedReason: 'low-like-ratio'});
   // With both keep rules off, nothing is rescued.
   assert.deepEqual(decide(500, 500, 500, {xHighLikeRatioEnabled: false, xHighBookmarkRatioEnabled: false}), {reason: 'low-views', keptBy: null, bypassedReason: null});
   // High engagement on a post that passes anyway is not a rescue.
@@ -135,7 +137,7 @@ test('decision reports which high-engagement rule kept a card and the hide rule 
 
 test('bookmark highlighting is strict at integer and decimal thresholds and needs known positive views', () => {
   // The likes condition is off here; the next test covers the combined rule.
-  const settings = normalizeSettings({xHighlightBookmarkPercent: 1, xHighlightLikeRequired: false});
+  const settings = normalizeSettings({...NO_REPLY_RULES, xHighlightBookmarkPercent: 1, xHighlightLikeRequired: false});
   const highlight = (views, bookmarks, overrides = {}) => core.shouldHighlightX(views, {likes: null, bookmarks}, {...settings, ...overrides});
   assert.equal(highlight(1000, 9), false);
   assert.equal(highlight(1000, 10), false);
@@ -151,7 +153,7 @@ test('bookmark highlighting is strict at integer and decimal thresholds and need
 
 test('highlighting with the likes condition needs both ratios strictly above their thresholds', () => {
   // Defaults: bookmarks/views > 1% AND likes/views > 2%.
-  const settings = normalizeSettings();
+  const settings = normalizeSettings(NO_REPLY_RULES);
   const highlight = (likes, bookmarks, overrides = {}) => core.shouldHighlightX(1000, {likes, bookmarks}, {...settings, ...overrides});
   assert.equal(highlight(21, 11), true);
   assert.equal(highlight(20, 11), false);
@@ -171,4 +173,34 @@ test('view-floor switches leave unknown-view and X engagement rules independent'
   assert.equal(core.getFilterReason(999, 'youtube', settings), null);
   assert.equal(core.getFilterReason(null, 'youtube', settings), 'unknown-views');
   assert.equal(core.getFilterReason(999, 'x', settings, {likes: 0, bookmarks: null}), 'low-like-ratio');
+});
+
+test('replies are read from own labels and buttons, never from quotes, and unknown stays null', () => {
+  assert.equal(read('<div role="group" aria-label="12 replies, 3 reposts, 40 likes, 5 bookmarks, 9,000 views"></div>').replies, 12);
+  assert.equal(read('<button data-testid="reply" aria-label="1 Reply. Reply">1</button>').replies, 1);
+  assert.equal(read('<button data-testid="reply" aria-label="Reply"></button>').replies, null);
+  assert.equal(read('<div role="link"><button data-testid="reply" aria-label="99 Replies">99</button></div>').replies, null);
+  // "reposts" must never be read as replies.
+  assert.equal(read('<div role="group" aria-label="7 reposts, 1 like"></div>').replies, null);
+  assert.equal(read('<div role="group" aria-label="1 234 réponses, 10 000 vues"></div>', 'fr').replies, 1234);
+});
+
+test('default keep and highlight rules also need replies/views; each replies switch drops that condition', () => {
+  const settings = normalizeSettings();
+  const decide = (views, likes, bookmarks, replies, override = {}) => ({...core.getFilterDecision(views, 'x', {...settings, ...override}, {likes, bookmarks, replies})});
+  // 1,000-view minimum; 500 views with 10 likes (2%), 3 bookmarks (0.6%).
+  // Replies must reach 0.1% of views: 1 reply / 500 views = 0.2%.
+  assert.deepEqual(decide(500, 10, 3, 1), {reason: null, keptBy: 'high-engagement', bypassedReason: 'low-views'});
+  // Exact keep boundary: with a 2,000-view minimum, 1 reply / 1,000 views = 0.1%.
+  assert.deepEqual(decide(1000, 20, 5, 1, {xMinimumViews: 2000}), {reason: null, keptBy: 'high-engagement', bypassedReason: 'low-views'});
+  assert.deepEqual(decide(500, 10, 3, 0), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(500, 10, 3, null), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(500, 10, 3, 0, {xHighReplyRatioEnabled: false}), {reason: null, keptBy: 'high-engagement', bypassedReason: 'low-views'});
+  assert.deepEqual(decide(500, 10, 3, 0, {xKeepReplyPercent: 0}), {reason: null, keptBy: 'high-engagement', bypassedReason: 'low-views'});
+  // Highlight: bookmarks > 1%, likes > 2%, replies > 0.1% (all strict).
+  const highlight = (likes, bookmarks, replies, override = {}) => core.shouldHighlightX(1000, {likes, bookmarks, replies}, {...settings, ...override});
+  assert.equal(highlight(21, 11, 2), true);
+  assert.equal(highlight(21, 11, 1), false);
+  assert.equal(highlight(21, 11, null), false);
+  assert.equal(highlight(21, 11, null, {xHighlightReplyRequired: false}), true);
 });

@@ -35,15 +35,23 @@
     {key: "xBookmarkHighlightShown", input: document.getElementById("x-bookmark-highlight-shown")},
     {key: "xHighlightLikeRequired", input: document.getElementById("x-highlight-like-required")},
     {key: "xHighlightLikePercent", input: document.getElementById("x-highlight-like-percent")},
+    {key: "xHighReplyRatioEnabled", input: document.getElementById("x-high-reply-ratio-enabled")},
+    {key: "xKeepReplyPercent", input: document.getElementById("x-keep-reply-percent")},
+    {key: "xHighlightReplyRequired", input: document.getElementById("x-highlight-reply-required")},
+    {key: "xHighlightReplyPercent", input: document.getElementById("x-highlight-reply-percent")},
   ];
   const highlightDetection = document.getElementById("x-bookmark-highlight-enabled");
   const highlightShown = document.getElementById("x-bookmark-highlight-shown");
-  const highlightLikeRequired = document.getElementById("x-highlight-like-required");
-  const highlightLikePercent = document.getElementById("x-highlight-like-percent");
+  // Highlight conditions whose switch and threshold depend on detection.
+  const highlightConditions = [
+    ["x-highlight-like-required", "x-highlight-like-percent", "xHighlightLikePercent"],
+    ["x-highlight-reply-required", "x-highlight-reply-percent", "xHighlightReplyPercent"],
+  ];
   const ratioThresholds = [
     ["x-low-like-ratio-enabled", "x-minimum-like-percent", "xMinimumLikePercent"],
     ["x-high-like-ratio-enabled", "x-keep-like-percent", "xKeepLikePercent"],
     ["x-high-bookmark-ratio-enabled", "x-keep-bookmark-percent", "xKeepBookmarkPercent"],
+    ["x-high-reply-ratio-enabled", "x-keep-reply-percent", "xKeepReplyPercent"],
     ["x-bookmark-highlight-enabled", "x-highlight-bookmark-percent", "xHighlightBookmarkPercent"],
   ];
   const DEFAULT_SETTINGS = normalizeSettings();
@@ -94,10 +102,12 @@
     // Showing the edge and the likes condition depend on detection;
     // recording depends on statistics.
     highlightShown.disabled = !xActive || !highlightDetection.checked;
-    highlightLikeRequired.disabled = !xActive || !highlightDetection.checked;
-    highlightLikePercent.disabled = highlightLikeRequired.disabled || !highlightLikeRequired.checked;
-    if (highlightLikePercent.disabled && !validPercent(highlightLikePercent)) {
-      highlightLikePercent.value = lastSavedSettings.xHighlightLikePercent;
+    for (const [switchId, thresholdId, settingKey] of highlightConditions) {
+      const toggle = document.getElementById(switchId);
+      const threshold = document.getElementById(thresholdId);
+      toggle.disabled = !xActive || !highlightDetection.checked;
+      threshold.disabled = toggle.disabled || !toggle.checked;
+      if (threshold.disabled && !validPercent(threshold)) threshold.value = lastSavedSettings[settingKey];
     }
   }
 

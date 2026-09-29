@@ -74,10 +74,13 @@
   const ENGAGEMENT_WORDS = {
     likes: '(?:likes?|mentions? j[’\u0027]aime|j[’\u0027]aime)',
     bookmarks: '(?:bookmarks?|signets?|enregistrements?)',
+    // X calls comments replies; "reposts" never matches this word.
+    replies: '(?:repl(?:y|ies)|réponses?)',
   };
   const ENGAGEMENT_SELECTORS = {
     likes: '[data-testid="like"], [data-testid="unlike"]',
     bookmarks: '[data-testid="bookmark"], [data-testid="removeBookmark"]',
+    replies: '[data-testid="reply"]',
   };
   const ENGAGEMENT_METRICS = Object.keys(ENGAGEMENT_SELECTORS);
   const ENGAGEMENT_GROUP_SELECTOR = '[role="group"][aria-label]';
@@ -311,7 +314,7 @@
   }
 
   /**
-   * Read an X card's own likes and bookmark counts without clicking or fetching.
+   * Read an X card's own likes, bookmark and reply counts without clicking or fetching.
    *
    * Parameters
    * ----------
@@ -322,14 +325,15 @@
    *
    * Returns
    * -------
-   * {likes: number|null, bookmarks: number|null}
-   *     Exact accessibility labels outrank rounded labels and visible counters.
+   * {likes: number|null, bookmarks: number|null, replies: number|null}
+   *     Replies are X's comment count. Exact accessibility labels outrank
+   *     rounded labels and visible counters.
    *     Contradictory counts and missing counters return null, never implicit zero.
    */
   function getXEngagement(card, locale = 'en') {
-    const result = {likes: null, bookmarks: null};
-    const labels = {likes: [], bookmarks: []};
-    const buttons = {likes: [], bookmarks: []};
+    const result = {likes: null, bookmarks: null, replies: null};
+    const labels = {likes: [], bookmarks: [], replies: []};
+    const buttons = {likes: [], bookmarks: [], replies: []};
     // Collect both metrics in one subtree query and check ownership once per
     // source; group labels still supply both independent count candidates.
     for (const element of card.querySelectorAll(ENGAGEMENT_SOURCE_SELECTOR)) {
@@ -337,7 +341,8 @@
       const isGroup = element.matches(ENGAGEMENT_GROUP_SELECTOR);
       const testId = element.getAttribute('data-testid');
       const buttonMetric = testId === 'like' || testId === 'unlike' ? 'likes'
-        : testId === 'bookmark' || testId === 'removeBookmark' ? 'bookmarks' : null;
+        : testId === 'bookmark' || testId === 'removeBookmark' ? 'bookmarks'
+          : testId === 'reply' ? 'replies' : null;
       if (buttonMetric) buttons[buttonMetric].push(element);
       const label = element.getAttribute('aria-label');
       if (!label) continue;
@@ -368,7 +373,7 @@
    *     Site whose independent view minimum applies.
    * settings : object
    *     Normalized settings. Percent thresholds are in percentage points.
-   * engagement : {likes: number|null, bookmarks: number|null}
+   * engagement : {likes: number|null, bookmarks: number|null, replies: number|null}
    *     Own X metrics; missing values cannot hide or rescue through ratios.
    *
    * Returns
@@ -376,15 +381,14 @@
    * {reason: string|null, keptBy: string|null, bypassedReason: string|null}
    *     reason is low-views, low-like-ratio, unknown-views, or null to keep the
    *     card. The keep exception requires EVERY enabled keep rule to pass
-   *     (user request 2026-09-29): with both on, likes/views AND
-   *     bookmarks/views must reach their thresholds. keptBy names the rules
-   *     that applied (high-like-and-bookmark-ratio, high-like-ratio, or
-   *     high-bookmark-ratio) only when the exception overrode bypassedReason
-   *     (low-like-ratio or low-views); a card that passes anyway has keptBy
-   *     null. Whitelist exemptions are applied by the caller. No history is
+   *     (user requests 2026-09-29): by default likes/views AND
+   *     bookmarks/views AND replies/views must reach their thresholds.
+   *     keptBy is high-engagement only when the exception overrode
+   *     bypassedReason (low-like-ratio or low-views); a card that passes
+   *     anyway has keptBy null. Whitelist exemptions are applied by the caller. No history is
    *     consulted for this decision.
    */
-  function getFilterDecision(views, site, settings, engagement = {likes: null, bookmarks: null}) {
+  function getFilterDecision(views, site, settings, engagement = {likes: null, bookmarks: null, replies: null}) {
     const kept = {reason: null, keptBy: null, bypassedReason: null};
     if (views === null) return settings.hideUnknown ? {...kept, reason: 'unknown-views'} : kept;
     const belowMinimum = settings[site + 'MinimumViewsEnabled'] && views < settings[site + 'MinimumViews'];
@@ -402,14 +406,13 @@
       && !reaches(engagement.likes, settings.xMinimumLikePercent) ? 'low-like-ratio'
       : belowMinimum ? 'low-views' : null;
     // Each enabled keep rule is a required condition; unknown counts fail it.
-    const likeRule = settings.xHighLikeRatioEnabled;
-    const bookmarkRule = settings.xHighBookmarkRatioEnabled;
-    const keeps = (likeRule || bookmarkRule)
-      && (!likeRule || reaches(engagement.likes, settings.xKeepLikePercent))
-      && (!bookmarkRule || reaches(engagement.bookmarks, settings.xKeepBookmarkPercent));
-    const keptBy = !keeps ? null
-      : likeRule && bookmarkRule ? 'high-like-and-bookmark-ratio'
-        : likeRule ? 'high-like-ratio' : 'high-bookmark-ratio';
+    const keepRules = [
+      [settings.xHighLikeRatioEnabled, engagement.likes, settings.xKeepLikePercent],
+      [settings.xHighBookmarkRatioEnabled, engagement.bookmarks, settings.xKeepBookmarkPercent],
+      [settings.xHighReplyRatioEnabled, engagement.replies ?? null, settings.xKeepReplyPercent],
+    ].filter(([enabled]) => enabled);
+    const keptBy = keepRules.length && keepRules.every(([, count, percent]) => reaches(count, percent))
+      ? 'high-engagement' : null;
     if (keptBy) return lowReason ? {reason: null, keptBy, bypassedReason: lowReason} : kept;
     return {...kept, reason: lowReason};
   }
@@ -426,18 +429,19 @@
    * ----------
    * views : number|null
    *     Current own-post views; only positive known counts can form a ratio.
-   * engagement : {likes: number|null, bookmarks: number|null}
+   * engagement : {likes: number|null, bookmarks: number|null, replies: number|null}
    *     Current own-post counts; missing counts remain unknown.
    * settings : object
-   *     Normalized settings. xHighlightBookmarkPercent and xHighlightLikePercent
-   *     are in percent units; xHighlightLikeRequired adds the likes condition.
+   *     Normalized settings. xHighlightBookmarkPercent, xHighlightLikePercent
+   *     and xHighlightReplyPercent are in percent units; xHighlightLikeRequired
+   *     and xHighlightReplyRequired add the likes and replies conditions.
    *
    * Returns
    * -------
    * boolean
    *     True only when enabled, bookmarks/views is strictly above its
-   *     threshold, AND (when required) likes/views is strictly above its
-   *     threshold. Unknown likes cannot satisfy a required likes condition.
+   *     threshold, AND each required likes/views or replies/views ratio is
+   *     strictly above its threshold. Unknown counts cannot satisfy a condition.
    *     The caller limits this presentation to visible X Home cards.
    */
   function shouldHighlightX(views, engagement, settings) {
@@ -451,7 +455,8 @@
       return actual - required > RATIO_COMPARISON_EPSILON * Math.max(actual, required);
     };
     return exceeds(engagement.bookmarks, settings.xHighlightBookmarkPercent)
-      && (!settings.xHighlightLikeRequired || exceeds(engagement.likes, settings.xHighlightLikePercent));
+      && (!settings.xHighlightLikeRequired || exceeds(engagement.likes, settings.xHighlightLikePercent))
+      && (!settings.xHighlightReplyRequired || exceeds(engagement.replies ?? null, settings.xHighlightReplyPercent));
   }
 
   /**

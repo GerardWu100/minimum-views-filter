@@ -11,8 +11,9 @@
   const REASONS = Object.freeze(["low-views", "low-like-ratio", "unknown-views"]);
   const YOUTUBE_REASONS = Object.freeze(["low-views", "unknown-views"]);
   const REASON_SET = new Set(REASONS);
-  // X high-engagement exceptions that can keep a card, and the hide reasons they override.
-  const KEPT_REASONS = Object.freeze(["high-like-and-bookmark-ratio", "high-like-ratio", "high-bookmark-ratio"]);
+  // X high-engagement exception that keeps a card, first; then the per-rule
+  // reasons 1.12.0 and earlier recorded, kept so existing statistics survive.
+  const KEPT_REASONS = Object.freeze(["high-engagement", "high-like-and-bookmark-ratio", "high-like-ratio", "high-bookmark-ratio"]);
   const KEPT_REASON_SET = new Set(KEPT_REASONS);
   const HIGHLIGHT_REASON = "high-bookmark-ratio";
   const BYPASSED_REASON_SET = new Set(["low-views", "low-like-ratio"]);
@@ -109,7 +110,8 @@
     const views = countOrNull(value.views);
     const likes = countOrNull(value.likes);
     const bookmarks = countOrNull(value.bookmarks);
-    if ([views, likes, bookmarks].includes(undefined)) return null;
+    const replies = countOrNull(value.replies);
+    if ([views, likes, bookmarks, replies].includes(undefined)) return null;
     // Ratios need known positive views and the numerator that established the
     // decision. Thresholds are deliberately not rechecked against later settings.
     if (outcome === "hidden") {
@@ -124,7 +126,7 @@
     } else if (views === null || views === 0 || bookmarks === null) {
       return null;
     }
-    const event = {site, url, title, reason: value.reason, views, likes, bookmarks};
+    const event = {site, url, title, reason: value.reason, views, likes, bookmarks, replies};
     return outcome === "kept" ? {...event, bypassedReason: value.bypassedReason} : event;
   }
 
@@ -183,7 +185,7 @@
    *     Up to 100 content-script events from one verified site. Each event has
    *     site, outcome ("hidden", "kept", or "highlighted"), URL or null, bounded
    *     title, reason, bypassedReason for kept events, and optional numeric
-   *     views/likes/bookmarks. Null URLs count without an entry. A
+   *     views/likes/bookmarks/replies. Null URLs count without an entry. A
    *     linked event with enrich: true identifies an earlier linkless event;
    *     it adds an entry occurrence without incrementing any reason count.
    * site : "x" | "youtube"

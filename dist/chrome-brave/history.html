@@ -60,8 +60,8 @@
       <details class="about-counts">
         <summary>About these counts</summary>
         <p>Stored on this device. Totals count events since the last reset, so a later appearance may count again. Each recent-items list keeps the latest 500 distinct links. View and engagement values are snapshots from when an event occurred; items without links appear only in the totals.</p>
-        <p>“Kept by high engagement” counts X posts that were below your view minimum or minimum likes/views but stayed visible because every enabled keep rule passed: by default, likes/views AND bookmarks/views both reached their keep thresholds. They have their own list of the latest 500 links, so they never push filtered items out.</p>
-        <p>“Highlighted” counts visible X posts whose bookmarks/views exceeded your highlight threshold (and likes/views too, while that condition is on), including while “Show highlight in feed” is off. A post can be counted as both kept and highlighted. Highlighted posts have a separate list of the latest 500 links.</p>
+        <p>“Kept by high engagement” counts X posts that were below your view minimum or minimum likes/views but stayed visible because every enabled keep rule passed: by default, likes/views AND bookmarks/views AND replies/views all reached their keep thresholds. They have their own list of the latest 500 links, so they never push filtered items out.</p>
+        <p>“Highlighted” counts visible X posts whose bookmarks/views exceeded your highlight threshold (and likes/views and replies/views too, while those conditions are on), including while “Show highlight in feed” is off. A post can be counted as both kept and highlighted. Highlighted posts have a separate list of the latest 500 links.</p>
       </details>
 
       <section class="recent" aria-labelledby="recent-heading">
@@ -85,9 +85,7 @@
             <button type="button" class="chip" data-value="low-views" data-outcome="hidden" aria-pressed="false"><span class="reason-swatch" data-reason="low-views" aria-hidden="true"></span>Low views</button>
             <button type="button" class="chip" data-value="low-like-ratio" data-outcome="hidden" aria-pressed="false"><span class="reason-swatch" data-reason="low-like-ratio" aria-hidden="true"></span>Low likes/views</button>
             <button type="button" class="chip" data-value="unknown-views" data-outcome="hidden" aria-pressed="false"><span class="reason-swatch" data-reason="unknown-views" aria-hidden="true"></span>Unknown views</button>
-            <button type="button" class="chip" data-value="high-like-and-bookmark-ratio" data-outcome="kept" aria-pressed="false" hidden><span class="reason-swatch" data-reason="high-like-and-bookmark-ratio" aria-hidden="true"></span>High likes &amp; bookmarks/views</button>
-            <button type="button" class="chip" data-value="high-like-ratio" data-outcome="kept" aria-pressed="false" hidden><span class="reason-swatch" data-reason="high-like-ratio" aria-hidden="true"></span>High likes/views</button>
-            <button type="button" class="chip" data-value="high-bookmark-ratio" data-outcome="kept" aria-pressed="false" hidden><span class="reason-swatch" data-reason="high-bookmark-ratio" aria-hidden="true"></span>High bookmarks/views</button>
+            <button type="button" class="chip" data-value="high-engagement" data-outcome="kept" aria-pressed="false" hidden><span class="reason-swatch" data-reason="high-engagement" aria-hidden="true"></span>High engagement</button>
             <button type="button" class="chip" data-value="high-bookmark-ratio" data-outcome="highlighted" aria-pressed="false" hidden><span class="reason-swatch" data-reason="high-bookmark-ratio" aria-hidden="true"></span>High bookmarks/views</button>
           </div>
         </div>

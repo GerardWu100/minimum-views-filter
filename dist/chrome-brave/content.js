@@ -269,7 +269,7 @@
           || (settings.xLowLikeRatioEnabled && settings.xMinimumLikePercent > 0)
           || (settings.xMinimumViewsEnabled && views < settings.xMinimumViews && (settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled))
         )
-          ? core.getXEngagement(card, locale) : {likes: null, bookmarks: null};
+          ? core.getXEngagement(card, locale) : {likes: null, bookmarks: null, replies: null};
         const {reason, keptBy, bypassedReason} = core.getFilterDecision(views, SITE, settings, engagement);
         // Whitelists bypass hiding; the independent accent may still apply.
         const whitelisted = (reason || keptBy) && whitelist.size

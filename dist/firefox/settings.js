@@ -25,6 +25,10 @@
     xBookmarkHighlightShown: true,
     xHighlightLikeRequired: true,
     xHighlightLikePercent: 2,
+    xHighReplyRatioEnabled: true,
+    xKeepReplyPercent: 0.1,
+    xHighlightReplyRequired: true,
+    xHighlightReplyPercent: 0.1,
   });
   const MAXIMUM_VIEWS = 1_000_000_000_000;
   const X_RATIO_SETTING_KEYS = Object.freeze([
@@ -33,14 +37,16 @@
     "xHighBookmarkRatioEnabled", "xKeepBookmarkPercent",
     "xBookmarkHighlightEnabled", "xHighlightBookmarkPercent", "xBookmarkHighlightShown",
     "xHighlightLikeRequired", "xHighlightLikePercent",
+    "xHighReplyRatioEnabled", "xKeepReplyPercent",
+    "xHighlightReplyRequired", "xHighlightReplyPercent",
   ]);
   const PERCENT_SETTING_KEYS = Object.freeze([
     "xMinimumLikePercent", "xKeepLikePercent", "xKeepBookmarkPercent", "xHighlightBookmarkPercent",
-    "xHighlightLikePercent",
+    "xHighlightLikePercent", "xKeepReplyPercent", "xHighlightReplyPercent",
   ]);
   const X_RATIO_TOGGLE_KEYS = Object.freeze([
     "xLowLikeRatioEnabled", "xHighLikeRatioEnabled", "xHighBookmarkRatioEnabled", "xBookmarkHighlightEnabled", "xBookmarkHighlightShown",
-    "xHighlightLikeRequired",
+    "xHighlightLikeRequired", "xHighReplyRatioEnabled", "xHighlightReplyRequired",
   ]);
   // Browser-account sync storage: Chrome/Firefox copy it between computers;
   // Brave keeps it on this computer only.

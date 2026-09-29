@@ -8,7 +8,8 @@ do, and your feed fills up with posts that have a few dozen views. Clicking
 
 This extension hides posts and videos below a view count you pick (1,000 by
 default). On X, it also filters low likes-to-views ratios and keeps posts with
-both high likes-to-views and high saves-to-views ratios, even below your view minimum.
+high likes-, saves- and comments-to-views ratios all at once, even below your
+view minimum.
 It never clicks anything or requests platform data. Hidden items become eligible
 again when their displayed counts meet your rules.
 
@@ -122,7 +123,7 @@ Official instructions: [Chrome unpacked extensions](https://developer.chrome.com
 | --- | --- |
 | Whitelisted creator | Kept by this extension, even with low/unknown views |
 | X likes/views below 0.5% | Hidden unless whitelisted or rescued by a high ratio |
-| X likes/views at least 2% AND saves/views at least 0.5% | Kept, even below the view minimum or low-like threshold |
+| X likes/views ≥ 2% AND saves/views ≥ 0.5% AND comments/views ≥ 0.1% | Kept, even below the view minimum or low-like threshold |
 | 0–999 views, without an X ratio exception | Hidden |
 | Exactly 1,000 or more | Kept unless the X low-like rule applies |
 | Count missing, unsupported, or ambiguous | Kept |
@@ -161,12 +162,13 @@ are on by default, including after an update:
 | Minimum likes as % of views | 0.5% | 49 likes / 10,000 views is hidden; 50 meets the minimum |
 | Keep: require likes at this % of views | 2% | 10 likes / 500 views meets it |
 | Keep: require saves at this % of views | 0.5% | 3 bookmarks / 500 views meets it |
+| Keep: require comments (X replies) at this % of views | 0.1% | 1 reply / 500 views meets it |
 
 A low-view post is kept only when **every enabled keep rule passes at the same
-time**: with the defaults, 10 likes and 3 bookmarks on 500 views keeps the post,
-but 10 likes and 2 bookmarks (0.4%) does not, and neither do 500 bookmarks with
-9 likes. Switch one keep rule off to keep posts on the other ratio alone; switch
-both off to disable the exception.
+time**: with the defaults, 10 likes, 3 bookmarks and 1 reply on 500 views keeps
+the post, but the same post with 0 replies does not, nor does 10 likes and 2
+bookmarks (0.4%), nor 500 bookmarks with 9 likes. Switch a keep rule off to drop
+that condition; switch all three off to disable the exception.
 
 The creator whitelist wins first. Then the high-engagement exception wins.
 Otherwise, the low-like rule or view minimum can hide the post. Equal-to-threshold
@@ -174,8 +176,8 @@ ratios qualify. If both hiding rules fail, history reports the low-like reason.
 YouTube uses only its view-count rules.
 
 With unknown or zero views, ratios are undefined and the view-count policy
-applies. Unknown likes skip the low-like rule; unknown likes or saves cannot
-satisfy a keep rule.
+applies. Unknown likes skip the low-like rule; unknown likes, saves or replies
+cannot satisfy a keep rule.
 The extension reads only the post's own counts already in page text/accessibility
 labels, even when CSS hides them. It ignores quoted-post metrics and prefers
 exact accessibility counts to rounded ones. Saves means X bookmarks. The feature
@@ -192,12 +194,14 @@ Settings → **Highlight** has these switches:
 | Switch | Effect |
 |---|---|
 | **Detect high bookmarks/views** | Finds visible X Home posts whose bookmarks divided by views is **strictly above** the percentage (default 1%), for Statistics and the feed edge |
-| **Also require high likes/views** | The post must also have likes divided by views **strictly above** its percentage (default 2%); both conditions must hold |
+| **Also require high likes/views** | The post must also have likes divided by views **strictly above** its percentage (default 2%) |
+| **Also require high replies/views** | The post must also have replies (comments) divided by views **strictly above** its percentage (default 0.1%) |
 | **Show highlight in feed** | Draws a 3px amber edge on the post's left side, leaving the post background unchanged |
 
-For example, with 1,000 views, 11 bookmarks and 21 likes highlights; 11 bookmarks
-and 20 likes does not, and neither do 10 bookmarks and 500 likes. Unknown likes
-cannot satisfy the likes condition; switch it off to highlight on bookmarks alone. Turn
+Every enabled condition must hold. For example, with 1,000 views, 11 bookmarks,
+21 likes and 2 replies highlights; the same with 1 reply (exactly 0.1%) or 20 likes
+does not, and neither do 10 bookmarks and 500 likes. Unknown likes or replies
+cannot satisfy their condition; switch it off to drop that condition. Turn
 **Show highlight in feed** off to keep the feed unchanged while Statistics keeps
 recording qualifying posts under **Highlighted**. The mid-tone amber reads on
 X's white, Dim, and Lights out backgrounds without detecting the theme. It adds no
@@ -223,9 +227,9 @@ site's hide events split by reason, as a stacked bar with counts and shares:
 | Unknown views | No readable view count, with **Hide unknown view counts** on |
 
 The page also shows **X kept by high engagement**: posts below your view minimum
-or minimum likes/views that stayed visible because every enabled keep rule passed.
-With both rules on they count as **High likes & bookmarks/views**; with only one
-on, as **High likes/views** or **High bookmarks/views**. Posts that
+or minimum likes/views that stayed visible because every enabled keep rule passed,
+counted as **High engagement**. Counts recorded by 1.12.0 and earlier keep their
+per-rule labels. Posts that
 pass your rules anyway, and whitelisted creators, are not counted.
 
 The **Hidden** tab lists the latest **500 identifiable items** across both sites.

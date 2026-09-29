@@ -7,6 +7,7 @@
     "low-views": "Low views",
     "low-like-ratio": "Low likes/views",
     "unknown-views": "Unknown views",
+    "high-engagement": "High engagement",
     "high-like-and-bookmark-ratio": "High likes & bookmarks/views",
     "high-like-ratio": "High likes/views",
     "high-bookmark-ratio": "High bookmarks/views",
@@ -38,7 +39,10 @@
 
   /** Build the X kept-by-engagement breakdown from history.xKeptCounts. */
   function buildKeptBreakdown(keptCounts) {
-    return buildBreakdown(globalThis.MinimumViewsHistory.KEPT_REASONS, keptCounts,
+    // Reasons recorded by earlier releases appear only while they have events.
+    const reasons = globalThis.MinimumViewsHistory.KEPT_REASONS
+      .filter((reason) => reason === "high-engagement" || keptCounts[reason] > 0);
+    return buildBreakdown(reasons, keptCounts,
       "X posts kept by high engagement", "No X posts kept by high engagement");
   }
 
