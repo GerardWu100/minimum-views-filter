@@ -375,11 +375,14 @@
    * -------
    * {reason: string|null, keptBy: string|null, bypassedReason: string|null}
    *     reason is low-views, low-like-ratio, unknown-views, or null to keep the
-   *     card. keptBy is high-like-ratio or high-bookmark-ratio only when that
-   *     exception overrode bypassedReason (low-like-ratio or low-views); a card
-   *     that passes anyway has keptBy null. High likes are credited before
-   *     bookmarks when both qualify. Whitelist exemptions are applied by the
-   *     caller. No history is consulted for this decision.
+   *     card. The keep exception requires EVERY enabled keep rule to pass
+   *     (user request 2026-09-29): with both on, likes/views AND
+   *     bookmarks/views must reach their thresholds. keptBy names the rules
+   *     that applied (high-like-and-bookmark-ratio, high-like-ratio, or
+   *     high-bookmark-ratio) only when the exception overrode bypassedReason
+   *     (low-like-ratio or low-views); a card that passes anyway has keptBy
+   *     null. Whitelist exemptions are applied by the caller. No history is
+   *     consulted for this decision.
    */
   function getFilterDecision(views, site, settings, engagement = {likes: null, bookmarks: null}) {
     const kept = {reason: null, keptBy: null, bypassedReason: null};
@@ -398,9 +401,15 @@
     const lowReason = settings.xLowLikeRatioEnabled && engagement.likes !== null
       && !reaches(engagement.likes, settings.xMinimumLikePercent) ? 'low-like-ratio'
       : belowMinimum ? 'low-views' : null;
-    const keptBy = settings.xHighLikeRatioEnabled && reaches(engagement.likes, settings.xKeepLikePercent) ? 'high-like-ratio'
-      : settings.xHighBookmarkRatioEnabled && reaches(engagement.bookmarks, settings.xKeepBookmarkPercent) ? 'high-bookmark-ratio'
-      : null;
+    // Each enabled keep rule is a required condition; unknown counts fail it.
+    const likeRule = settings.xHighLikeRatioEnabled;
+    const bookmarkRule = settings.xHighBookmarkRatioEnabled;
+    const keeps = (likeRule || bookmarkRule)
+      && (!likeRule || reaches(engagement.likes, settings.xKeepLikePercent))
+      && (!bookmarkRule || reaches(engagement.bookmarks, settings.xKeepBookmarkPercent));
+    const keptBy = !keeps ? null
+      : likeRule && bookmarkRule ? 'high-like-and-bookmark-ratio'
+        : likeRule ? 'high-like-ratio' : 'high-bookmark-ratio';
     if (keptBy) return lowReason ? {reason: null, keptBy, bypassedReason: lowReason} : kept;
     return {...kept, reason: lowReason};
   }

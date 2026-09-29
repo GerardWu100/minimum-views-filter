@@ -18,12 +18,14 @@
   --focus-ring: #edaa34;
   --bar-track: #e6e9ee;
   /* Validated dataviz categorical slots: 1-3 per hide reason, 7 and 5 per
-     high-engagement exception that kept a post. All five pass as one set. */
+     single-rule high-engagement exception. The combined likes-and-bookmarks
+     exception uses a cyan distinct from all five. */
   --reason-low-views: #2a78d6;
   --reason-low-like-ratio: #eb6834;
   --reason-unknown-views: #1baf7a;
   --reason-high-like-ratio: #4a3aa7;
   --reason-high-bookmark-ratio: #e87ba4;
+  --reason-high-like-and-bookmark-ratio: #0e8fa3;
   --radius-card: 14px;
   --radius-control: 10px;
   --shadow-card: 0 1px 2px rgb(15 23 34 / 6%), 0 2px 8px rgb(15 23 34 / 4%);
@@ -51,6 +53,7 @@
     --reason-unknown-views: #199e70;
     --reason-high-like-ratio: #9085e9;
     --reason-high-bookmark-ratio: #d55181;
+    --reason-high-like-and-bookmark-ratio: #2cb5c9;
     --shadow-card: 0 1px 2px rgb(0 0 0 / 30%);
   }
 }
@@ -111,6 +114,7 @@ button:disabled { opacity: .5; cursor: default; }
 [data-reason="low-views"] { --reason-color: var(--reason-low-views); }
 [data-reason="low-like-ratio"] { --reason-color: var(--reason-low-like-ratio); }
 [data-reason="unknown-views"] { --reason-color: var(--reason-unknown-views); }
+[data-reason="high-like-and-bookmark-ratio"] { --reason-color: var(--reason-high-like-and-bookmark-ratio); }
 [data-reason="high-like-ratio"] { --reason-color: var(--reason-high-like-ratio); }
 [data-reason="high-bookmark-ratio"] { --reason-color: var(--reason-high-bookmark-ratio); }
 .stack-segment, .reason-swatch { background: var(--reason-color); }

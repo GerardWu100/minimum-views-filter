@@ -390,17 +390,22 @@ test('paused collection rejects queued writes while retaining readable statistic
 });
 
 test('kept events have their own counts and list and are validated separately', () => {
-  let history = store.addEvents(null, [xEvent(1), keptEvent(2), keptEvent(3, {reason: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio', bookmarks: 3})], 'x', 1).history;
-  assert.deepEqual(clone(history.xKeptCounts), {'high-like-ratio': 1, 'high-bookmark-ratio': 1});
+  let history = store.addEvents(null, [xEvent(1), keptEvent(2), keptEvent(3, {reason: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio', bookmarks: 3}),
+    keptEvent(11, {reason: 'high-like-and-bookmark-ratio', bookmarks: 3})], 'x', 1).history;
+  assert.deepEqual(clone(history.xKeptCounts), {'high-like-and-bookmark-ratio': 1, 'high-like-ratio': 1, 'high-bookmark-ratio': 1});
   assert.deepEqual(totals(history), {x: 1, youtube: 0});
   assert.deepEqual(history.entries.map((entry) => entry.url), ['https://x.com/author/status/1']);
-  assert.deepEqual(history.keptEntries.map((entry) => entry.url), ['https://x.com/author/status/3', 'https://x.com/author/status/2']);
+  assert.deepEqual(history.keptEntries.map((entry) => entry.url), ['https://x.com/author/status/11', 'https://x.com/author/status/3', 'https://x.com/author/status/2']);
+  history.keptEntries.shift();
   assert.equal(history.keptEntries[1].bypassedReason, 'low-views');
   assert.equal(Object.hasOwn(history.keptEntries[1], 'outcome'), false);
   // Kept events cannot claim a hide reason, a missing bypass, YouTube, or no outcome.
   const rejected = store.addEvents(history, [
     keptEvent(4, {reason: 'low-views'}), keptEvent(5, {bypassedReason: 'unknown-views'}), keptEvent(6, {bypassedReason: undefined}),
     xEvent(7, {outcome: undefined}), xEvent(8, {outcome: 'shown'}), xEvent(9, {reason: 'high-like-ratio'}),
+    // A combined keep needs both numerators.
+    keptEvent(12, {reason: 'high-like-and-bookmark-ratio', bookmarks: null}),
+    keptEvent(13, {reason: 'high-like-and-bookmark-ratio', likes: null, bookmarks: 3}),
   ], 'x', 2);
   assert.equal(rejected.recorded, 0);
   assert.equal(store.addEvents(null, [youtubeEvent('a', {outcome: 'kept', reason: 'high-like-ratio', bypassedReason: 'low-views'})], 'youtube', 1).recorded, 0);
@@ -408,7 +413,7 @@ test('kept events have their own counts and list and are validated separately', 
   const normalized = store.normalizeHistory({entries: [{...history.keptEntries[0]}], keptEntries: history.keptEntries, xKeptCounts: {'high-like-ratio': 4, other: 2}});
   assert.equal(normalized.entries.length, 0);
   assert.equal(normalized.keptEntries.length, 2);
-  assert.deepEqual(clone(normalized.xKeptCounts), {'high-like-ratio': 4, 'high-bookmark-ratio': 0});
+  assert.deepEqual(clone(normalized.xKeptCounts), {'high-like-and-bookmark-ratio': 0, 'high-like-ratio': 4, 'high-bookmark-ratio': 0});
   // Enrichment adds a kept entry without counting another kept event.
   const linkless = store.addEvents(null, [keptEvent(10, {url: null})], 'x', 1).history;
   const enriched = store.addEvents(linkless, [keptEvent(10, {enrich: true})], 'x', 2).history;

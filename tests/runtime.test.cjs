@@ -970,7 +970,7 @@ const keptItems = (storage) => recordedItems(storage).filter((item) => item.outc
 for (const lowRule of [{xLowLikeRatioEnabled: false}, {xMinimumLikePercent: 0}]) {
   test('X skips irrelevant engagement reads but still rescues low-view cards: ' + JSON.stringify(lowRule), async (t) => {
     const {window, document, storage, work} = openContent(t, {
-      html: xEngagementCard(1, '1000', 0) + xEngagementCard(2, '500', 10) + xEngagementCard(3, '500', 0),
+      html: xEngagementCard(1, '1000', 0) + xEngagementCard(2, '500', 10, 3) + xEngagementCard(3, '500', 0),
       stored: {...lowRule, xBookmarkHighlightEnabled: false},
     });
     await wait();
@@ -991,7 +991,7 @@ for (const lowRule of [{xLowLikeRatioEnabled: false}, {xMinimumLikePercent: 0}])
 }
 
 test('X ratio decisions react to changed counts, missing likes, quote metrics and live settings', async (t) => {
-  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '10000', 1) + xEngagementCard(2, '500', 10) + xEngagementCard(3, '400', 0, 2)});
+  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '10000', 1) + xEngagementCard(2, '500', 10, 3) + xEngagementCard(3, '400', 8, 2)});
   await wait();
   assertVisible(window, '#cell-1', false);
   assertVisible(window, '#cell-2', true);
@@ -1020,7 +1020,7 @@ test('X ratio decisions react to changed counts, missing likes, quote metrics an
 });
 
 test('history records hidden transitions and recycled identities, never rescans', async (t) => {
-  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '10000', 1) + xEngagementCard(2, '500', 10)});
+  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '10000', 1) + xEngagementCard(2, '500', 10, 3)});
   await wait();
   assert.equal(historyItems(storage).length, 1);
   assert.equal(historyItems(storage)[0].reason, 'low-like-ratio');
@@ -1087,14 +1087,16 @@ test('synchronous invalidated-extension reporting errors do not interrupt hiding
 });
 
 test('X posts kept by high engagement are recorded once per continuous kept state', async (t) => {
-  // Post 2: 500 views is below the 1,000 minimum, but 10 likes = 2% keeps it.
-  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '5000', 500) + xEngagementCard(2, '500', 10)});
+  // Post 2: 500 views is below the 1,000 minimum, but 10 likes = 2% and
+  // 3 bookmarks = 0.6% together keep it.
+  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '5000', 500) + xEngagementCard(2, '500', 10, 3)});
   await wait();
   assertVisible(window, '#cell-2', true);
   assert.equal(historyItems(storage).length, 0);
   assert.equal(keptItems(storage).length, 1);
-  assert.equal(keptItems(storage)[0].reason, 'high-like-ratio');
+  assert.equal(keptItems(storage)[0].reason, 'high-like-and-bookmark-ratio');
   assert.equal(keptItems(storage)[0].bypassedReason, 'low-views');
+  assert.equal(keptItems(storage)[0].bookmarks, 3);
   assert.equal(keptItems(storage)[0].url, 'https://x.com/author/status/2');
   assert.equal(keptItems(storage)[0].likes, 10);
   document.querySelector('#post-2 [data-testid="like"]').setAttribute('aria-label', '11 Likes');
@@ -1155,7 +1157,8 @@ test('X highlight reacts to strict boundaries, hidden counters, missing counts a
 test('highlight alone never rescues a hidden card and can coexist with kept and whitelisted posts', async (t) => {
   const {window, document, storage} = openContent(t, {
     html: xEngagementCard(1, '500', 0, 20),
-    stored: {...BOOKMARK_ONLY_HIGHLIGHT, xHighBookmarkRatioEnabled: false},
+    // Only the bookmarks keep rule is used here, so zero likes cannot block it.
+    stored: {...BOOKMARK_ONLY_HIGHLIGHT, xHighLikeRatioEnabled: false, xHighBookmarkRatioEnabled: false},
   });
   await wait();
   assertVisible(window, '#cell-1', false);

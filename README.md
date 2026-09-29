@@ -8,7 +8,7 @@ do, and your feed fills up with posts that have a few dozen views. Clicking
 
 This extension hides posts and videos below a view count you pick (1,000 by
 default). On X, it also filters low likes-to-views ratios and keeps posts with
-high likes-to-views or saves-to-views ratios, even below your view minimum.
+both high likes-to-views and high saves-to-views ratios, even below your view minimum.
 It never clicks anything or requests platform data. Hidden items become eligible
 again when their displayed counts meet your rules.
 
@@ -122,7 +122,7 @@ Official instructions: [Chrome unpacked extensions](https://developer.chrome.com
 | --- | --- |
 | Whitelisted creator | Kept by this extension, even with low/unknown views |
 | X likes/views below 0.5% | Hidden unless whitelisted or rescued by a high ratio |
-| X likes/views at least 2% OR saves/views at least 0.5% | Kept, even below the view minimum or low-like threshold |
+| X likes/views at least 2% AND saves/views at least 0.5% | Kept, even below the view minimum or low-like threshold |
 | 0–999 views, without an X ratio exception | Hidden |
 | Exactly 1,000 or more | Kept unless the X low-like rule applies |
 | Count missing, unsupported, or ambiguous | Kept |
@@ -159,16 +159,23 @@ are on by default, including after an update:
 | Setting | Default | Example |
 | --- | --- | --- |
 | Minimum likes as % of views | 0.5% | 49 likes / 10,000 views is hidden; 50 meets the minimum |
-| Keep when likes reach this % of views | 2% | 10 likes / 500 views keeps the post |
-| Keep when saves reach this % of views | 0.5% | 2 bookmarks / 400 views keeps the post, even with zero likes |
+| Keep: require likes at this % of views | 2% | 10 likes / 500 views meets it |
+| Keep: require saves at this % of views | 0.5% | 3 bookmarks / 500 views meets it |
 
-The creator whitelist wins first. Then either high-engagement exception wins.
+A low-view post is kept only when **every enabled keep rule passes at the same
+time**: with the defaults, 10 likes and 3 bookmarks on 500 views keeps the post,
+but 10 likes and 2 bookmarks (0.4%) does not, and neither do 500 bookmarks with
+9 likes. Switch one keep rule off to keep posts on the other ratio alone; switch
+both off to disable the exception.
+
+The creator whitelist wins first. Then the high-engagement exception wins.
 Otherwise, the low-like rule or view minimum can hide the post. Equal-to-threshold
 ratios qualify. If both hiding rules fail, history reports the low-like reason.
 YouTube uses only its view-count rules.
 
 With unknown or zero views, ratios are undefined and the view-count policy
-applies. Unknown likes skip the low-like rule; unknown saves cannot rescue a post.
+applies. Unknown likes skip the low-like rule; unknown likes or saves cannot
+satisfy a keep rule.
 The extension reads only the post's own counts already in page text/accessibility
 labels, even when CSS hides them. It ignores quoted-post metrics and prefers
 exact accessibility counts to rounded ones. Saves means X bookmarks. The feature
@@ -216,9 +223,9 @@ site's hide events split by reason, as a stacked bar with counts and shares:
 | Unknown views | No readable view count, with **Hide unknown view counts** on |
 
 The page also shows **X kept by high engagement**: posts below your view minimum
-or minimum likes/views that stayed visible because their likes/views reached
-the keep percentage (**High likes/views**) or their bookmarks/views did (**High
-bookmarks/views**). When both qualify, the post counts under likes. Posts that
+or minimum likes/views that stayed visible because every enabled keep rule passed.
+With both rules on they count as **High likes & bookmarks/views**; with only one
+on, as **High likes/views** or **High bookmarks/views**. Posts that
 pass your rules anyway, and whitelisted creators, are not counted.
 
 The **Hidden** tab lists the latest **500 identifiable items** across both sites.

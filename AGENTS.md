@@ -13,7 +13,9 @@ the platform through negative-feedback actions.
   subject to the X engagement rules below.
 - On X, also hide posts below an adjustable likes/views percentage (default
   0.5%). Keep posts at or above an adjustable likes/views percentage (default 2%)
-  OR bookmarks/views percentage (default 0.5%), overriding both hiding rules.
+  AND bookmarks/views percentage (default 0.5%) at the same time (user request
+  2026-09-29; previously OR), overriding both hiding rules. Every enabled keep
+  rule must pass; switching one off keeps on the other alone.
   Each ratio rule has its own switch. Ratios require known, positive views and
   a known numerator; missing likes/bookmarks are unknown, never implicit zero.
 - Whitelisted X accounts bypass all filtering ratio rules as well as the view rules.
@@ -32,7 +34,7 @@ the platform through negative-feedback actions.
   items with canonical links, snippets/titles, count snapshots, reasons, and
   timestamps. Provide a reset action. This user-requested history must never
   become a blacklist, be synced, be uploaded, or hold DOM references.
-- Also count and list X posts that a high likes/views or bookmarks/views ratio
+- Also count and list X posts that the high likes/views and bookmarks/views rules
   kept visible when they would otherwise be hidden (user request 2026-09-28),
   under the same local, bounded, never-a-blacklist rules and a separate
   500-link list, so kept posts never displace filtered items.

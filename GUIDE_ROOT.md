@@ -112,8 +112,10 @@ on an older signed XPI can send settings to a newer one.
 For a supported card, read current views, then X engagement when views are
 positive and a ratio rule can change the decision. When highlight detection is inactive and the low-like rule is
 disabled or set to 0%, cards meeting the enabled view floor skip engagement reads;
-below-floor cards still read enabled rescue metrics. A high-like OR high-bookmark
-ratio keeps the card. Otherwise a low-like ratio or low views hides it; whitelist matches
+below-floor cards still read enabled rescue metrics. Every enabled keep rule
+must pass (AND since 1.12.0 at the user's request; previously OR), so with both on
+the card needs high likes/views and high bookmarks/views; unknown counts fail a
+keep rule. Otherwise a low-like ratio or low views hides it; whitelist matches
 rescue any otherwise hidden card. Unknown likes do not establish a low ratio,
 and zero/unknown views have no ratio. Comparisons multiply count by 100 and
 threshold percentage by views, with a two-operation machine-precision allowance
@@ -142,8 +144,10 @@ so the two cannot disagree), `xKeptCounts[keptReason]`, and `xHighlightedCount`,
 lists: `entries` (hidden), `keptEntries` (kept), and `highlightedEntries`, under
 `storage.local.filterHistory` (version 4). Stored counts in any other shape
 normalize to zero. Messages carry `outcome`; stored entries omit it because their
-list identifies it. Kept events must come from X, name `high-like-ratio` or
-`high-bookmark-ratio`, and name the `bypassedReason` (`low-views` or
+list identifies it. Kept events must come from X, name
+`high-like-and-bookmark-ratio` (both rules on; needs likes and bookmarks),
+`high-like-ratio`, or `high-bookmark-ratio` (one rule on; history from before
+1.12.0 also used these under OR), and name the `bypassedReason` (`low-views` or
 `low-like-ratio`) the exception overrode.
 
 `getFilterDecision` returns `{reason, keptBy, bypassedReason}`; `getFilterReason`
@@ -251,7 +255,7 @@ The installed Brave extension was observed before this change; the rebuilt
 package has not been installed, reloaded, or tested against live X. See the
 [sanitized seen-list investigation](docs/x-seen-list-check.md).
 
-For v1.11.2, run `npm ci`, `npm test`, `npm run build`, and
+For v1.12.0, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
 The packages now contain 22 files; the stable extension IDs and permissions are

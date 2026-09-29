@@ -27,15 +27,19 @@ test('French engagement supports exact and abbreviated labels without guessing s
   assert.deepEqual(read('<button data-testid="like" aria-label="Aucun J’aime"></button><button data-testid="bookmark" aria-label="Aucun signet"></button>', 'fr'), {likes: 0, bookmarks: 0});
 });
 
-test('ratio boundaries, OR rescue precedence and zero or unknown denominator are explicit', () => {
+test('ratio boundaries, AND rescue and zero or unknown denominator are explicit', () => {
   const settings = normalizeSettings();
   const reason = (views, likes, bookmarks = null, override = {}) => core.getFilterReason(views, 'x', {...settings, ...override}, {likes, bookmarks});
   assert.equal(reason(10000, 49), 'low-like-ratio');
   assert.equal(reason(10000, 50), null);
   assert.equal(reason(500, 9), 'low-views');
-  assert.equal(reason(500, 10), null);
-  assert.equal(reason(400, 0, 2), null);
-  assert.equal(reason(400, 0, 1), 'low-like-ratio');
+  // Rescue needs likes/views >= 2% AND bookmarks/views >= 0.5% by default.
+  assert.equal(reason(500, 10), 'low-views');
+  assert.equal(reason(500, 10, 2), 'low-views');
+  assert.equal(reason(500, 10, 3), null);
+  assert.equal(reason(400, 0, 2), 'low-like-ratio');
+  assert.equal(reason(400, 0, 2, {xHighLikeRatioEnabled: false}), null);
+  assert.equal(reason(400, 0, 1, {xHighLikeRatioEnabled: false}), 'low-like-ratio');
   assert.equal(reason(10000, null), null);
   assert.equal(reason(400, null), 'low-views');
   assert.equal(reason(null, 9999, 9999), null);
@@ -44,6 +48,7 @@ test('ratio boundaries, OR rescue precedence and zero or unknown denominator are
   assert.equal(reason(0, 10, 10, {xMinimumViews: 0}), null);
   assert.equal(reason(10000, 0, 100, {xHighBookmarkRatioEnabled: false}), 'low-like-ratio');
   assert.equal(reason(500, 10, null, {xHighLikeRatioEnabled: false}), 'low-views');
+  assert.equal(reason(500, 10, null, {xHighBookmarkRatioEnabled: false}), null);
   assert.equal(reason(10000, 0, null, {xLowLikeRatioEnabled: false}), null);
   assert.equal(core.getFilterReason(999, 'youtube', settings, {likes: 999, bookmarks: 999}), 'low-views');
   assert.equal(core.getFilterReason(1000, 'youtube', settings, {likes: 0, bookmarks: 0}), null);
@@ -103,16 +108,25 @@ test('decimal percentages include exact boundaries without accepting a materiall
 test('decision reports which high-engagement rule kept a card and the hide rule it overrode', () => {
   const settings = normalizeSettings();
   const decide = (views, likes, bookmarks = null, override = {}, site = 'x') => ({...core.getFilterDecision(views, site, {...settings, ...override}, {likes, bookmarks})});
-  // 500 views is below the 1,000 minimum; 10 likes = 2% reaches the keep threshold.
-  assert.deepEqual(decide(500, 10), {reason: null, keptBy: 'high-like-ratio', bypassedReason: 'low-views'});
-  // 0 likes fails the 0.5% minimum; 2 bookmarks / 400 views = 0.5% keeps it.
-  assert.deepEqual(decide(400, 0, 2), {reason: null, keptBy: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio'});
-  // Both exceptions qualify: likes are credited.
-  assert.deepEqual(decide(500, 10, 10), {reason: null, keptBy: 'high-like-ratio', bypassedReason: 'low-views'});
+  // 500 views is below the 1,000 minimum. Defaults need likes/views >= 2% AND
+  // bookmarks/views >= 0.5%: 10 likes = 2% and 3 bookmarks = 0.6% keep it.
+  assert.deepEqual(decide(500, 10, 3), {reason: null, keptBy: 'high-like-and-bookmark-ratio', bypassedReason: 'low-views'});
+  // Exact boundaries on both ratios keep: 16/800 = 2%, 4/800 = 0.5%.
+  assert.deepEqual(decide(800, 16, 4), {reason: null, keptBy: 'high-like-and-bookmark-ratio', bypassedReason: 'low-views'});
+  // One high ratio alone no longer rescues while both keep rules are on.
+  assert.deepEqual(decide(500, 10, 2), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(500, 9, 100), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(500, 10), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  // 0 likes fails the 0.5% minimum and cannot satisfy the likes keep rule.
+  assert.deepEqual(decide(400, 0, 2), {reason: 'low-like-ratio', keptBy: null, bypassedReason: null});
+  // Switching one keep rule off keeps on the other ratio alone.
+  assert.deepEqual(decide(500, 10, null, {xHighBookmarkRatioEnabled: false}), {reason: null, keptBy: 'high-like-ratio', bypassedReason: 'low-views'});
+  assert.deepEqual(decide(400, 0, 2, {xHighLikeRatioEnabled: false}), {reason: null, keptBy: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio'});
+  // With both keep rules off, nothing is rescued.
+  assert.deepEqual(decide(500, 500, 500, {xHighLikeRatioEnabled: false, xHighBookmarkRatioEnabled: false}), {reason: 'low-views', keptBy: null, bypassedReason: null});
   // High engagement on a post that passes anyway is not a rescue.
-  assert.deepEqual(decide(5000, 500), {reason: null, keptBy: null, bypassedReason: null});
-  assert.deepEqual(decide(500, 9), {reason: 'low-views', keptBy: null, bypassedReason: null});
-  assert.deepEqual(decide(500, 10, null, {xHighLikeRatioEnabled: false}), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(5000, 500, 500), {reason: null, keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(500, 9, 3), {reason: 'low-views', keptBy: null, bypassedReason: null});
   // Unknown or zero views cannot form a ratio, and YouTube has no exceptions.
   assert.deepEqual(decide(null, 10, 10, {hideUnknown: true}), {reason: 'unknown-views', keptBy: null, bypassedReason: null});
   assert.deepEqual(decide(0, 10, 10), {reason: 'low-views', keptBy: null, bypassedReason: null});

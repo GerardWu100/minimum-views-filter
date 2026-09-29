@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Minimum Views Filter",
-  "version": "1.11.2",
+  "version": "1.12.0",
   "description": "Filter X and YouTube feeds, subtly highlight X posts with high bookmarks/views, and review optional local statistics.",
   "permissions": [
     "storage",

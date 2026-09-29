@@ -12,7 +12,7 @@
   const YOUTUBE_REASONS = Object.freeze(["low-views", "unknown-views"]);
   const REASON_SET = new Set(REASONS);
   // X high-engagement exceptions that can keep a card, and the hide reasons they override.
-  const KEPT_REASONS = Object.freeze(["high-like-ratio", "high-bookmark-ratio"]);
+  const KEPT_REASONS = Object.freeze(["high-like-and-bookmark-ratio", "high-like-ratio", "high-bookmark-ratio"]);
   const KEPT_REASON_SET = new Set(KEPT_REASONS);
   const HIGHLIGHT_REASON = "high-bookmark-ratio";
   const BYPASSED_REASON_SET = new Set(["low-views", "low-like-ratio"]);
@@ -117,7 +117,9 @@
       if (value.reason === "low-like-ratio" && (views === 0 || likes === null)) return null;
     } else if (outcome === "kept") {
       if (views === null || views === 0) return null;
-      if ((value.reason === "high-like-ratio" && likes === null) || (value.reason === "high-bookmark-ratio" && bookmarks === null)) return null;
+      const needsLikes = value.reason === "high-like-ratio" || value.reason === "high-like-and-bookmark-ratio";
+      const needsBookmarks = value.reason === "high-bookmark-ratio" || value.reason === "high-like-and-bookmark-ratio";
+      if ((needsLikes && likes === null) || (needsBookmarks && bookmarks === null)) return null;
       if (value.bypassedReason === "low-like-ratio" && likes === null) return null;
     } else if (views === null || views === 0 || bookmarks === null) {
       return null;

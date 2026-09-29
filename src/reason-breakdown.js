@@ -7,6 +7,7 @@
     "low-views": "Low views",
     "low-like-ratio": "Low likes/views",
     "unknown-views": "Unknown views",
+    "high-like-and-bookmark-ratio": "High likes & bookmarks/views",
     "high-like-ratio": "High likes/views",
     "high-bookmark-ratio": "High bookmarks/views",
   };
