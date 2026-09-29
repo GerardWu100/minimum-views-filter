@@ -219,7 +219,7 @@ test('page shutdown restores hidden cards and removes storage listeners', async 
 });
 
 function openPopup(t, {namespace = 'browser', ...options} = {}) {
-  const dom = new JSDOM(source('popup.html'), {url: 'https://extension.invalid/popup.html', runScripts: 'outside-only'});
+  const dom = new JSDOM(source('options.html'), {url: 'https://extension.invalid/options.html', runScripts: 'outside-only'});
   const storage = createStorage(options);
   dom.window[namespace] = storage.api;
   dom.window.eval(source('settings.js'));
@@ -882,7 +882,7 @@ for (const lowRule of [{xLowLikeRatioEnabled: false}, {xMinimumLikePercent: 0}])
   test('X skips irrelevant engagement reads but still rescues low-view cards: ' + JSON.stringify(lowRule), async (t) => {
     const {window, document, storage, work} = openContent(t, {
       html: xEngagementCard(1, '1000', 0) + xEngagementCard(2, '500', 10) + xEngagementCard(3, '500', 0),
-      stored: lowRule,
+      stored: {...lowRule, xBookmarkHighlightEnabled: false},
     });
     await wait();
     assert.equal(work.getXEngagement, 2);
@@ -1026,4 +1026,137 @@ test('X posts kept by high engagement are recorded once per continuous kept stat
   await wait();
   assert.equal(keptItems(storage).length, 2);
   assert.equal(historyItems(storage).length, 1);
+});
+
+const highlightedItems = (storage) => recordedItems(storage).filter((item) => item.outcome === 'highlighted');
+const hasHighlight = (document, id = 1) => document.querySelector('#post-' + id).hasAttribute('data-minimum-views-highlighted');
+
+test('X highlight reacts to strict boundaries, hidden counters, missing counts and recycled URLs', async (t) => {
+  const {document, storage} = openContent(t, {html: xEngagementCard(1, '1000', 10, 10)});
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  const bookmarks = document.querySelector('[data-testid="bookmark"]');
+  bookmarks.style.display = 'none';
+  bookmarks.setAttribute('aria-label', '11 Bookmarks');
+  await wait();
+  assert.equal(hasHighlight(document), true);
+  assert.equal(highlightedItems(storage).length, 1);
+  bookmarks.setAttribute('aria-label', '12 Bookmarks');
+  await wait();
+  assert.equal(highlightedItems(storage).length, 1);
+  document.querySelector('a time').closest('a').href = '/author/status/2';
+  document.querySelector('a[href$="/analytics"]').href = '/author/status/2/analytics';
+  await wait();
+  assert.equal(highlightedItems(storage).length, 2);
+  assert.equal(highlightedItems(storage)[1].url, 'https://x.com/author/status/2');
+  document.querySelector('a[href$="/analytics"]').setAttribute('aria-label', '1200 views');
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  bookmarks.remove();
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  document.querySelector('article').insertAdjacentHTML('beforeend', '<div role="link"><button data-testid="bookmark" aria-label="100 Bookmarks">100</button></div>');
+  await wait();
+  assert.equal(hasHighlight(document), false);
+});
+
+test('highlight alone never rescues a hidden card and can coexist with kept and whitelisted posts', async (t) => {
+  const {window, document, storage} = openContent(t, {
+    html: xEngagementCard(1, '500', 0, 20),
+    stored: {xHighBookmarkRatioEnabled: false},
+  });
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  assert.equal(hasHighlight(document), false);
+  assert.equal(highlightedItems(storage).length, 0);
+  storage.change({xHighBookmarkRatioEnabled: true});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  assert.equal(hasHighlight(document), true);
+  assert.equal(keptItems(storage).length, 1);
+  assert.equal(highlightedItems(storage).length, 1);
+  storage.change({xWhitelist: ['author'], xHighBookmarkRatioEnabled: false});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  assert.equal(hasHighlight(document), true);
+  assert.equal(highlightedItems(storage).length, 1);
+  storage.change({xWhitelistEnabled: false});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  assert.equal(hasHighlight(document), false);
+});
+
+test('highlight marks clean up on settings, route changes and lost identities without touching foreign state', async (t) => {
+  const {window, document, storage} = openContent(t, {html: xEngagementCard(1, '1000', 10, 20)});
+  const card = document.querySelector('article');
+  card.className = 'foreign';
+  card.style.color = 'red';
+  card.setAttribute('hidden', 'until-found');
+  await wait();
+  assert.equal(hasHighlight(document), true);
+  storage.change({xHighlightBookmarkPercent: 2});
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  storage.change({xHighlightBookmarkPercent: 1, xBookmarkHighlightEnabled: false});
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  storage.change({xBookmarkHighlightEnabled: true});
+  await wait();
+  assert.equal(hasHighlight(document), true);
+  window.history.pushState({}, '', '/search');
+  window.dispatchEvent(new window.PopStateEvent('popstate'));
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  window.history.pushState({}, '', '/home');
+  window.dispatchEvent(new window.PopStateEvent('popstate'));
+  await wait();
+  assert.equal(hasHighlight(document), true);
+  card.removeAttribute('data-testid');
+  await wait();
+  assert.equal(hasHighlight(document), false);
+  assert.equal(card.className, 'foreign');
+  assert.equal(card.getAttribute('style'), 'color: red;');
+  assert.equal(card.getAttribute('hidden'), 'until-found');
+});
+
+test('statistics switch stops all recording while filters and highlight remain active', async (t) => {
+  const {window, document, storage} = openContent(t, {
+    html: xEngagementCard(1, '500', 0) + xEngagementCard(2, '1000', 10, 20),
+    stored: {statisticsEnabled: false},
+  });
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  assert.equal(hasHighlight(document, 2), true);
+  assert.equal(recordedItems(storage).length, 0);
+  storage.change({statisticsEnabled: true});
+  await wait();
+  assert.equal(historyItems(storage).length, 1);
+  assert.equal(highlightedItems(storage).length, 1);
+  storage.change({statisticsEnabled: false});
+  document.body.insertAdjacentHTML('beforeend', xEngagementCard(3, '400', 10, 10));
+  await wait();
+  assert.equal(recordedItems(storage).length, 2);
+  assert.equal(hasHighlight(document, 3), true);
+  storage.change({xEnabled: false});
+  await wait();
+  assert.equal(document.querySelectorAll('[data-minimum-views-highlighted]').length, 0);
+  assertVisible(window, '#cell-1', true);
+});
+
+test('view minimum and whitelist switches apply independently on YouTube', async (t) => {
+  const {window, storage} = openContent(t, {url: 'https://www.youtube.com/', html: youtubeCard(1, '999') + youtubeCard(2, null), stored: {youtubeWhitelist: ['@author'], hideUnknown: true}});
+  await wait();
+  assertVisible(window, '#video-1', true);
+  assertVisible(window, '#video-2', true);
+  storage.change({youtubeWhitelistEnabled: false});
+  await wait();
+  assertVisible(window, '#video-1', false);
+  assertVisible(window, '#video-2', false);
+  storage.change({youtubeMinimumViewsEnabled: false});
+  await wait();
+  assertVisible(window, '#video-1', true);
+  assertVisible(window, '#video-2', false);
+  storage.change({hideUnknown: false});
+  await wait();
+  assertVisible(window, '#video-2', true);
 });

@@ -16,7 +16,15 @@ the platform through negative-feedback actions.
   OR bookmarks/views percentage (default 0.5%), overriding both hiding rules.
   Each ratio rule has its own switch. Ratios require known, positive views and
   a known numerator; missing likes/bookmarks are unknown, never implicit zero.
-- Whitelisted X accounts bypass all ratio rules as well as the view rules.
+- Whitelisted X accounts bypass all filtering ratio rules as well as the view rules.
+- Optionally highlight visible X Home posts strictly above an adjustable
+  bookmarks/views percentage (default 1%) using a faint inset outline. This
+  independent switch never rescues a hidden post; whitelisted posts may highlight.
+  Track highlighted events and a separate 500-link list locally, under the same
+  bounded, never-a-blacklist history rules.
+- Keep Settings and Statistics on separate pages. Give every behavioral setting
+  an off switch, including view floors, whitelists, and statistics collection;
+  disabling a rule preserves its threshold/list, and pausing collection keeps history.
 - Keep local filtering-event totals and the latest 500 identifiable filtered
   items with canonical links, snippets/titles, count snapshots, reasons, and
   timestamps. Provide a reset action. This user-requested history must never
@@ -48,7 +56,7 @@ the platform through negative-feedback actions.
 - Handle new cards, changed counts, recycled DOM nodes, and navigation without
   requiring full-page reloads. Never fetch counts or run background collection.
 - Coexist with the user's extensions. Add/remove only this extension's own
-  hiding attribute; preserve existing classes, inline styles, hidden attributes,
+  hiding and highlight attributes; preserve existing classes, inline styles, hidden attributes,
   player controls, network behavior, titles, thumbnails, and other filters.
 - Do not promise complete compatibility with arbitrary user scripts or styles.
   If every copy of a count is removed, use the unknown-count policy.
@@ -59,7 +67,7 @@ the platform through negative-feedback actions.
 - Filter YouTube only on Home and on recommendations beside or below the video
   being watched. Never filter search, subscriptions, channels, history, playlists,
   the Shorts player, or other pages. Keep the active video player visible.
-- Navigating away from an allowed page must remove this extension's hiding marks,
+- Navigating away from an allowed page must remove this extension's hiding and highlight marks,
   including on sites that navigate without a full page reload.
 - Do not install into the user's browser or change existing extension settings
   as part of development unless the user requests that action.

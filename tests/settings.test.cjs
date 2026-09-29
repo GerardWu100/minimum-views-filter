@@ -22,15 +22,17 @@ test('X ratio settings default independently and accept finite percentages from 
     'xLowLikeRatioEnabled', 'xMinimumLikePercent',
     'xHighLikeRatioEnabled', 'xKeepLikePercent',
     'xHighBookmarkRatioEnabled', 'xKeepBookmarkPercent',
+    'xBookmarkHighlightEnabled', 'xHighlightBookmarkPercent',
   ]);
-  assert.deepEqual(PERCENT_SETTING_KEYS, ['xMinimumLikePercent', 'xKeepLikePercent', 'xKeepBookmarkPercent']);
-  assert.deepEqual(X_RATIO_SETTING_KEYS.map((key) => normalizeSettings()[key]), [true, 0.5, true, 2, true, 0.5]);
+  assert.deepEqual(PERCENT_SETTING_KEYS, ['xMinimumLikePercent', 'xKeepLikePercent', 'xKeepBookmarkPercent', 'xHighlightBookmarkPercent']);
+  assert.deepEqual(X_RATIO_SETTING_KEYS.map((key) => normalizeSettings()[key]), [true, 0.5, true, 2, true, 0.5, true, 1]);
   const settings = normalizeSettings({
     xLowLikeRatioEnabled: false, xMinimumLikePercent: 0,
     xHighLikeRatioEnabled: false, xKeepLikePercent: 12.345,
     xHighBookmarkRatioEnabled: false, xKeepBookmarkPercent: 100,
+    xBookmarkHighlightEnabled: false, xHighlightBookmarkPercent: 1.75,
   });
-  assert.deepEqual(X_RATIO_SETTING_KEYS.map((key) => settings[key]), [false, 0, false, 12.345, false, 100]);
+  assert.deepEqual(X_RATIO_SETTING_KEYS.map((key) => settings[key]), [false, 0, false, 12.345, false, 100, false, 1.75]);
   for (const key of PERCENT_SETTING_KEYS) {
     for (const invalid of [-0.01, 100.01, NaN, Infinity, -Infinity, '2', null]) {
       assert.equal(normalizeSettings({[key]: invalid})[key], DEFAULTS[key], `${key}: ${invalid}`);
@@ -38,6 +40,21 @@ test('X ratio settings default independently and accept finite percentages from 
   }
   for (const key of X_RATIO_SETTING_KEYS.filter((entry) => entry.endsWith('Enabled'))) {
     assert.equal(normalizeSettings({[key]: 1})[key], true);
+  }
+});
+
+test('each settings switch accepts booleans and defaults to its intended state', () => {
+  const switchDefaults = {
+    xEnabled: true, youtubeEnabled: true, xMinimumViewsEnabled: true,
+    youtubeMinimumViewsEnabled: true, xWhitelistEnabled: true,
+    youtubeWhitelistEnabled: true, hideUnknown: false, statisticsEnabled: true,
+    xLowLikeRatioEnabled: true, xHighLikeRatioEnabled: true,
+    xHighBookmarkRatioEnabled: true, xBookmarkHighlightEnabled: true,
+  };
+  for (const [key, value] of Object.entries(switchDefaults)) {
+    assert.equal(normalizeSettings()[key], value);
+    assert.equal(normalizeSettings({[key]: !value})[key], !value);
+    assert.equal(normalizeSettings({[key]: 1})[key], value);
   }
 });
 
@@ -90,7 +107,7 @@ test('malformed stored whitelists are isolated and callers cannot mutate shared 
 });
 
 test('transfer text round-trips and rejects anything incomplete or invalid', () => {
-  const settings = {xMinimumViews: 10000, youtubeMinimumViews: 0, xWhitelist: ['nasa'], youtubeWhitelist: ['@science', 'channel/UCExample'], xEnabled: false, youtubeEnabled: true, hideUnknown: true, xLowLikeRatioEnabled: false, xMinimumLikePercent: 0.75, xHighLikeRatioEnabled: true, xKeepLikePercent: 3.25, xHighBookmarkRatioEnabled: false, xKeepBookmarkPercent: 0};
+  const settings = {xMinimumViews: 10000, youtubeMinimumViews: 0, xMinimumViewsEnabled: false, youtubeMinimumViewsEnabled: true, xWhitelist: ['nasa'], youtubeWhitelist: ['@science', 'channel/UCExample'], xWhitelistEnabled: false, youtubeWhitelistEnabled: true, xEnabled: false, youtubeEnabled: true, hideUnknown: true, statisticsEnabled: false, xLowLikeRatioEnabled: false, xMinimumLikePercent: 0.75, xHighLikeRatioEnabled: true, xKeepLikePercent: 3.25, xHighBookmarkRatioEnabled: false, xKeepBookmarkPercent: 0, xBookmarkHighlightEnabled: false, xHighlightBookmarkPercent: 1.2};
   const text = formatSettingsTransfer(settings);
   assert.deepEqual(parseSettingsTransfer(text), settings);
   const value = JSON.parse(text);
@@ -100,6 +117,9 @@ test('transfer text round-trips and rejects anything incomplete or invalid', () 
     {...value, xWhitelist: 'nasa'}, {...value, youtubeWhitelist: ['Science Channel']}, {...value, xEnabled: 1},
     {...value, xMinimumLikePercent: -1}, {...value, xKeepLikePercent: Infinity},
     {...value, xKeepBookmarkPercent: '0.5'}, {...value, xHighLikeRatioEnabled: 1},
+    {...value, xHighlightBookmarkPercent: -1}, {...value, statisticsEnabled: 'false'},
+    Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'xBookmarkHighlightEnabled')),
+    Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'xMinimumViewsEnabled')),
     Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'xHighBookmarkRatioEnabled')),
     Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'hideUnknown')),
   ]) assert.equal(parseSettingsTransfer(JSON.stringify(invalid)), null);

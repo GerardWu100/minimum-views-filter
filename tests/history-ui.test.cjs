@@ -25,7 +25,7 @@ function openHistory(t, visibility = 'visible') {
   };
   dom.window.chrome = {
     runtime: {sendMessage: (message) => new Promise((resolve) => messages.push({message, resolve}))},
-    storage: {onChanged: {addListener: (listener) => {changed = listener;}}},
+    storage: {sync: {get: async () => ({})}, onChanged: {addListener: (listener) => {changed = listener;}}},
   };
   for (const name of ['history-store.js', 'reason-breakdown.js', 'history.js']) dom.window.eval(source(name));
   t.after(() => dom.window.close());
@@ -33,6 +33,7 @@ function openHistory(t, visibility = 'visible') {
     document, messages,
     get renderCount() {return renderCount;},
     changed: () => changed({filterHistory: {newValue: {}}}, 'local'),
+    setCollectionEnabled: (enabled) => changed({statisticsEnabled: {newValue: enabled}}, 'sync'),
     setVisibility: (value) => {
       visibility = value;
       document.dispatchEvent(new dom.window.Event('visibilitychange'));
@@ -110,4 +111,31 @@ test('a read finishing in a hidden history tab defers its row rebuild until retu
   page.messages[1].resolve({ok: true, history: fullHistory()});
   await tick();
   assert.equal(page.renderCount, 1);
+});
+
+test('statistics shows highlighted totals, separate entries, settings link, and paused state', async (t) => {
+  const page = openHistory(t);
+  const history = store.emptyHistory();
+  history.xHighlightedCount = 3;
+  history.highlightedEntries = [{
+    site: 'x', url: 'https://x.com/author/status/7', title: 'Highlighted post',
+    reason: 'high-bookmark-ratio', views: 1000, likes: 20, bookmarks: 15,
+    lastFilteredAt: 1, events: 2,
+  }];
+  page.messages[0].resolve({ok: true, history});
+  await tick();
+  assert.equal(page.document.title, 'Statistics · Minimum Views Filter');
+  assert.equal(page.document.querySelector('a.settings-link').getAttribute('href'), 'options.html');
+  assert.equal(page.document.querySelector('#x-highlighted-count').textContent, '3');
+  assert.equal(page.document.querySelector('#highlighted-entry-count').textContent, '1');
+  assert.equal(page.document.querySelector('#clear-history').disabled, false);
+  page.document.querySelector('#outcome-filter [data-value="highlighted"]').click();
+  assert.equal(page.document.querySelector('#site-filter').hidden, true);
+  assert.equal(page.document.querySelectorAll('#entries li').length, 1);
+  assert.match(page.document.querySelector('#entries li .entry-meta').textContent, /highlighted 2 times/);
+  assert.match(page.document.querySelector('#entries li .entry-metrics').textContent, /Bookmarks\/views 1.5%/);
+  page.setCollectionEnabled(false);
+  assert.equal(page.document.querySelector('#collection-status').hidden, false);
+  page.setCollectionEnabled(true);
+  assert.equal(page.document.querySelector('#collection-status').hidden, true);
 });

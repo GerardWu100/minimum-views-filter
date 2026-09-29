@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Filtering history · Minimum Views Filter</title>
+    <title>Statistics · Minimum Views Filter</title>
     <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="history.css">
     <script src="history-store.js" defer></script>
@@ -18,12 +18,16 @@
             <rect width="24" height="24" rx="6"/>
             <path d="M5 6.5h14M8 11.5h8M10.8 16.5h2.4"/>
           </svg>
-          <h1>Filtering history</h1>
+          <h1>Statistics</h1>
         </div>
-        <button id="clear-history" type="button" class="button-quiet button-danger" disabled>Reset history</button>
+        <div class="header-actions">
+          <a href="options.html" class="settings-link">Settings</a>
+          <button id="clear-history" type="button" class="button-quiet button-danger" disabled>Reset statistics</button>
+        </div>
       </header>
+      <p id="collection-status" class="collection-status" role="status" hidden>Statistics collection is paused. Existing totals and lists remain available.</p>
 
-      <section class="totals" aria-label="Hide events by site and reason">
+      <section class="totals" aria-label="Statistics totals">
         <article class="card site-total" aria-labelledby="x-total-heading">
           <div class="site-total-head">
             <h2 id="x-total-heading">X hide events</h2>
@@ -45,12 +49,19 @@
           </div>
           <div id="x-kept-reasons"></div>
         </article>
+        <article class="card site-total" aria-labelledby="x-highlighted-heading">
+          <div class="site-total-head">
+            <h2 id="x-highlighted-heading">X highlighted posts</h2>
+            <strong id="x-highlighted-count">—</strong>
+          </div>
+        </article>
       </section>
 
       <details class="about-counts">
         <summary>About these counts</summary>
-        <p>Stored on this device. Totals count hide events since the last reset, so a later appearance may count again. Recent items keep the latest 500 distinct links. View and engagement values are snapshots from when an item was hidden; items without links appear only in the totals.</p>
+        <p>Stored on this device. Totals count events since the last reset, so a later appearance may count again. Each recent-items list keeps the latest 500 distinct links. View and engagement values are snapshots from when an event occurred; items without links appear only in the totals.</p>
         <p>“Kept by high engagement” counts X posts that were below your view minimum or minimum likes/views but stayed visible because their likes/views or bookmarks/views reached your keep threshold. They have their own list of the latest 500 links, so they never push filtered items out.</p>
+        <p>“Highlighted” counts visible X posts whose bookmarks/views exceeded your highlight threshold. A post can be counted as both kept and highlighted. Highlighted posts have a separate list of the latest 500 links.</p>
       </details>
 
       <section class="recent" aria-labelledby="recent-heading">
@@ -58,9 +69,10 @@
           <h2 id="recent-heading">Recent items</h2>
           <span id="recent-shown" class="recent-shown"></span>
         </div>
-        <div class="chip-group outcome-tabs" role="group" aria-label="Show hidden or kept items" id="outcome-filter">
+        <div class="chip-group outcome-tabs" role="group" aria-label="Show recent items by outcome" id="outcome-filter">
           <button type="button" class="chip" data-value="hidden" aria-pressed="true">Hidden <span class="chip-count" id="hidden-entry-count"></span></button>
           <button type="button" class="chip" data-value="kept" aria-pressed="false">Kept by high engagement <span class="chip-count" id="kept-entry-count"></span></button>
+          <button type="button" class="chip" data-value="highlighted" aria-pressed="false">Highlighted <span class="chip-count" id="highlighted-entry-count"></span></button>
         </div>
         <div class="filters">
           <div class="chip-group" role="group" aria-label="Filter by site" id="site-filter">
@@ -75,9 +87,10 @@
             <button type="button" class="chip" data-value="unknown-views" data-outcome="hidden" aria-pressed="false"><span class="reason-swatch" data-reason="unknown-views" aria-hidden="true"></span>Unknown views</button>
             <button type="button" class="chip" data-value="high-like-ratio" data-outcome="kept" aria-pressed="false" hidden><span class="reason-swatch" data-reason="high-like-ratio" aria-hidden="true"></span>High likes/views</button>
             <button type="button" class="chip" data-value="high-bookmark-ratio" data-outcome="kept" aria-pressed="false" hidden><span class="reason-swatch" data-reason="high-bookmark-ratio" aria-hidden="true"></span>High bookmarks/views</button>
+            <button type="button" class="chip" data-value="high-bookmark-ratio" data-outcome="highlighted" aria-pressed="false" hidden><span class="reason-swatch" data-reason="high-bookmark-ratio" aria-hidden="true"></span>High bookmarks/views</button>
           </div>
         </div>
-        <p id="status" role="status" aria-live="polite">Loading history…</p>
+        <p id="status" role="status" aria-live="polite">Loading statistics…</p>
         <ol id="entries"></ol>
       </section>
     </main>

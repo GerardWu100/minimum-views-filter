@@ -14,6 +14,7 @@
   // X high-engagement exceptions that can keep a card, and the hide reasons they override.
   const KEPT_REASONS = Object.freeze(["high-like-ratio", "high-bookmark-ratio"]);
   const KEPT_REASON_SET = new Set(KEPT_REASONS);
+  const HIGHLIGHT_REASON = "high-bookmark-ratio";
   const BYPASSED_REASON_SET = new Set(["low-views", "low-like-ratio"]);
   const X_HOSTS = new Set(["x.com", "www.x.com", "twitter.com", "www.twitter.com"]);
   const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com"]);
@@ -33,16 +34,18 @@
    * {x: {"low-views": 3, "low-like-ratio": 1, "unknown-views": 0}, youtube: {...}}.
    * xKeptCounts maps an X high-engagement exception -> events where it kept a
    * card that would otherwise be hidden, e.g. {"high-like-ratio": 2, ...}.
-   * entries (hidden) and keptEntries (kept) are separate lists, most recent first,
-   * so kept items never displace filtered items.
+   * entries (hidden), keptEntries (kept), and highlightedEntries are separate
+   * lists, most recent first. xHighlightedCount is an independent event total.
    */
   function emptyHistory() {
     return {
-      version: 3,
+      version: 4,
       counts: {x: emptyReasonCounts(), youtube: emptyReasonCounts()},
       xKeptCounts: emptyReasonCounts(KEPT_REASONS),
+      xHighlightedCount: 0,
       entries: [],
       keptEntries: [],
+      highlightedEntries: [],
     };
   }
 
@@ -84,8 +87,8 @@
   /**
    * Validate one event or stored entry; null means reject it.
    *
-   * outcome is "hidden" (reason is a hide reason) or "kept" (X only; reason is a
-   * high-engagement exception and bypassedReason the hide reason it overrode).
+   * outcome is "hidden" (hide reason), "kept" (X exception plus bypassedReason),
+   * or "highlighted" (visible X post with high bookmarks/views).
    * Messages carry the same outcome field; stored entries omit it because
    * their list identifies it. The returned object never contains outcome.
    */
@@ -94,7 +97,8 @@
     if (Object.prototype.hasOwnProperty.call(value, "outcome") && value.outcome !== outcome) return null;
     if (outcome === "hidden" && (!REASON_SET.has(value.reason) || (site === "youtube" && value.reason === "low-like-ratio"))) return null;
     if (outcome === "kept" && (site !== "x" || !KEPT_REASON_SET.has(value.reason) || !BYPASSED_REASON_SET.has(value.bypassedReason))) return null;
-    if (outcome !== "hidden" && outcome !== "kept") return null;
+    if (outcome === "highlighted" && (site !== "x" || value.reason !== HIGHLIGHT_REASON)) return null;
+    if (outcome !== "hidden" && outcome !== "kept" && outcome !== "highlighted") return null;
     if (Object.prototype.hasOwnProperty.call(value, "enrich") && typeof value.enrich !== "boolean") return null;
     if (value.url !== null && typeof value.url !== "string") return null;
     const url = value.url === null ? null : canonicalItemUrl(value.url, site);
@@ -111,10 +115,12 @@
     if (outcome === "hidden") {
       if (value.reason === "unknown-views" ? views !== null : views === null) return null;
       if (value.reason === "low-like-ratio" && (views === 0 || likes === null)) return null;
-    } else {
+    } else if (outcome === "kept") {
       if (views === null || views === 0) return null;
       if ((value.reason === "high-like-ratio" && likes === null) || (value.reason === "high-bookmark-ratio" && bookmarks === null)) return null;
       if (value.bypassedReason === "low-like-ratio" && likes === null) return null;
+    } else if (views === null || views === 0 || bookmarks === null) {
+      return null;
     }
     const event = {site, url, title, reason: value.reason, views, likes, bookmarks};
     return outcome === "kept" ? {...event, bypassedReason: value.bypassedReason} : event;
@@ -154,13 +160,17 @@
     copyCounts(history.counts.x, value.counts?.x, REASONS);
     copyCounts(history.counts.youtube, value.counts?.youtube, YOUTUBE_REASONS);
     copyCounts(history.xKeptCounts, value.xKeptCounts, KEPT_REASONS);
+    if (Number.isSafeInteger(value.xHighlightedCount) && value.xHighlightedCount >= 0 && value.xHighlightedCount <= MAX_TOTAL) {
+      history.xHighlightedCount = value.xHighlightedCount;
+    }
     history.entries = normalizeEntries(value.entries, "hidden");
     history.keptEntries = normalizeEntries(value.keptEntries, "kept");
+    history.highlightedEntries = normalizeEntries(value.highlightedEntries, "highlighted");
     return history;
   }
 
   /**
-   * Add validated hidden and kept transitions to history.
+   * Add validated hidden, kept, and highlighted transitions to history.
    *
    * Parameters
    * ----------
@@ -169,7 +179,7 @@
    *     at most 500 recent URL entries per outcome (most recent first).
    * items : object[]
    *     Up to 100 content-script events from one verified site. Each event has
-   *     site, outcome ("hidden" or "kept"), canonical item URL or null, bounded
+   *     site, outcome ("hidden", "kept", or "highlighted"), URL or null, bounded
    *     title, reason, bypassedReason for kept events, and optional numeric
    *     views/likes/bookmarks. Null URLs count without an entry. A
    *     linked event with enrich: true identifies an earlier linkless event;
@@ -193,11 +203,17 @@
       const event = normalizeEvent(item, site, item?.outcome);
       if (!event) continue;
       const kept = item.outcome === "kept";
-      const counts = kept ? history.xKeptCounts : history.counts[site];
-      if (item.enrich !== true) counts[event.reason] = Math.min(MAX_TOTAL, counts[event.reason] + 1);
+      const highlighted = item.outcome === "highlighted";
+      if (item.enrich !== true) {
+        if (highlighted) history.xHighlightedCount = Math.min(MAX_TOTAL, history.xHighlightedCount + 1);
+        else {
+          const counts = kept ? history.xKeptCounts : history.counts[site];
+          counts[event.reason] = Math.min(MAX_TOTAL, counts[event.reason] + 1);
+        }
+      }
       recorded++;
       if (!event.url) continue;
-      const list = kept ? history.keptEntries : history.entries;
+      const list = highlighted ? history.highlightedEntries : kept ? history.keptEntries : history.entries;
       const previousIndex = list.findIndex((entry) => entry.url === event.url);
       const previous = previousIndex < 0 ? null : list.splice(previousIndex, 1)[0];
       list.unshift({

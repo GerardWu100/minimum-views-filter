@@ -12,10 +12,13 @@ high likes-to-views or saves-to-views ratios, even below your view minimum.
 It never clicks anything or requests platform data. Hidden items become eligible
 again when their displayed counts meet your rules.
 
-The popup shows how many X posts and YouTube videos were hidden and why (low
-views, low likes/views, or unknown views), and how many X posts high engagement
-kept visible. **Filtered items and history** opens recent links you can filter
-by site and reason. This history stays in your browser.
+X posts above your bookmarks/views highlight threshold get a faint inset teal
+outline, with no animation or layout change. It defaults to **above 1%** and can
+be switched off independently of filtering.
+
+The toolbar popup opens separate **Settings** and **Statistics** pages. Statistics
+shows hidden, kept-by-engagement, and highlighted posts with separate recent-link
+lists. History stays in your browser; collection has its own off switch.
 
 It filters X Home (For You and Following), YouTube Home, and the
 recommendations next to a video you're watching. Search, profiles, channels,
@@ -28,10 +31,10 @@ that it showed it to you.
 
 ## Install
 
-Download version 1.8.1 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.8.1):
+Download version 1.9.0 from the [GitHub release](https://github.com/GerardWu100/minimum-views-filter/releases/tag/v1.9.0):
 
-- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.8.1/minimum-views-filter-chrome-brave-1.8.1.zip)
-- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.8.1/minimum-views-filter-firefox-1.8.1.xpi)
+- [Chrome / Brave ZIP](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.9.0/minimum-views-filter-chrome-brave-1.9.0.zip)
+- [Firefox XPI — Mozilla signed](https://github.com/GerardWu100/minimum-views-filter/releases/download/v1.9.0/minimum-views-filter-firefox-1.9.0.xpi)
 
 Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 
@@ -42,7 +45,7 @@ Extract the Chrome / Brave ZIP before loading it. Keep the Firefox XPI intact.
 3. Click **Load unpacked** and select the extracted folder containing
    `manifest.json` (from source: `dist/chrome-brave`).
 4. Pin **Minimum Views Filter** if desired, then reload existing X/YouTube tabs.
-5. Open the popup to set each site's minimum, edit its whitelist, or disable filtering.
+5. Open the popup → **Settings** to edit rules or switch features off.
 
 Keep the unpacked directory in a permanent location. Chrome/Brave load its files
 from that folder. Minimum Chromium version: 109.
@@ -56,7 +59,7 @@ extension and X/YouTube tabs using the steps below.
 1. Replace the files in the existing extension folder with the new browser ZIP's contents.
 2. Open `chrome://extensions` or `brave://extensions` and click **Reload** on
    **Minimum Views Filter**. Check that the displayed version matches the download.
-3. Reload X and YouTube tabs, then reopen the popup and save your settings.
+3. Reload X and YouTube tabs, then open **Settings** and check your preferences.
 
 **Upgrading from 1.4.0 or earlier resets your settings once.** Version 1.5.0 and later
 stores settings in sync storage and gives the Chromium build a fixed extension ID
@@ -81,7 +84,7 @@ selected and the post author is not whitelisted.
 2. Open `about:addons`.
 3. Click the gear menu, choose **Install Add-on From File**, and select the XPI.
 4. Confirm **Add**, then reload existing X/YouTube tabs. Grant site access if asked.
-5. Open the popup to set each site's minimum, edit its whitelist, or disable filtering.
+5. Open the popup → **Settings** to edit rules or switch features off.
 
 **This is a permanent installation that survives Firefox restarts.** Minimum
 Firefox: 142. The release XPI is signed by Mozilla for self-distribution.
@@ -93,7 +96,7 @@ updates the existing installation and retains its settings. The package has no
 automatic update URL. Do not disable signature verification.
 
 If you previously loaded a temporary copy, first use **Copy settings to another
-browser** in its popup to keep your preferences. Remove the temporary entry in
+browser** in its settings to keep your preferences. Remove the temporary entry in
 `about:debugging`, install the signed XPI, then use **Load pasted** and **Save**
 to restore them. A temporary copy can mask the permanent installation until it
 is removed.
@@ -121,10 +124,12 @@ Official instructions: [Chrome unpacked extensions](https://developer.chrome.com
 | Count changes from 800 to 1,500 on the page | Restored if the X ratio rules also allow it |
 | Same item appears later with qualifying counts | Kept; history never acts as an exclusion |
 
-“Hide unknown view counts” is optional and off by default. Setting the view minimum
-to zero disables the view floor; X ratio rules still apply. For example, set **X to 10,000**
-and **YouTube to 1,000**. Each site can be disabled separately. Saving settings
-updates open supported pages automatically.
+“Hide unknown view counts” is optional and off by default. Every behavior has an
+off switch: each site's master switch, view minimum, whitelist, each X engagement
+rule, bookmark highlighting, unknown-count hiding, and statistics collection.
+Switches preserve their thresholds and lists for later use. Disabling a view
+minimum leaves the other rules active. For example, set **X to 10,000** and
+**YouTube to 1,000**. Saving settings updates open supported pages automatically.
 
 X scope: **Home only** (For You/Following). Search, profiles, Lists, opened
 conversations, notifications, messages, and all other pages stay unfiltered.
@@ -137,11 +142,11 @@ filtered when they expose counts; known ad containers are excluded. Live
 concurrent viewers are not interpreted as total views.
 
 When you navigate away from Home or a YouTube watch page, this extension removes
-its hiding marks from retained cards. Other extensions' hiding rules remain intact.
+its hiding and highlight marks from retained cards. Other extensions' hiding rules remain intact.
 
 ## X engagement rules
 
-The popup has three independent switches and percentage thresholds. All three
+The Settings page has three independent filtering switches and percentage thresholds. All three
 are on by default, including after an update:
 
 | Setting | Default | Example |
@@ -166,10 +171,24 @@ opens posts to retrieve one. See [X's bookmark-count explanation](https://help.x
 These are editable screening defaults, not evidence of quality. Ratios from very
 small view counts can swing sharply; this version has no minimum sample-size rule.
 
+## Subtle bookmark highlighting
+
+**Highlight high bookmarks/views** applies a faint inset teal outline to visible X
+Home posts when bookmarks divided by views is **strictly above** your percentage
+(default 1%). For example, 11 bookmarks / 1,000 views highlights; 10 / 1,000 does
+not. This accent has no animation, badges, or layout shift.
+
+The highlight has its own switch and threshold. It does not keep an otherwise
+hidden post visible; the filtering and keep rules decide that separately.
+Whitelisted posts can highlight. Zero/unknown views or unknown bookmarks cannot
+highlight, and quoted-post counts never qualify the containing post. Counts and
+settings changes remove or apply the outline automatically. X's master switch
+disables both filtering and highlighting. The feature operates on X Home only.
+
 ## Filtered items and statistics
 
-The popup's **Hidden since reset** card shows each site's hide events split by
-reason, as a stacked bar with counts and shares:
+Open **Statistics** from the toolbar popup or Settings page. Its cards show each
+site's hide events split by reason, as a stacked bar with counts and shares:
 
 | Reason | Meaning |
 |---|---|
@@ -177,24 +196,24 @@ reason, as a stacked bar with counts and shares:
 | Low likes/views | X likes are below the minimum likes-to-views percentage |
 | Unknown views | No readable view count, with **Hide unknown view counts** on |
 
-The card also shows **X kept by high engagement**: posts below your view minimum
+The page also shows **X kept by high engagement**: posts below your view minimum
 or minimum likes/views that stayed visible because their likes/views reached
 the keep percentage (**High likes/views**) or their bookmarks/views did (**High
 bookmarks/views**). When both qualify, the post counts under likes. Posts that
 pass your rules anyway, and whitelisted creators, are not counted.
 
-Click **Filtered items and history** in the popup. It opens a page with the same
-breakdowns and the latest **500 identifiable items** across both sites. Chips
-above the list filter it by site and reason. The **Kept by high engagement** tab
-lists the latest 500 kept X posts separately, each labeled with the rule that
-would have hidden it (for example, "kept despite low views").
+The **Hidden** tab lists the latest **500 identifiable items** across both sites.
+Chips filter by site and reason. **Kept by high engagement** lists the latest 500
+kept X posts separately, each labeled with the rule that would have hidden it.
+**Highlighted** has its own total and latest 500 links. A post may be both kept
+and highlighted, so these totals overlap and should not be added together.
 Entries show a link, post snippet or video title, the reason, counts/ratios at the
-time of hiding, and the last filtering time. Repeated URLs share one recent entry.
-**Reset history** clears all totals, reason counts, kept counts, and entries; current hidden cards are not
-counted again merely because history was reset.
+time of the event, and the last event time. Repeated URLs share one recent entry.
+**Reset statistics** clears all hidden, kept, and highlighted totals and lists.
+Current cards are not counted again merely because history was reset.
 
-Totals count hide events since reset, not lifetime unique IDs and not the number
-currently hidden. Repeated appearances, reloads, and disabling/re-enabling filters
+Totals count events since reset, not lifetime unique IDs or the number currently
+hidden/highlighted. Repeated appearances, reloads, and disabling/re-enabling filters
 can count again. Routine rescans of a continuously hidden item do not. Cards with
 no usable link count toward totals but cannot appear in the linked list; if a link
 arrives while the same card remains hidden, the entry is filled in without another
@@ -202,7 +221,12 @@ hide event. Recycled cards lacking stable links cannot always be distinguished.
 The list is a snapshot, not a live feed of updated counts; opening a link is a
 normal navigation you initiate.
 
-The history page pauses refreshes while its tab is hidden and catches up when
+**Collect local statistics** in Settings pauses new events without clearing existing
+history or changing filtering/highlighting. Re-enabling collection counts the
+current qualifying cards as new events. Statistics displays when collection is
+paused.
+
+The Statistics page pauses refreshes while its tab is hidden and catches up when
 you return. Reset also cancels older pending snapshots, so a delayed refresh
 cannot bring cleared entries back.
 
@@ -220,7 +244,7 @@ account. Outside cards, right-click a profile or channel link, such as the
 channel name below a YouTube video. It works on every X/YouTube page, not only
 filtered ones. Open X/YouTube tabs from before installation need a reload first.
 
-You can also edit the lists in the popup: open **X account whitelist** or
+You can also edit the lists in Settings: open **X account whitelist** or
 **YouTube channel whitelist**, enter one creator per line or separate entries
 with commas, then click **Save**.
 
@@ -238,7 +262,7 @@ with commas, then click **Save**.
   apply. A whitelist never overrides another extension's hiding rules.
 
 Each whitelist must fit one browser sync item (8 KB): at least 450 X handles or
-230 YouTube channel IDs. The popup and right-click menu refuse additions beyond that.
+230 YouTube channel IDs. The Settings page and right-click menu refuse additions beyond that.
 
 Handles are case-insensitive; YouTube channel IDs retain their exact case.
 [YouTube's handle documentation](https://support.google.com/youtube/answer/11585688?hl=en)
@@ -255,7 +279,7 @@ Settings are saved in the browser's extension **sync storage**:
 | Brave | Saved on this computer only; Brave Sync does not sync extension data |
 
 To move settings anywhere, including between Brave and Firefox, open **Copy
-settings to another browser** in the popup and click **Copy**. In the other
+settings to another browser** in Settings and click **Copy**. In the other
 browser, paste the text into the same box, click **Load pasted**, check the
 values, and click **Save**.
 
@@ -269,7 +293,9 @@ Creator metadata is checked only when a card would otherwise be hidden. Nested
 YouTube author containers share one link scan; X author checks stop as soon as
 conflicting identities rule out an exemption. Creator links are read fresh each time.
 X engagement counters share one subtree query. If the low-like rule is disabled
-or set to zero, cards already meeting the view minimum skip engagement parsing.
+or set to zero, and highlighting is off, cards meeting the view minimum skip
+engagement parsing. Highlighting needs bookmark reads even on otherwise eligible
+posts; disabling statistics skips history metadata and reporting.
 Local history also avoids reparsing links already in canonical form.
 
 In a synthetic 200-card feed, 20 single-card count changes required **20 count
@@ -282,10 +308,11 @@ See [the measured workloads and reproduction command](docs/performance.md).
 
 ## Existing extensions
 
-The filter uses its own `data-minimum-views-hidden` attribute. It does not rewrite
+The filter uses its own `data-minimum-views-hidden` and
+`data-minimum-views-highlighted` attributes. It does not rewrite
 existing styles/classes, reveal counters, replace titles/thumbnails, or hook
 keyboard, audio, player, and network APIs. Turning it off removes only its own
-hiding marks; a card hidden by another extension stays hidden.
+hiding/highlight marks; a card hidden by another extension stays hidden.
 
 On 2026-09-27, X's analytics label and YouTube's metadata labels were confirmed
 present in the user's Brave page with the existing extension setup active.

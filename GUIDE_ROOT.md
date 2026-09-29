@@ -14,7 +14,7 @@ to Home works without reloading. Each reconciliation checks the current route
 and removes obsolete hiding marks when navigating to an excluded page.
 
 The Manifest V3 content script loads `settings.js`, `filter-core.js`, and
-`content.js`, plus the single scoped CSS rule. `background.js` (a Chrome service
+`content.js`, plus the scoped hide and highlight CSS rules. `background.js` (a Chrome service
 worker, or a Firefox background script after `settings.js` and `history-store.js`)
 owns the right-click menu and serializes local history reads/writes/resets. There
 is no page-world injection, network request, or dependency in the installed package.
@@ -82,14 +82,14 @@ one visible-page URL check per second so silent navigation into Home can resume
 filtering. This timer never fetches counts or scans the DOM. Storage failure and
 unload remove the active flag, restore connected marks, and release listeners.
 
-`popup.js` loads and validates view thresholds, whitelists, site/unknown switches,
-and the six X ratio settings defined in `settings.js`, then saves to extension
+`popup.js`, loaded only by `options.html`, validates view thresholds, whitelists,
+site/rule/statistics switches, and the X ratio settings defined in `settings.js`, then saves to extension
 sync storage. Percentage inputs accept finite values from 0 through 100.
 Invalid or over-quota whitelists prevent the whole save and focus the affected
 field. Storage changes update all open supported pages. **Copy** writes the
 validated form as JSON text (clipboard when allowed, selected text otherwise);
 **Load pasted** accepts only complete, valid text from this format and fills the
-form without saving. The popup never contacts the platforms.
+form without saving. The Settings page never contacts the platforms.
 
 ## X engagement decisions and history
 
@@ -97,11 +97,11 @@ The 2026-09-28 feature request adds X low-like filtering and high-engagement
 exceptions. Defaults are 0.5% minimum likes/views, 2% rescue likes/views, and 0.5%
 rescue bookmarks/views; each rule has its own enabled switch. Settings normalize
 missing new keys to these enabled defaults while preserving existing settings.
-The settings transfer includes all six keys and validates the complete format.
+The settings transfer includes every current setting key and validates the complete format.
 
 For a supported card, read current views, then X engagement when views are
-positive and a ratio rule can change the decision. When the low-like rule is
-disabled or set to 0%, cards meeting the view floor skip engagement reads;
+positive and a ratio rule can change the decision. When highlighting is off and the low-like rule is
+disabled or set to 0%, cards meeting the enabled view floor skip engagement reads;
 below-floor cards still read enabled rescue metrics. A high-like OR high-bookmark
 ratio keeps the card. Otherwise a low-like ratio or low views hides it; whitelist matches
 rescue any otherwise hidden card. Unknown likes do not establish a low ratio,
@@ -124,14 +124,13 @@ extension sender, top frame, exact supported route/host, same item site, reason,
 counts, and canonical URLs. Reasons must apply to the item's site and have the
 required count snapshots: unknown views are null, while ratio decisions require
 positive views and the relevant known numerator. Already canonical stored links
-pass a strict format check without creating URL objects. The exact popup and
-history pages may read history; only the history page may reset through these
-messages. A promise queue serializes storage operations across tabs
+pass a strict format check without creating URL objects. Only the exact Statistics page (`history.html`) may read or reset history
+through these messages. A promise queue serializes storage operations across tabs
 and resets, and recovers after failed writes. `history-store.js` keeps
 `counts[site][reason]` hide events (a site total is `siteTotal` of its reasons,
-so the two cannot disagree), `xKeptCounts[keptReason]`, and two 500-entry URL
-lists, `entries` (hidden) and `keptEntries` (kept), under
-`storage.local.filterHistory` (version 3). Stored counts in any other shape
+so the two cannot disagree), `xKeptCounts[keptReason]`, and `xHighlightedCount`, with three independently bounded 500-entry URL
+lists: `entries` (hidden), `keptEntries` (kept), and `highlightedEntries`, under
+`storage.local.filterHistory` (version 4). Stored counts in any other shape
 normalize to zero. Messages carry `outcome`; stored entries omit it because their
 list identifies it. Kept events must come from X, name `high-like-ratio` or
 `high-bookmark-ratio`, and name the `bypassedReason` (`low-views` or
@@ -140,29 +139,47 @@ list identifies it. Kept events must come from X, name `high-like-ratio` or
 `getFilterDecision` returns `{reason, keptBy, bypassedReason}`; `getFilterReason`
 is its `reason`. `keptBy` is set only when an exception overrode a hide reason,
 crediting likes before bookmarks. `content.js` tracks hidden and kept identities
-in separate WeakMaps, so each continuous state records once and a card that flips
+in separate WeakMaps alongside highlighted identities, so each continuous state records once and a card that flips
 between them records each new state. Kept cards parse creator metadata only
-because they would otherwise be hidden; whitelisted creators record nothing. Entries deduplicate by
+because they would otherwise be hidden; whitelisted creators produce no hidden/kept events but may highlight. Entries deduplicate by
 URL and retain count snapshots, reason, last filtering time, and event count.
 No IDs enter sync storage or settings exports, and no platform request is made.
 The history page renders through textContent, with links to validated destinations.
 
-## Popup and history page presentation
+## Highlighting, switches, and page presentation
 
-`theme.css` holds shared color tokens (light and dark), cards, buttons, chevron
-dropdowns, and the stacked reason bar. Reason colors are slots 1-3 of the dataviz
-skill's validated categorical palette (blue low views, orange low likes/views, aqua
-unknown views); every segment also has a visible label and count, which the
-validator requires because aqua is below 3:1 on the light surface.
-`reason-breakdown.js` builds one site's bar and count list with textContent and is
-shared by `popup.js` and `history.js`. Popup switches are native checkboxes with
-`role="switch"`; their animation turns on only after stored settings are shown, so
-opening the popup does not slide every switch. The history page filters its
-already-loaded entries in memory by outcome tab (Hidden or Kept by high
-engagement), site, and reason chips; switching outcome resets the reason filter
-and the kept tab hides the site filter. Kept reasons use dataviz slots 7 (violet,
-high likes/views) and 5 (pink, high bookmarks/views); all five reason colors
-pass the validator as one set in both modes, and pink needs its visible label.
+The popup is a compact launcher: `popup-nav.js` opens either `options.html`
+(Settings) or `history.html` (Statistics). The manifest's `options_ui` also opens
+Settings in a browser tab. Settings and statistics no longer share a page.
+
+`xBookmarkHighlightEnabled` and `xHighlightBookmarkPercent` default to true
+and 1%. `shouldHighlightX` uses a strict greater-than comparison with the same
+floating-point boundary allowance as filtering. Unknown bookmarks or
+zero/unknown views cannot highlight. The runtime reads engagement on positive-view
+X cards when highlighting is enabled, even if all filtering rules pass. It adds
+only `data-minimum-views-highlighted` to visible outer articles, using a 2px
+inset teal outline at 35% opacity. There is no animation, injected content, layout
+shift, or inline-style rewrite. The highlight cannot override hiding; whitelisted
+posts may highlight. Cleanup reconciles both mark types on mutations, lost card
+identity, navigation, settings, and shutdown, with the same document active gate.
+
+Each site has independent `MinimumViewsEnabled` and `WhitelistEnabled`
+switches. Turning them off preserves their threshold/list. Site master switches
+also disable highlighting. `statisticsEnabled` pauses all outcome reporting
+and history metadata extraction while visual decisions continue. The background
+checks fresh sync settings inside each queued write. Existing data remains
+readable/resettable. Re-enabling resets the runtime WeakMaps so current qualifying
+cards begin a new recorded state. A reset alone leaves WeakMaps intact.
+
+`theme.css` supplies shared light/dark colors, cards, buttons, and reason bars;
+`options.css` styles settings, and `history.css` styles statistics.
+`reason-breakdown.js` renders labeled reason bars using textContent. Native
+checkboxes use `role="switch"`; animation starts only after settings load.
+Settings switches disable dependent inputs without discarding saved values.
+The Statistics page filters loaded entries by Hidden, Kept by high engagement,
+or Highlighted, then site/reason. Kept/highlighted lists are X-only. Switching
+outcomes clears reason selection; highlighted and kept totals overlap when both
+apply to one post. All three lists retain independent event snapshots and bounds.
 
 ## Right-click whitelist and sync
 
@@ -186,22 +203,35 @@ resets settings once for 1.4.0 users; no migration code exists by design.
 
 ## Current verification and limits
 
-For v1.8.1, run `npm ci`, `npm test`, `npm run build`, and
+For v1.9.0, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
-The packages now contain 19 files; the stable extension IDs and permissions are
+The packages now contain 22 files; the stable extension IDs and permissions are
 unchanged. Development tests cover both browser API namespaces, English/French
 engagement labels, zero/unknown counts, quote exclusion, ratio boundaries and
 precedence, exact labels over rounded counts, mutation-driven restoration,
 recycled identities, reporting batches/failures, history enrichment, validation,
 concurrent tab updates, reset ordering, history bounds, and safe page rendering.
 
-The new ratio controls and history have been executed in jsdom, not verified in
-a fresh installed browser session. Historical live compatibility observations
+The runtime rules have been executed in jsdom; a fresh installed-browser live-feed
+check is not part of this release. Historical live compatibility observations
 below do not establish live X bookmark availability or universal DOM coverage
 for this release. Next check if a live card behaves unexpectedly: inspect its own
 like/bookmark button and group accessibility labels without altering the feed.
-Missing bookmark counts use the unknown policy; do not fetch them or open posts.
+Missing bookmark counts cannot rescue or highlight posts; do not fetch them or open posts.
+Version 1.9.0 verification (2026-09-29): `npm ci`, `npm test`, build, and
+Firefox lint passed (zero errors, notices, or warnings). The tests execute all
+eight test files, including strict highlight boundaries, missing and CSS-hidden
+counts, recycled IDs, disabled floors/whitelists, stats pausing, highlighted
+history validation/enrichment/bounds/reset, page navigation and form switches.
+After the final settings-form refinement, its focused tests and the runtime
+suite passed again. A Brave localhost preview using synthetic data verified the
+full-page settings layout, highlight-switch disabling, separate statistics page,
+highlight list, and faint outline appearance. Chrome was unavailable through the
+browser-control tool, so the permitted Brave fallback was used. No installed
+extension or real browser extension setting was changed. These previews do not
+establish live X bookmark-count availability or Firefox rendering.
+
 Initial engagement/history verification (v1.6.1, 2026-09-28): 140 tests passed,
 both 17-file packages built, and
 Firefox lint reported 0 errors, 0 notices, and 0 warnings. The synthetic benchmark

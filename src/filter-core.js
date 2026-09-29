@@ -384,7 +384,7 @@
   function getFilterDecision(views, site, settings, engagement = {likes: null, bookmarks: null}) {
     const kept = {reason: null, keptBy: null, bypassedReason: null};
     if (views === null) return settings.hideUnknown ? {...kept, reason: 'unknown-views'} : kept;
-    const belowMinimum = views < settings[site + 'MinimumViews'];
+    const belowMinimum = settings[site + 'MinimumViewsEnabled'] && views < settings[site + 'MinimumViews'];
     if (site !== 'x' || views === 0) return belowMinimum ? {...kept, reason: 'low-views'} : kept;
     // For count c, views v, percent p: c/v >= p/100 iff 100*c >= p*v.
     // A two-operation machine-precision allowance preserves decimal boundaries
@@ -408,6 +408,33 @@
   /** Return only the hide reason from getFilterDecision, or null to keep the card. */
   function getFilterReason(views, site, settings, engagement) {
     return getFilterDecision(views, site, settings, engagement).reason;
+  }
+
+  /**
+   * Test the independent X bookmark highlight threshold.
+   *
+   * Parameters
+   * ----------
+   * views : number|null
+   *     Current own-post views; only positive known counts can form a ratio.
+   * bookmarks : number|null
+   *     Current own-post bookmarks; missing counts remain unknown.
+   * settings : object
+   *     Normalized settings, with xHighlightBookmarkPercent in percent units.
+   *
+   * Returns
+   * -------
+   * boolean
+   *     True only when enabled and bookmarks/views is strictly above the
+   *     threshold. The caller limits this presentation to visible X Home cards.
+   */
+  function shouldHighlightX(views, bookmarks, settings) {
+    if (!settings.xBookmarkHighlightEnabled || !(views > 0) || bookmarks === null) return false;
+    // For bookmarks b, views v and percent p: b/v > p/100 iff 100*b > p*v.
+    // Treat floating-point rounding at equality as equality, not as a highlight.
+    const actual = bookmarks * PERCENT_SCALE;
+    const required = settings.xHighlightBookmarkPercent * views;
+    return actual - required > RATIO_COMPARISON_EPSILON * Math.max(actual, required);
   }
 
   /**
@@ -581,7 +608,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, getItemMetadata, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget };
+  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, shouldHighlightX, getItemMetadata, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);

@@ -26,7 +26,7 @@ function openBackground({style = 'chrome', sendMessage = async () => ({result: '
   const record = (name) => async (...args) => { calls.push([name, ...args]); };
   const api = {
     runtime: {id: 'extension-id', onInstalled: listenerSlot(), onStartup: listenerSlot(), onMessage: listenerSlot(), getURL: (name) => `chrome-extension://extension-id/${name}`, getManifest: () => ({action: {default_title: 'Minimum Views Filter'}})},
-    storage: {local: {get: async () => ({}), set: async () => {}}},
+    storage: {local: {get: async () => ({}), set: async () => {}}, sync: {get: async () => ({})}},
     contextMenus: {removeAll: record('removeAll'), create: (...args) => calls.push(['create', ...args]), onClicked: listenerSlot()},
     tabs: {sendMessage: (...args) => { calls.push(['sendMessage', ...args]); return sendMessage(...args); }},
     action: {setBadgeText: record('setBadgeText'), setTitle: record('setTitle')},

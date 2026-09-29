@@ -2,6 +2,10 @@ body { font-size: 1.125rem; line-height: 1.5; }
 main { padding: 2rem clamp(1em, 4vw, 3.2em) 3rem; display: grid; gap: 1.4rem; }
 
 .page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.header-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; }
+.settings-link { color: var(--accent-text); font-size: .9rem; font-weight: 650; }
+.collection-status { margin: 0; padding: .7rem 1rem; border: 1px solid var(--border); border-radius: 8px; color: var(--text-secondary); background: var(--surface-card); }
+.collection-status[hidden] { display: none; }
 .brand { display: flex; align-items: center; gap: .7rem; }
 .brand-mark { width: 2.1rem; height: 2.1rem; flex-shrink: 0; }
 .brand-mark rect { fill: var(--accent-fill); }

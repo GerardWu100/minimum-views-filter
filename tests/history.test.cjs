@@ -19,7 +19,7 @@ const pageSender = {id: 'extension-id', url: 'chrome-extension://extension-id/hi
 const xEvent = (id, extra = {}) => ({site: 'x', outcome: 'hidden', url: `https://x.com/Author/status/${id}`, title: `Post ${id}`, reason: 'low-views', views: 999, likes: null, bookmarks: null, ...extra});
 const youtubeEvent = (id, extra = {}) => ({site: 'youtube', outcome: 'hidden', url: `https://www.youtube.com/watch?v=${id}`, title: `Video ${id}`, reason: 'low-views', views: 999, likes: null, bookmarks: null, ...extra});
 
-function openBackground({style = 'chrome', get, set} = {}) {
+function openBackground({style = 'chrome', get, set, syncGet} = {}) {
   const onMessage = {listeners: [], addListener(listener) {this.listeners.push(listener);}};
   let stored = {};
   const local = {
@@ -29,7 +29,7 @@ function openBackground({style = 'chrome', get, set} = {}) {
   const api = {
     runtime: {id: 'extension-id', onMessage, onInstalled: {addListener() {}}, onStartup: {addListener() {}},
       getURL: (name) => `chrome-extension://extension-id/${name}`},
-    storage: {local},
+    storage: {local, sync: {get: syncGet || (async () => ({}))}},
     contextMenus: {onClicked: {addListener() {}}},
   };
   const context = vm.createContext({URL, setTimeout, clearTimeout, Date});
@@ -251,7 +251,7 @@ test('history can clear a late enrichment entry even when reset left both totals
   const history = store.addEvents(store.emptyHistory(), [xEvent(1, {enrich: true})], 'x', 1).history;
   assert.equal(store.siteTotal(history.counts.x), 0);
   const dom = new JSDOM(source('history.html'), {url: 'https://extension.invalid/history.html', runScripts: 'outside-only'});
-  dom.window.chrome = {runtime: {sendMessage: async ({type}) => ({ok: true, history: type.endsWith('clear-history') ? store.emptyHistory() : history})}, storage: {onChanged: {addListener() {}}}};
+  dom.window.chrome = {runtime: {sendMessage: async ({type}) => ({ok: true, history: type.endsWith('clear-history') ? store.emptyHistory() : history})}, storage: {sync: {get: async () => ({})}, onChanged: {addListener() {}}}};
   loadHistoryPageScripts(dom);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(dom.window.document.querySelector('#clear-history').disabled, false);
@@ -281,11 +281,12 @@ test('hide events are counted per site and reason; enrichment and corrupt counts
   });
 });
 
-test('the popup may read statistics but only the history page may reset them', async () => {
+test('only the statistics page may read or reset stored history', async () => {
   const app = openBackground();
   await app.send({type: 'minimum-views-filter:record-filtered', items: [xEvent(1)]}, xSender);
-  const read = await app.send({type: 'minimum-views-filter:get-history'}, popupSender);
+  const read = await app.send({type: 'minimum-views-filter:get-history'}, pageSender);
   assert.deepEqual(totals(read.history), {x: 1, youtube: 0});
+  assert.deepEqual(clone(await app.send({type: 'minimum-views-filter:get-history'}, popupSender)), {ok: false, error: 'forbidden'});
   assert.deepEqual(clone(await app.send({type: 'minimum-views-filter:clear-history'}, popupSender)), {ok: false, error: 'forbidden'});
   assert.deepEqual(totals(app.read()), {x: 1, youtube: 0});
 });
@@ -294,7 +295,7 @@ test('history page shows reason breakdowns and filters recent items by site and 
   const dom = new JSDOM(source('history.html'), {url: pageSender.url, runScripts: 'outside-only'});
   let history = store.addEvents(null, [xEvent(1), xEvent(2), xEvent(3, {reason: 'low-like-ratio', views: 5000, likes: 1})], 'x', 1).history;
   history = store.addEvents(history, [youtubeEvent('a', {reason: 'unknown-views', views: null})], 'youtube', 2).history;
-  dom.window.chrome = {runtime: {sendMessage: async () => ({ok: true, history})}, storage: {onChanged: {addListener() {}}}};
+  dom.window.chrome = {runtime: {sendMessage: async () => ({ok: true, history})}, storage: {sync: {get: async () => ({})}, onChanged: {addListener() {}}}};
   loadHistoryPageScripts(dom);
   await new Promise((resolve) => setImmediate(resolve));
   const document = dom.window.document;
@@ -320,6 +321,73 @@ test('history page shows reason breakdowns and filters recent items by site and 
 });
 
 const keptEvent = (id, extra = {}) => xEvent(id, {outcome: 'kept', reason: 'high-like-ratio', bypassedReason: 'low-views', views: 500, likes: 10, ...extra});
+const highlightedEvent = (id, extra = {}) => xEvent(id, {outcome: 'highlighted', reason: 'high-bookmark-ratio', views: 1000, likes: null, bookmarks: 12, ...extra});
+
+test('highlighted events keep independent totals and bounded links alongside kept posts', () => {
+  let history = store.addEvents(null, [keptEvent(1, {reason: 'high-bookmark-ratio', bookmarks: 12}), highlightedEvent(1), highlightedEvent(2, {url: null})], 'x', 1).history;
+  assert.equal(history.xHighlightedCount, 2);
+  assert.equal(store.siteTotal(history.xKeptCounts), 1);
+  assert.equal(history.keptEntries.length, 1);
+  assert.equal(history.highlightedEntries.length, 1);
+  assert.equal(history.highlightedEntries[0].url, history.keptEntries[0].url);
+  history = store.addEvents(history, [highlightedEvent(2, {enrich: true})], 'x', 2).history;
+  assert.equal(history.xHighlightedCount, 2);
+  assert.equal(history.highlightedEntries[0].url, 'https://x.com/author/status/2');
+  for (let id = 3; id <= 511; id++) history = store.addEvents(history, [highlightedEvent(id)], 'x', id).history;
+  assert.equal(history.xHighlightedCount, 511);
+  assert.equal(history.highlightedEntries.length, store.MAX_ENTRIES);
+  assert.equal(history.highlightedEntries[0].url, 'https://x.com/author/status/511');
+  assert.equal(history.keptEntries.length, 1);
+  history = store.addEvents(history, [highlightedEvent(42, {title: 'Updated highlight'})], 'x', 512).history;
+  assert.equal(history.highlightedEntries[0].title, 'Updated highlight');
+  assert.equal(history.highlightedEntries[0].events, 2);
+  assert.equal(history.highlightedEntries.length, store.MAX_ENTRIES);
+});
+
+test('highlight validation requires an X bookmark ratio snapshot and preserves old history', () => {
+  const invalid = [
+    highlightedEvent(1, {views: null}), highlightedEvent(2, {views: 0}), highlightedEvent(3, {bookmarks: null}),
+    highlightedEvent(4, {reason: 'high-like-ratio'}), highlightedEvent(5, {outcome: 'hidden'}),
+  ];
+  assert.equal(store.addEvents(null, invalid, 'x', 1).recorded, 0);
+  assert.equal(store.addEvents(null, [youtubeEvent('a', {outcome: 'highlighted', reason: 'high-bookmark-ratio', bookmarks: 1})], 'youtube', 1).recorded, 0);
+  const old = store.addEvents(null, [xEvent(1)], 'x', 1).history;
+  delete old.xHighlightedCount;
+  delete old.highlightedEntries;
+  const normalized = store.normalizeHistory(old);
+  assert.equal(normalized.xHighlightedCount, 0);
+  assert.deepEqual(normalized.highlightedEntries, []);
+  assert.equal(normalized.entries.length, 1);
+  assert.equal(store.normalizeHistory({xHighlightedCount: -1, highlightedEntries: [xEvent(1)]}).xHighlightedCount, 0);
+});
+
+test('paused collection rejects queued writes while retaining readable statistics and allowing reset', async () => {
+  let enabled = true;
+  let releaseFirstRead;
+  let syncReads = 0;
+  const firstRead = new Promise((resolve) => {releaseFirstRead = resolve;});
+  const app = openBackground({syncGet: async () => {
+    syncReads++;
+    if (syncReads === 1) { await firstRead; return {statisticsEnabled: true}; }
+    return {statisticsEnabled: enabled};
+  }});
+  const type = 'minimum-views-filter:record-filtered';
+  const first = app.send({type, items: [highlightedEvent(1)]}, xSender);
+  const queued = app.send({type, items: [highlightedEvent(2)]}, xSender);
+  enabled = false;
+  releaseFirstRead();
+  assert.deepEqual(clone(await first), {ok: true, recorded: 1});
+  assert.deepEqual(clone(await queued), {ok: true, recorded: 0});
+  assert.equal(app.read().xHighlightedCount, 1);
+  assert.equal((await app.send({type: 'minimum-views-filter:get-history'}, pageSender)).history.xHighlightedCount, 1);
+  enabled = true;
+  assert.deepEqual(clone(await app.send({type, items: [highlightedEvent(3)]}, xSender)), {ok: true, recorded: 1});
+  enabled = false;
+  const reset = await app.send({type: 'minimum-views-filter:clear-history'}, pageSender);
+  assert.equal(reset.history.xHighlightedCount, 0);
+  assert.deepEqual(clone(reset.history.highlightedEntries), []);
+  assert.equal(app.read().xHighlightedCount, 0);
+});
 
 test('kept events have their own counts and list and are validated separately', () => {
   let history = store.addEvents(null, [xEvent(1), keptEvent(2), keptEvent(3, {reason: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio', bookmarks: 3})], 'x', 1).history;
@@ -361,7 +429,7 @@ test('history page shows kept totals and switches the list to kept posts', async
   const dom = new JSDOM(source('history.html'), {url: pageSender.url, runScripts: 'outside-only'});
   let history = store.addEvents(null, [xEvent(1), keptEvent(2), keptEvent(3, {reason: 'high-bookmark-ratio', bypassedReason: 'low-like-ratio', likes: 0, bookmarks: 3})], 'x', 1).history;
   history = store.addEvents(history, [keptEvent(2)], 'x', 2).history;
-  dom.window.chrome = {runtime: {sendMessage: async () => ({ok: true, history})}, storage: {onChanged: {addListener() {}}}};
+  dom.window.chrome = {runtime: {sendMessage: async () => ({ok: true, history})}, storage: {sync: {get: async () => ({})}, onChanged: {addListener() {}}}};
   loadHistoryPageScripts(dom);
   await new Promise((resolve) => setImmediate(resolve));
   const document = dom.window.document;

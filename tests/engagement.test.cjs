@@ -118,3 +118,25 @@ test('decision reports which high-engagement rule kept a card and the hide rule 
   assert.deepEqual(decide(0, 10, 10), {reason: 'low-views', keptBy: null, bypassedReason: null});
   assert.deepEqual(decide(500, 500, 500, {}, 'youtube'), {reason: 'low-views', keptBy: null, bypassedReason: null});
 });
+
+test('bookmark highlighting is strict at integer and decimal thresholds and needs known positive views', () => {
+  const settings = normalizeSettings({xHighlightBookmarkPercent: 1});
+  assert.equal(core.shouldHighlightX(1000, 9, settings), false);
+  assert.equal(core.shouldHighlightX(1000, 10, settings), false);
+  assert.equal(core.shouldHighlightX(1000, 11, settings), true);
+  assert.equal(core.shouldHighlightX(10000, 7, {...settings, xHighlightBookmarkPercent: 0.07}), false);
+  assert.equal(core.shouldHighlightX(10000, 8, {...settings, xHighlightBookmarkPercent: 0.07}), true);
+  for (const views of [null, 0]) assert.equal(core.shouldHighlightX(views, 100, settings), false);
+  assert.equal(core.shouldHighlightX(1000, null, settings), false);
+  assert.equal(core.shouldHighlightX(1000, 100, {...settings, xBookmarkHighlightEnabled: false}), false);
+  assert.equal(core.shouldHighlightX(1000, 0, {...settings, xHighlightBookmarkPercent: 0}), false);
+  assert.equal(core.shouldHighlightX(1000, 1, {...settings, xHighlightBookmarkPercent: 0}), true);
+});
+
+test('view-floor switches leave unknown-view and X engagement rules independent', () => {
+  const settings = normalizeSettings({xMinimumViewsEnabled: false, youtubeMinimumViewsEnabled: false, hideUnknown: true});
+  assert.equal(core.getFilterReason(999, 'x', settings), null);
+  assert.equal(core.getFilterReason(999, 'youtube', settings), null);
+  assert.equal(core.getFilterReason(null, 'youtube', settings), 'unknown-views');
+  assert.equal(core.getFilterReason(999, 'x', settings, {likes: 0, bookmarks: null}), 'low-like-ratio');
+});

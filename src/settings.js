@@ -4,29 +4,37 @@
   const DEFAULTS = Object.freeze({
     xMinimumViews: 1000,
     youtubeMinimumViews: 1000,
+    xMinimumViewsEnabled: true,
+    youtubeMinimumViewsEnabled: true,
     xWhitelist: Object.freeze([]),
     youtubeWhitelist: Object.freeze([]),
+    xWhitelistEnabled: true,
+    youtubeWhitelistEnabled: true,
     xEnabled: true,
     youtubeEnabled: true,
     hideUnknown: false,
+    statisticsEnabled: true,
     xLowLikeRatioEnabled: true,
     xMinimumLikePercent: 0.5,
     xHighLikeRatioEnabled: true,
     xKeepLikePercent: 2,
     xHighBookmarkRatioEnabled: true,
     xKeepBookmarkPercent: 0.5,
+    xBookmarkHighlightEnabled: true,
+    xHighlightBookmarkPercent: 1,
   });
   const MAXIMUM_VIEWS = 1_000_000_000_000;
   const X_RATIO_SETTING_KEYS = Object.freeze([
     "xLowLikeRatioEnabled", "xMinimumLikePercent",
     "xHighLikeRatioEnabled", "xKeepLikePercent",
     "xHighBookmarkRatioEnabled", "xKeepBookmarkPercent",
+    "xBookmarkHighlightEnabled", "xHighlightBookmarkPercent",
   ]);
   const PERCENT_SETTING_KEYS = Object.freeze([
-    "xMinimumLikePercent", "xKeepLikePercent", "xKeepBookmarkPercent",
+    "xMinimumLikePercent", "xKeepLikePercent", "xKeepBookmarkPercent", "xHighlightBookmarkPercent",
   ]);
   const X_RATIO_TOGGLE_KEYS = Object.freeze([
-    "xLowLikeRatioEnabled", "xHighLikeRatioEnabled", "xHighBookmarkRatioEnabled",
+    "xLowLikeRatioEnabled", "xHighLikeRatioEnabled", "xHighBookmarkRatioEnabled", "xBookmarkHighlightEnabled",
   ]);
   // Browser-account sync storage: Chrome/Firefox copy it between computers;
   // Brave keeps it on this computer only.
@@ -122,7 +130,11 @@
         ? [...new Set(value[whitelistKey].map((entry) => normalizeAccountIdentifier(entry, site)).filter(Boolean))]
         : [];
     }
-    for (const key of ["xEnabled", "youtubeEnabled", "hideUnknown", ...X_RATIO_TOGGLE_KEYS]) {
+    for (const key of [
+      "xEnabled", "youtubeEnabled", "xMinimumViewsEnabled", "youtubeMinimumViewsEnabled",
+      "xWhitelistEnabled", "youtubeWhitelistEnabled", "hideUnknown", "statisticsEnabled",
+      ...X_RATIO_TOGGLE_KEYS,
+    ]) {
       if (typeof value[key] === "boolean") settings[key] = value[key];
     }
     for (const key of PERCENT_SETTING_KEYS) {

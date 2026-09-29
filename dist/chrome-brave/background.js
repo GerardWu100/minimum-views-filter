@@ -58,6 +58,10 @@
         return {ok: false, error: "invalid-message"};
       }
       return queueHistory(async () => {
+        // Read inside the queue so events waiting behind a reset or another
+        // batch honor the current collection switch before any local write.
+        const settings = await extension.storage.sync.get("statisticsEnabled");
+        if (settings.statisticsEnabled === false) return {ok: true, recorded: 0};
         const stored = await extension.storage.local.get(historyStore.STORAGE_KEY);
         const result = historyStore.addEvents(stored[historyStore.STORAGE_KEY], message.items, site, Date.now());
         if (!result || !result.recorded) return {ok: false, error: "invalid-message"};
@@ -65,9 +69,8 @@
         return {ok: true, recorded: result.recorded};
       });
     }
-    // The popup shows statistics; only the history page may reset them.
     const isHistoryPage = isExtensionPage(sender, "history.html");
-    if (message.type === GET_HISTORY_MESSAGE && (isHistoryPage || isExtensionPage(sender, "popup.html"))) {
+    if (message.type === GET_HISTORY_MESSAGE && isHistoryPage) {
       return queueHistory(async () => {
         const stored = await extension.storage.local.get(historyStore.STORAGE_KEY);
         return {ok: true, history: historyStore.normalizeHistory(stored[historyStore.STORAGE_KEY])};

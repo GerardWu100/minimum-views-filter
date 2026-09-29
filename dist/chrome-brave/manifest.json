@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Minimum Views Filter",
-  "version": "1.8.1",
-  "description": "Hide low-view X posts and YouTube videos, and low like/view ratio X posts. Includes local filtering statistics.",
+  "version": "1.9.0",
+  "description": "Filter X and YouTube feeds, subtly highlight X posts with high bookmarks/views, and review optional local statistics.",
   "permissions": [
     "storage",
     "contextMenus"
@@ -30,6 +30,10 @@
       "48": "icons/filter-48.png",
       "128": "icons/filter-128.png"
     }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
   },
   "content_scripts": [
     {

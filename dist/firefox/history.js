@@ -15,11 +15,14 @@
   const siteReasons = {x: document.getElementById("x-reasons"), youtube: document.getElementById("youtube-reasons")};
   const keptCount = document.getElementById("x-kept-count");
   const keptReasons = document.getElementById("x-kept-reasons");
+  const highlightedCount = document.getElementById("x-highlighted-count");
+  const collectionStatus = document.getElementById("collection-status");
   const outcomeFilter = document.getElementById("outcome-filter");
   const siteFilter = document.getElementById("site-filter");
   const reasonFilter = document.getElementById("reason-filter");
-  const entryCounts = {hidden: document.getElementById("hidden-entry-count"), kept: document.getElementById("kept-entry-count")};
-  // Current chip selections. outcome picks the hidden or kept list; "all"
+  const entryCounts = {hidden: document.getElementById("hidden-entry-count"), kept: document.getElementById("kept-entry-count"),
+    highlighted: document.getElementById("highlighted-entry-count")};
+  // Current chip selections. outcome picks one of the three lists; "all"
   // disables the site or reason filter.
   const activeFilters = {outcome: "hidden", site: "all", reason: "all"};
   let latestHistory = null;
@@ -27,6 +30,7 @@
   let historyNeedsRefresh = false;
   let clearingHistory = false;
   let historyGeneration = 0;
+  let collectionStatusGeneration = 0;
 
   function formatCount(value) {
     return value === null ? "unknown" : Number(value).toLocaleString();
@@ -49,7 +53,7 @@
     return chip;
   }
 
-  function buildEntry(item) {
+  function buildEntry(item, outcome) {
     const row = document.createElement("li");
     row.dataset.reason = item.reason;
     row.dataset.site = item.site;
@@ -69,7 +73,7 @@
     const metaParts = [SITE_NAMES[item.site]];
     // Kept entries name the hide reason their high engagement overrode.
     if (item.bypassedReason) metaParts.push("kept despite " + REASON_LABELS[item.bypassedReason].toLowerCase());
-    if (item.events > 1) metaParts.push((item.bypassedReason ? "kept " : "hidden ") + item.events.toLocaleString() + " times");
+    if (item.events > 1) metaParts.push(outcome + " " + item.events.toLocaleString() + " times");
     if (item.lastFilteredAt > 0 && !Number.isNaN(date.getTime())) metaParts.push(date.toLocaleString());
     meta.append(reason, " · " + metaParts.join(" · "));
 
@@ -87,30 +91,34 @@
 
   /** Show the site and reason chips that apply to the selected outcome. */
   function showOutcomeChips() {
-    const kept = activeFilters.outcome === "kept";
-    // Only X has high-engagement exceptions, so kept items need no site filter.
-    siteFilter.hidden = kept;
+    // Only hidden items can be from either site.
+    siteFilter.hidden = activeFilters.outcome !== "hidden";
     for (const chip of reasonFilter.querySelectorAll("button.chip[data-outcome]")) chip.hidden = chip.dataset.outcome !== activeFilters.outcome;
     for (const chip of outcomeFilter.querySelectorAll("button.chip")) chip.setAttribute("aria-pressed", String(chip.dataset.value === activeFilters.outcome));
   }
 
   /** Rebuild the list from the latest history using the active chip filters. */
   function renderEntries() {
-    const kept = activeFilters.outcome === "kept";
-    const all = kept ? latestHistory.keptEntries : latestHistory.entries;
+    const outcome = activeFilters.outcome;
+    const all = outcome === "kept" ? latestHistory.keptEntries
+      : outcome === "highlighted" ? latestHistory.highlightedEntries : latestHistory.entries;
     const visible = all.filter((item) =>
-      (kept || activeFilters.site === "all" || item.site === activeFilters.site)
+      (outcome !== "hidden" || activeFilters.site === "all" || item.site === activeFilters.site)
       && (activeFilters.reason === "all" || item.reason === activeFilters.reason));
-    entries.replaceChildren(...visible.map(buildEntry));
+    entries.replaceChildren(...visible.map((item) => buildEntry(item, outcome)));
     recentShown.textContent = all.length ? (visible.length === all.length
       ? all.length.toLocaleString() + " items"
       : visible.length.toLocaleString() + " of " + all.length.toLocaleString() + " items") : "";
-    const anyEvents = kept ? siteTotal(latestHistory.xKeptCounts) > 0
-      : siteTotal(latestHistory.counts.x) + siteTotal(latestHistory.counts.youtube) > 0;
+    const anyEvents = outcome === "kept" ? siteTotal(latestHistory.xKeptCounts) > 0
+      : outcome === "highlighted" ? latestHistory.xHighlightedCount > 0
+        : siteTotal(latestHistory.counts.x) + siteTotal(latestHistory.counts.youtube) > 0;
     status.textContent = visible.length ? "" :
       all.length ? "No recent items match these filters." :
-      anyEvents ? (kept ? "Kept posts were recorded, but no item links were available." : "Hide events were recorded, but no item links were available.")
-      : (kept ? "No X posts kept by high engagement yet." : "No hide events recorded yet.");
+      anyEvents ? (outcome === "kept" ? "Kept posts were recorded, but no item links were available."
+        : outcome === "highlighted" ? "Highlighted posts were recorded, but no item links were available."
+          : "Hide events were recorded, but no item links were available.")
+        : (outcome === "kept" ? "No X posts kept by high engagement yet."
+          : outcome === "highlighted" ? "No highlighted X posts yet." : "No hide events recorded yet.");
   }
 
   /** Build the page from validated background data without interpreting HTML. */
@@ -122,10 +130,12 @@
     }
     keptCount.textContent = siteTotal(history.xKeptCounts).toLocaleString();
     keptReasons.replaceChildren(buildKeptBreakdown(history.xKeptCounts));
+    highlightedCount.textContent = history.xHighlightedCount.toLocaleString();
     entryCounts.hidden.textContent = history.entries.length.toLocaleString();
     entryCounts.kept.textContent = history.keptEntries.length.toLocaleString();
+    entryCounts.highlighted.textContent = history.highlightedEntries.length.toLocaleString();
     clearButton.disabled = siteTotal(history.counts.x) === 0 && siteTotal(history.counts.youtube) === 0 && siteTotal(history.xKeptCounts) === 0
-      && history.entries.length === 0 && history.keptEntries.length === 0;
+      && history.xHighlightedCount === 0 && history.entries.length === 0 && history.keptEntries.length === 0 && history.highlightedEntries.length === 0;
     renderEntries();
   }
 
@@ -197,11 +207,25 @@
   });
   bindChipGroup(siteFilter, "site");
   bindChipGroup(reasonFilter, "reason");
+  async function loadCollectionStatus() {
+    const generation = collectionStatusGeneration;
+    try {
+      const settings = await extension.storage.sync.get("statisticsEnabled");
+      if (generation === collectionStatusGeneration) collectionStatus.hidden = settings.statisticsEnabled !== false;
+    } catch {
+      // The stored statistics are still readable if sync settings are unavailable.
+    }
+  }
   extension.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && Object.hasOwn(changes, STORAGE_KEY)) void loadHistory();
+    if (area === "sync" && Object.hasOwn(changes, "statisticsEnabled")) {
+      collectionStatusGeneration++;
+      collectionStatus.hidden = changes.statisticsEnabled.newValue !== false;
+    }
   });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "hidden") void loadHistory();
   });
   void loadHistory();
+  void loadCollectionStatus();
 })();

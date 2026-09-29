@@ -5,8 +5,11 @@
   const {normalizeSettings, oversizedSyncKeys, STORAGE_AREA, WHITELIST_CREATOR_MESSAGE, X_RATIO_SETTING_KEYS} = globalThis.MinimumViewsSettings;
   const extension = globalThis.browser || globalThis.chrome;
   const HIDDEN_ATTRIBUTE = "data-minimum-views-hidden";
+  const HIGHLIGHT_ATTRIBUTE = "data-minimum-views-highlighted";
   const ACTIVE_ATTRIBUTE = "data-minimum-views-active";
   const HIDDEN_SELECTOR = "[" + HIDDEN_ATTRIBUTE + "]";
+  const HIGHLIGHT_SELECTOR = "[" + HIGHLIGHT_ATTRIBUTE + "]";
+  const MARK_SELECTOR = HIDDEN_SELECTOR + "," + HIGHLIGHT_SELECTOR;
   const X_CELL_SELECTOR = '[data-testid="cellInnerDiv"]';
   const SCAN_DELAY_MS = 80;
   const NAVIGATION_CHECK_MS = 1000;
@@ -15,9 +18,9 @@
   const RECORD_FILTERED_MESSAGE = 'minimum-views-filter:record-filtered';
   const SITE = /(^|\.)youtube\.com$/.test(location.hostname) ? "youtube" : "x";
   const CARD_SELECTOR = core.getCardSelector(SITE);
-  const CARD_OR_MARK_SELECTOR = CARD_SELECTOR + "," + HIDDEN_SELECTOR;
+  const CARD_OR_MARK_SELECTOR = CARD_SELECTOR + "," + MARK_SELECTOR;
   const PAGE_EVENTS = ["popstate", "yt-navigate-finish", "pageshow"];
-  const SETTING_KEYS = [SITE + "MinimumViews", SITE + "Whitelist", SITE + "Enabled", "hideUnknown", ...(SITE === 'x' ? X_RATIO_SETTING_KEYS : [])];
+  const SETTING_KEYS = [SITE + "MinimumViews", SITE + "MinimumViewsEnabled", SITE + "Whitelist", SITE + "WhitelistEnabled", SITE + "Enabled", "hideUnknown", "statisticsEnabled", ...(SITE === 'x' ? X_RATIO_SETTING_KEYS : [])];
   const DECISION_CLASS_NAMES = core.getDecisionClassNames(SITE);
   const OBSERVER_OPTIONS = {
     childList: true,
@@ -39,6 +42,7 @@
   // records each new continuous state once.
   let recordedHiddenCards = new WeakMap();
   let recordedKeptCards = new WeakMap();
+  let recordedHighlightedCards = new WeakMap();
   const pendingRoots = new Set();
   const startupChanges = {};
   let fullScanRequired = false;
@@ -139,7 +143,7 @@
       // before it is reused for another kind of content. One ancestor walk
       // rules out sidebar/player records that lie outside every card and mark.
       const insideCardOrMark = element.closest(CARD_OR_MARK_SELECTOR) !== null;
-      const scope = (insideCardOrMark && (cardScope(element) || element.closest(HIDDEN_SELECTOR)))
+      const scope = (insideCardOrMark && (cardScope(element) || element.closest(MARK_SELECTOR)))
         || (SITE === "x" && record.type === "childList" ? element.closest(X_CELL_SELECTOR) : null);
       if (scope) {
         queueRoot(scope);
@@ -170,8 +174,10 @@
   function restorePage() {
     recordedHiddenCards = new WeakMap();
     recordedKeptCards = new WeakMap();
+    recordedHighlightedCards = new WeakMap();
     document.documentElement.removeAttribute(ACTIVE_ATTRIBUTE);
     for (const target of document.querySelectorAll(HIDDEN_SELECTOR)) target.removeAttribute(HIDDEN_ATTRIBUTE);
+    for (const target of document.querySelectorAll(HIGHLIGHT_SELECTOR)) target.removeAttribute(HIGHLIGHT_ATTRIBUTE);
   }
 
   /**
@@ -202,6 +208,8 @@
     fullScanRequired = false;
     const nextHidden = new Set();
     const previousHidden = new Set();
+    const nextHighlighted = new Set();
+    const previousHighlighted = new Set();
     const locale = document.documentElement.lang || navigator.language || "en";
     let historyItems = [];
     const recordBatch = () => {
@@ -216,6 +224,7 @@
     };
     /** Queue one history event per new item identity in a continuous state. */
     const recordOutcome = (recordedCards, card, event) => {
+      if (!settings.statisticsEnabled) return;
       const metadata = core.getItemMetadata(card, SITE);
       const previous = recordedCards.get(card);
       // A permalink can arrive after the count. Enrich that first event instead
@@ -235,23 +244,35 @@
         // X's safe hide target can be an ancestor of a newly inserted article.
         const ancestor = root.closest(HIDDEN_SELECTOR);
         if (ancestor) previousHidden.add(ancestor);
+        if (root.matches(HIGHLIGHT_SELECTOR)) previousHighlighted.add(root);
       }
       for (const target of root.querySelectorAll(HIDDEN_SELECTOR)) previousHidden.add(target);
+      for (const target of root.querySelectorAll(HIGHLIGHT_SELECTOR)) previousHighlighted.add(target);
       for (const card of core.getCards(root, SITE)) {
         const views = core.getViewCount(card, SITE, locale);
-        // Exceptions only matter when a rule could hide the card. In particular,
-        // with no positive low-like floor, qualifying views need no metric reads.
+        // The highlight also needs bookmarks on posts that pass all hide rules.
+        // When it is disabled, keep the shortcut for irrelevant engagement reads.
         const engagement = SITE === 'x' && views > 0 && (
+          settings.xBookmarkHighlightEnabled
+          ||
           (settings.xLowLikeRatioEnabled && settings.xMinimumLikePercent > 0)
-          || (views < settings.xMinimumViews && (settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled))
+          || (settings.xMinimumViewsEnabled && views < settings.xMinimumViews && (settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled))
         )
           ? core.getXEngagement(card, locale) : {likes: null, bookmarks: null};
         const {reason, keptBy, bypassedReason} = core.getFilterDecision(views, SITE, settings, engagement);
-        // Whitelisted creators bypass every rule, so their cards record nothing.
+        // Whitelists bypass hiding; the independent accent may still apply.
         const whitelisted = (reason || keptBy) && whitelist.size
           && core.getCreatorIdentifiers(card, SITE).some((identifier) => whitelist.has(identifier));
         if (!reason) recordedHiddenCards.delete(card);
         if (!keptBy) recordedKeptCards.delete(card);
+        const highlighted = SITE === 'x' && (!reason || whitelisted)
+          && core.shouldHighlightX(views, engagement.bookmarks, settings);
+        if (highlighted) {
+          nextHighlighted.add(card);
+          recordOutcome(recordedHighlightedCards, card, {outcome: "highlighted", reason: "high-bookmark-ratio", views, ...engagement});
+        } else {
+          recordedHighlightedCards.delete(card);
+        }
         if (whitelisted) {
           recordedHiddenCards.delete(card);
           recordedKeptCards.delete(card);
@@ -271,6 +292,12 @@
     }
     for (const target of nextHidden) {
       if (!target.hasAttribute(HIDDEN_ATTRIBUTE)) target.setAttribute(HIDDEN_ATTRIBUTE, "");
+    }
+    for (const target of previousHighlighted) {
+      if (!nextHighlighted.has(target)) target.removeAttribute(HIGHLIGHT_ATTRIBUTE);
+    }
+    for (const target of nextHighlighted) {
+      if (!target.hasAttribute(HIGHLIGHT_ATTRIBUTE)) target.setAttribute(HIGHLIGHT_ATTRIBUTE, "");
     }
     if (!document.documentElement.hasAttribute(ACTIVE_ATTRIBUTE)) document.documentElement.setAttribute(ACTIVE_ATTRIBUTE, "");
     recordBatch();
@@ -317,9 +344,14 @@
     const next = normalizeSettings(updated);
     // Values are numbers, booleans, or arrays of strings, so JSON equality is exact.
     const changed = SETTING_KEYS.some((key) => JSON.stringify(next[key]) !== JSON.stringify(settings[key]));
+    if (next.statisticsEnabled !== settings.statisticsEnabled) {
+      recordedHiddenCards = new WeakMap();
+      recordedKeptCards = new WeakMap();
+      recordedHighlightedCards = new WeakMap();
+    }
     settings = next;
     if (changed) {
-      whitelist = new Set(settings[SITE + "Whitelist"]);
+      whitelist = new Set(settings[SITE + "WhitelistEnabled"] ? settings[SITE + "Whitelist"] : []);
       scheduleScan(true);
     }
   }
@@ -409,7 +441,7 @@
   extension.storage[STORAGE_AREA].get(null).then((stored) => {
     if (stopped) return;
     settings = normalizeSettings({...stored, ...startupChanges});
-    whitelist = new Set(settings[SITE + "Whitelist"]);
+    whitelist = new Set(settings[SITE + "WhitelistEnabled"] ? settings[SITE + "Whitelist"] : []);
     ready = true;
     onVisibilityChange();
   }).catch(stop);

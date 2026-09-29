@@ -1,1 +1,7 @@
 html[data-minimum-views-active] [data-minimum-views-hidden] { display: none !important; }
+
+/* A faint inset outline adds no layout shift, overlay, animation, or controls. */
+html[data-minimum-views-active] [data-minimum-views-highlighted] {
+  outline: 2px solid rgb(38 153 137 / 35%);
+  outline-offset: -2px;
+}
