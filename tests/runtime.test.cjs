@@ -1321,7 +1321,19 @@ test('YouTube filters inserted and hydrated cards before a timer can let them bl
   assert.equal(work.documentScans, before.documentScans);
   // A card whose count hydrates later is hidden at that mutation checkpoint.
   const card = document.querySelector('#video-4');
-  card.insertAdjacentHTML('beforeend', '<div id="metadata-line"><span class="inline-metadata-item">12 views</span></div>');
+  const metadata = card.querySelector('[id="metadata-line"]');
+  metadata.insertAdjacentHTML('afterbegin', '<span class="inline-metadata-item">12 views</span>');
+  const count = metadata.firstElementChild;
+  await Promise.resolve();
+  assertVisible(window, '#video-4', false);
+  count.firstChild.data = '1000 views';
+  await Promise.resolve();
+  assertVisible(window, '#video-4', true);
+  count.remove();
+  await Promise.resolve();
+  assertVisible(window, '#video-4', true);
+  count.firstChild.data = '999 views';
+  metadata.prepend(count);
   await Promise.resolve();
   assertVisible(window, '#video-4', false);
   const after = {...work};

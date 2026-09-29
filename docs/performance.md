@@ -4,9 +4,10 @@
 
 Compared with v1.11.1 commit `fb7d0e8`, using Node.js v22.17.0 and jsdom 29.1.1
 (`node scripts/benchmark.cjs --baseline <fb7d0e8 src>`). YouTube now uses the
-immediate mutation path X adopted in 1.11.1, so a failing card that arrives with
-its count is hidden before paint instead of up to 80 ms later. Every expected
-hiding mark passed; X results are unchanged.
+immediate mutation path X adopted in 1.11.1. On an active page, a failing card
+with readable counts is evaluated in its mutation callback without the extra
+80 ms timer. Every expected hiding mark passed; X results are unchanged.
+These tests establish DOM state before the next timer, not observed browser paint.
 
 | YouTube workload | View-count reads before → after | DOM queries before → after | Timer callbacks |
 | --- | ---: | ---: | ---: |
@@ -16,9 +17,28 @@ hiding mark passed; X results are unchanged.
 | Four staggered count updates per batch | 20 → 80 | 180 → 880 | 20 → 0 |
 | Sidebar/player, hover, hidden-tab noise | 0 → 0 | 0 → 0 | 0 → 0 |
 
-The cost appears only when one card's metadata changes in several separate
-mutation deliveries; routing of unrelated player/sidebar mutations is unchanged.
-These are synthetic operation counts, not browser CPU or scrolling smoothness.
+The staggered fixture shows extra reads when one card's metadata changes in
+separate deliveries. Separate deliveries involving different cards can also
+increase per-scan overhead and statistics messages. Routing of unrelated
+player/sidebar mutations is unchanged. These are synthetic operation counts,
+not browser CPU or scrolling smoothness.
+
+An independent review reproduced the table and measured four distinct 999-view
+YouTube cards, inserted one per mutation delivery before timers were drained:
+
+| Measure | v1.11.1 → v1.11.2 |
+| --- | ---: |
+| Count reads | 4 → 4 |
+| Correctly hidden cards | 4 → 4 |
+| Statistics messages | 1 → 4 |
+| Items in each message | one batch of 4 → four batches of 1 |
+
+The fixture mocked `runtime.sendMessage`; it did not time browser storage. The
+background currently reads and writes local history for each accepted message,
+so these messages can produce more storage work with collection enabled. The
+main benchmark's no-op message mock excludes that cost. Batching history
+separately could reduce it without delaying hiding, but that change is not
+implemented or verified here. The earlier X immediate path has the same limitation.
 
 ## Immediate X mutation evaluation, v1.11.1 (2026-09-29)
 

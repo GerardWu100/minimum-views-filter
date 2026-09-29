@@ -63,9 +63,11 @@ read no card. The observer routes remaining mutations through
 inspected locally; unrelated sidebar/player changes are discarded.
 Overlapping scopes merge, and more than 32 pending scopes collapse into a full
 pass. Both sites flush routed changes once at the end of each delivered mutation
-batch, before the browser paints, so a failing card never blinks on screen when
-its count arrives with it (X since 1.11.1; YouTube since 1.11.2 at the user's
-request). This covers inserted/recycled cards and hydrated metadata. Settings and
+batch (X since 1.11.1; YouTube since 1.11.2 at the user's request). Mutation
+callbacks run before the next ordinary rendering opportunity, removing the
+intentional delay for cards on active pages. This does not guarantee zero flashes
+during startup/navigation or control platform logging. The same reconciliation
+covers inserted/recycled cards and hydrated metadata. Settings and
 page events still schedule 80 ms full passes; a mutation flushes any pending full
 pass and cancels its timeout, including when that mutation detects navigation. `getCards` includes a matching
 Element root as well as descendants, so standalone inserted cards work.
@@ -222,6 +224,17 @@ hence the copy/paste transfer. The move from `storage.local` plus the new ID
 resets settings once for 1.4.0 users; no migration code exists by design.
 
 ## Current verification and limits
+
+Independent v1.11.2 review (2026-09-29): full tests, both builds, and Firefox
+validation passed; the rebuilt files match the committed runtime. The YouTube
+timing test now hydrates the existing metadata container and checks rising,
+removed, and reinserted counts at mutation checkpoints. The paired benchmark
+reproduces the documented operation counts. A separate four-video probe also
+found four statistics messages instead of one when distinct hidden cards arrive
+in separate deliveries before timers. The background serializes a local history
+write per accepted message, so the cost is not restricted to rereading one card.
+See [performance measurements](docs/performance.md). No installed extension was
+reloaded and no live YouTube paint or scrolling performance was measured.
 
 Immediate X evaluation (v1.11.1, 2026-09-29): the full test suite, both 22-file
 builds, and Firefox validation passed (zero errors/notices/warnings). Four new
@@ -526,6 +539,15 @@ and watch pages, including restoration at 1.2 thousand views. The diagnostic tab
 was closed; no installed extension or other extension setting was changed.
 
 ## Open issues and verification limits
+
+- **Immediate filtering trades batching for responsiveness.** v1.11.2 retains
+  the affected-card routing and idle guards, but separate deliveries can cause
+  repeated reads or more statistics messages even for distinct cards. The
+  existing benchmark stubs background messaging and does not measure storage
+  latency or visible-page Statistics refreshes. Next step: measure a live scrolling
+  workload after a user-requested reload before deciding whether to batch history
+  messages independently of immediate visual filtering. Preserve event snapshots,
+  reset ordering, collection switches, and the bounded/no-DOM-reference rules.
 
 - **X can record a post before local hiding takes effect.** On 2026-09-29,
   one of 39 observed hidden posts appeared briefly in the viewport and entered
