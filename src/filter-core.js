@@ -15,6 +15,12 @@
   const X_CARD_SELECTOR = 'article[data-testid="tweet"], article[role="article"]';
   // Quoted posts are nested interactive blocks; an inner article is also nested.
   const X_QUOTE_OR_CARD_SELECTOR = '[data-testid="quoteTweet"], [data-testid="quotedTweet"], [role="link"], ' + X_CARD_SELECTOR;
+  // X joins a reply to the post above it with a thread line: an empty div about
+  // 2px wide at the top of the reply's avatar column, six first-child levels
+  // below the article (the signal Control Panel for Twitter also reads).
+  const X_THREAD_LINE_MAX_DEPTH = 8;
+  const X_THREAD_LINE_MAX_WIDTH_PX = 3;
+  const X_AVATAR_SELECTOR = '[data-testid="Tweet-User-Avatar"]';
   const GENERIC_YOUTUBE_CARD_SELECTOR = 'ytd-rich-item-renderer, yt-lockup-view-model';
   const YOUTUBE_AD_SELECTOR = 'ytd-ad-slot-renderer, ytd-in-feed-ad-layout-renderer, ytd-display-ad-renderer';
   // Cards inside the Shorts player or an ad are never feed recommendations.
@@ -621,6 +627,26 @@
   }
 
   /**
+   * Report whether X draws this post as a reply joined to the post above it.
+   *
+   * @param {Element} card One X card returned by getCards.
+   * @returns {boolean} True when the article's first-child chain ends, within
+   *   X_THREAD_LINE_MAX_DEPTH levels, in an empty div outside the avatar whose
+   *   computed width is above 0 and at most X_THREAD_LINE_MAX_WIDTH_PX. Any other
+   *   layout returns false, so an unrecognized layout changes no decision.
+   *   The width comes from CSS, so the check also works inside a hidden cell.
+   */
+  function isXReplyToPreviousPost(card) {
+    let element = card.firstElementChild;
+    for (let depth = 1; element?.firstElementChild && depth < X_THREAD_LINE_MAX_DEPTH; depth++) {
+      element = element.firstElementChild;
+    }
+    if (!element || element.firstElementChild || element.tagName !== 'DIV' || element.closest(X_AVATAR_SELECTOR)) return false;
+    const width = parseFloat(card.ownerDocument.defaultView.getComputedStyle(element).width);
+    return width > 0 && width <= X_THREAD_LINE_MAX_WIDTH_PX;
+  }
+
+  /**
    * Select a safe outer wrapper whose removal will not hide another tweet.
    *
    * @param {Element} card One card returned by getCards.
@@ -636,7 +662,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, shouldHighlightX, getItemMetadata, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget };
+  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, shouldHighlightX, getItemMetadata, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget, isXReplyToPreviousPost };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);

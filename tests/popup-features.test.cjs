@@ -57,6 +57,7 @@ for (const namespace of ['browser', 'chrome']) {
       xMinimumViews: 1200, xMinimumLikePercent: 1.25,
       xHighLikeRatioEnabled: false, xKeepLikePercent: 4.5,
       xBookmarkHighlightEnabled: false, xHighlightBookmarkPercent: 1.8, xBookmarkHighlightShown: false,
+      xThreadContextEnabled: false,
     });
     await tick();
     assert.equal(document.title, 'Settings · Minimum Views Filter');
@@ -70,6 +71,12 @@ for (const namespace of ['browser', 'chrome']) {
     assert.equal(document.querySelector('#x-bookmark-highlight-shown').disabled, true);
     assert.equal(document.querySelector('#x-highlight-like-required').disabled, true);
     assert.equal(document.querySelector('#x-highlight-like-percent').disabled, true);
+    assert.equal(document.querySelector('#x-thread-context-enabled').checked, false);
+    change('#x-enabled', false);
+    assert.equal(document.querySelector('#x-thread-context-enabled').disabled, true);
+    change('#x-enabled', true);
+    assert.equal(document.querySelector('#x-thread-context-enabled').disabled, false);
+    change('#x-thread-context-enabled', true);
     change('#x-bookmark-highlight-enabled', true);
     assert.equal(document.querySelector('#x-highlight-like-percent').disabled, false);
     change('#x-highlight-like-required', false);
@@ -105,6 +112,7 @@ for (const namespace of ['browser', 'chrome']) {
     assert.equal(writes[0].xHighlightReplyPercent, 0.1);
     assert.equal(writes[0].xHighReplyRatioEnabled, false);
     assert.equal(writes[0].xKeepReplyPercent, 0.1);
+    assert.equal(writes[0].xThreadContextEnabled, true);
     assert.match(document.querySelector('#status').textContent, /Saved/);
   });
 }

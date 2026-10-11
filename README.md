@@ -133,8 +133,8 @@ Official instructions: [Chrome unpacked extensions](https://developer.chrome.com
 
 “Hide unknown view counts” is optional and off by default. Every behavior has an
 off switch: each site's master switch, view minimum, whitelist, each X engagement
-rule, bookmark highlight detection and its feed edge, unknown-count hiding, and
-statistics collection.
+rule, X thread context, bookmark highlight detection and its feed edge,
+unknown-count hiding, and statistics collection.
 Switches preserve their thresholds and lists for later use. Disabling a view
 minimum leaves the other rules active. For example, set **X to 10,000** and
 **YouTube to 1,000**. Saving settings updates open supported pages automatically.
@@ -151,6 +151,20 @@ concurrent viewers are not interpreted as total views.
 
 When you navigate away from Home or a YouTube watch page, this extension removes
 its hiding and highlight marks from retained cards. Other extensions' hiding rules remain intact.
+
+## X thread context
+
+X Home sometimes shows a reply directly below the post it answers, joined by a
+thin vertical thread line. When the reply passes the rules but the post above it
+does not, **Show posts that a shown reply answers** (on by default) keeps that
+post visible, so the reply never appears without its context. It works up a
+longer thread too: a shown reply keeps every joined post above it. It never
+reveals a hidden reply below a shown post. Posts kept this way are not counted
+as hidden in Statistics.
+
+The extension recognizes the join only by X's thread line in the reply. If X
+changes that layout, or a cell holds more than one post, the parent is filtered
+on its own as before.
 
 ## X engagement rules
 

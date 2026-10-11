@@ -1391,3 +1391,79 @@ test('X keep and highlight react to reply counts at their mutation checkpoints',
   await wait();
   assertVisible(window, '#cell-1', true);
 });
+
+/**
+ * X cell whose post X joins to the post above with its 2px thread line.
+ * The line sits six first-child levels below the article, as on X Home.
+ */
+const xReplyCard = (id, views, lineWidth = '2px') => xCard(id, views).replace(
+  `<article data-testid="tweet" id="post-${id}">`,
+  `<article data-testid="tweet" id="post-${id}"><div><div><div><div><div><div style="width: ${lineWidth}"></div></div></div></div></div></div><div data-testid="Tweet-User-Avatar"><div style="width: 2px"></div></div>`,
+);
+const setXViews = (document, id, views) => {
+  const counter = document.querySelector(`#post-${id} a[href$="/analytics"]`);
+  counter.setAttribute('aria-label', `${views} views`);
+  counter.textContent = views;
+};
+
+test('X keeps a low post visible while a joined reply to it is shown, up the whole thread', async (t) => {
+  const {window, storage} = openContent(t, {html:
+    xCard(1, '100') + xReplyCard(2, '2,000') + xCard(3, '100')
+    + xCard(4, '100') + xReplyCard(5, '100') + xReplyCard(6, '5,000')
+    + xCard(7, '100') + xReplyCard(8, '100')
+    + xCard(9, '100') + xReplyCard(10, '2,000', '40px')});
+  await wait();
+  for (const id of [1, 2, 4, 5, 6, 10]) assertVisible(window, `#cell-${id}`, true);
+  for (const id of [3, 7, 8, 9]) assertVisible(window, `#cell-${id}`, false);
+  const recordedUrls = storage.recordedMessages.flatMap(({items}) => items).map(({url}) => url);
+  assert.deepEqual(recordedUrls.sort(), [3, 7, 8, 9].map((id) => `https://x.com/author/status/${id}`).sort());
+});
+
+test('X re-evaluates a thread parent when its reply or its own count changes', async (t) => {
+  const {window, document} = openContent(t, {html: xCard(1, '100') + xReplyCard(2, '2,000') + xCard(3, '100')});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  setXViews(document, 2, '100');
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', false);
+  assertVisible(window, '#cell-2', false);
+  setXViews(document, 2, '3,000');
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', true);
+  // A change inside the parent alone still sees its shown reply below.
+  setXViews(document, 1, '200');
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', true);
+  // A shown reply arriving below a hidden post brings the post back.
+  assertVisible(window, '#cell-3', false);
+  document.querySelector('#cell-3').insertAdjacentHTML('afterend', xReplyCard(4, '9,000'));
+  await Promise.resolve();
+  assertVisible(window, '#cell-3', true);
+  assertVisible(window, '#cell-4', true);
+});
+
+test('X thread context has its own switch and leaves other hiding untouched when off', async (t) => {
+  const {window, storage} = openContent(t, {stored: {xThreadContextEnabled: false}, html: xCard(1, '100') + xReplyCard(2, '2,000')});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  assertVisible(window, '#cell-2', true);
+  storage.change({xThreadContextEnabled: true});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  storage.change({xThreadContextEnabled: false});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+});
+
+test('X thread context ignores a second post sharing a cell and never reveals a hidden reply below', async (t) => {
+  // Cell 2 holds two posts; the second is joined to the first in its own cell, not to cell 1.
+  const sharedCell = xCard(2, '100').replace(/<\/div>$/, xReplyCard(5, '2,000').replace(/^<div[^>]*>|<\/div>$/g, '') + '</div>');
+  const {window} = openContent(t, {html: xCard(1, '100') + sharedCell + xCard(3, '2,000') + xReplyCard(4, '100')});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  assertVisible(window, '#post-2', false);
+  assertVisible(window, '#post-5', true);
+  // A shown parent does not bring back the hidden reply joined below it.
+  assertVisible(window, '#cell-3', true);
+  assertVisible(window, '#cell-4', false);
+});

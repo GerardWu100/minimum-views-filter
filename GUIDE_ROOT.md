@@ -100,6 +100,29 @@ validated form as JSON text (clipboard when allowed, selected text otherwise);
 **Load pasted** accepts only complete, valid text from this format and fills the
 form without saving. The Settings page never contacts the platforms.
 
+## X thread context
+
+The 2026-10-10 request keeps a hidden X post visible when a shown reply is
+joined to it. `isXReplyToPreviousPost` follows the reply article's first-child
+chain (at most 8 levels; X's line is at 6) to an empty div outside the avatar
+whose computed CSS width is above 0 and at most 3px, the same thread-line signal
+Control Panel for Twitter reads. Computed CSS width works inside a
+`display: none` cell. Unrecognized layouts return false, which keeps the old
+per-post decision. This was not verified against a live X DOM during this
+change; the Chrome profile available to the agent was signed out of X.
+
+In `scan`, hidden decisions wait in `hiddenCards` (hide target → card and event).
+After every root is read, each card left visible walks up through previous
+sibling cells while the cell above is a hidden single-post cell and the current
+post is a joined reply; each such parent leaves `hiddenCards` and its hidden
+WeakMap state. Only the remaining entries are marked and recorded, so rescued
+parents create no hidden-history event. Partial scans first add thread
+neighbours (`addXThreadNeighbours`): above the first cell while its post is a
+joined reply, and below the last cell while the next post is one. A change to
+either a reply or its parent therefore re-evaluates the whole joined group.
+Only single-post cells join groups. `xThreadContextEnabled` (default true)
+switches all of this off; then no thread lookups run.
+
 ## X engagement decisions and history
 
 The 2026-09-28 feature request adds X low-like filtering and high-engagement
@@ -283,7 +306,7 @@ The installed Brave extension was observed before this change; the rebuilt
 package has not been installed, reloaded, or tested against live X. See the
 [sanitized seen-list investigation](docs/x-seen-list-check.md).
 
-For v1.13.1, run `npm ci`, `npm test`, `npm run build`, and
+For v1.14.0, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
 The packages now contain 22 files; the stable extension IDs and permissions are

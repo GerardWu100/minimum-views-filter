@@ -2,7 +2,7 @@
   "use strict";
 
   const core = globalThis.MinimumViewsCore;
-  const {normalizeSettings, oversizedSyncKeys, STORAGE_AREA, WHITELIST_CREATOR_MESSAGE, X_RATIO_SETTING_KEYS} = globalThis.MinimumViewsSettings;
+  const {normalizeSettings, oversizedSyncKeys, STORAGE_AREA, WHITELIST_CREATOR_MESSAGE, X_SETTING_KEYS} = globalThis.MinimumViewsSettings;
   const extension = globalThis.browser || globalThis.chrome;
   const HIDDEN_ATTRIBUTE = "data-minimum-views-hidden";
   const HIGHLIGHT_ATTRIBUTE = "data-minimum-views-highlighted";
@@ -20,7 +20,7 @@
   const CARD_SELECTOR = core.getCardSelector(SITE);
   const CARD_OR_MARK_SELECTOR = CARD_SELECTOR + "," + MARK_SELECTOR;
   const PAGE_EVENTS = ["popstate", "yt-navigate-finish", "pageshow"];
-  const SETTING_KEYS = [SITE + "MinimumViews", SITE + "MinimumViewsEnabled", SITE + "Whitelist", SITE + "WhitelistEnabled", SITE + "Enabled", "hideUnknown", "statisticsEnabled", ...(SITE === 'x' ? X_RATIO_SETTING_KEYS : [])];
+  const SETTING_KEYS = [SITE + "MinimumViews", SITE + "MinimumViewsEnabled", SITE + "Whitelist", SITE + "WhitelistEnabled", SITE + "Enabled", "hideUnknown", "statisticsEnabled", ...(SITE === 'x' ? X_SETTING_KEYS : [])];
   const DECISION_CLASS_NAMES = core.getDecisionClassNames(SITE);
   const OBSERVER_OPTIONS = {
     childList: true,
@@ -73,6 +73,58 @@
     const card = outerCard(element);
     if (!card) return null;
     return SITE === "x" ? card.closest(X_CELL_SELECTOR) || card : card;
+  }
+
+  /** Return the post card of an X cell holding exactly one post, else null. */
+  function soleXCard(cell) {
+    const cards = core.getCards(cell, SITE);
+    return cards.length === 1 && core.getHideTarget(cards[0], SITE) === cell ? cards[0] : null;
+  }
+
+  /** Return the neighbouring X timeline cell, or null at the list edge. */
+  function siblingXCell(cell, backward) {
+    const sibling = backward ? cell.previousElementSibling : cell.nextElementSibling;
+    return sibling?.matches(X_CELL_SELECTOR) ? sibling : null;
+  }
+
+  /**
+   * Add the X cells joined by thread lines to a partial scan's roots.
+   *
+   * A reply's visibility decides whether its parent stays visible, so a change
+   * to either one must re-evaluate the whole joined group. Only the first and
+   * last cell of each root can join cells outside it.
+   * Before: changed roots. After: the same roots plus outside thread neighbours.
+   */
+  function addXThreadNeighbours(roots) {
+    const extra = [];
+    for (const root of roots) {
+      if (!root.isConnected) continue;
+      const ownCell = root.closest(X_CELL_SELECTOR);
+      const cells = ownCell ? [ownCell] : root.querySelectorAll(X_CELL_SELECTOR);
+      if (!cells.length) continue;
+      // Walk up while the current post is a joined reply to the cell above.
+      for (let cell = cells[0], card = soleXCard(cell); card && core.isXReplyToPreviousPost(card);) {
+        cell = siblingXCell(cell, true);
+        if (!cell) break;
+        extra.push(cell);
+        card = soleXCard(cell);
+      }
+      // Walk down while the cell below is a joined reply to the current one.
+      for (let cell = siblingXCell(cells[cells.length - 1], false); cell;) {
+        const card = soleXCard(cell);
+        if (!card || !core.isXReplyToPreviousPost(card)) break;
+        extra.push(cell);
+        cell = siblingXCell(cell, false);
+      }
+    }
+    for (const cell of extra) {
+      if (roots.some((root) => root.contains(cell))) continue;
+      // A root inside this cell would read the same cards twice.
+      for (let index = roots.length - 1; index >= 0; index--) {
+        if (cell.contains(roots[index])) roots.splice(index, 1);
+      }
+      roots.push(cell);
+    }
   }
 
   /** Hover/focus/theme restyles do not add or remove a class the adapter reads. */
@@ -214,8 +266,14 @@
       fullScanRequired = true;
     }
     const roots = fullScanRequired ? [document] : [...pendingRoots];
+    const threadContext = SITE === "x" && settings.xThreadContextEnabled;
+    if (threadContext && !fullScanRequired) addXThreadNeighbours(roots);
     pendingRoots.clear();
     fullScanRequired = false;
+    // Hide target -> {card, event}. Hiding waits until joined replies are known.
+    const hiddenCards = new Map();
+    // Cards this pass leaves visible, so joined replies can keep their parents.
+    const visibleCards = [];
     const nextHidden = new Set();
     const previousHidden = new Set();
     const nextHighlighted = new Set();
@@ -291,16 +349,34 @@
         if (whitelisted) {
           recordedHiddenCards.delete(card);
           recordedKeptCards.delete(card);
-          continue;
-        }
-        if (keptBy) {
+        } else if (keptBy) {
           recordOutcome(recordedKeptCards, card, {outcome: "kept", reason: keptBy, bypassedReason, views, ...engagement});
+        } else if (reason) {
+          hiddenCards.set(core.getHideTarget(card, SITE), {card, event: {outcome: "hidden", reason, views, ...engagement}});
           continue;
         }
-        if (!reason) continue;
-        nextHidden.add(core.getHideTarget(card, SITE));
-        recordOutcome(recordedHiddenCards, card, {outcome: "hidden", reason, views, ...engagement});
+        if (threadContext) visibleCards.push(card);
       }
+    }
+    // A visible reply keeps the post it answers visible, and so on up the
+    // joined thread, so the reply never shows without its context. Rescued
+    // parents are not hidden, so they leave no hidden-history event.
+    for (const card of visibleCards) {
+      for (let reply = card, cell = card.closest(X_CELL_SELECTOR); cell;) {
+        const parentCell = siblingXCell(cell, true);
+        // Only a sole-post cell is its own hide target, so this also skips shared cells.
+        const hiddenParent = parentCell && hiddenCards.get(parentCell);
+        // Thread groups join single-post cells only, matching addXThreadNeighbours.
+        if (!hiddenParent || core.getHideTarget(reply, SITE) !== cell || !core.isXReplyToPreviousPost(reply)) break;
+        hiddenCards.delete(parentCell);
+        recordedHiddenCards.delete(hiddenParent.card);
+        reply = hiddenParent.card;
+        cell = parentCell;
+      }
+    }
+    for (const [target, {card, event}] of hiddenCards) {
+      nextHidden.add(target);
+      recordOutcome(recordedHiddenCards, card, event);
     }
     for (const target of previousHidden) {
       if (!nextHidden.has(target)) target.removeAttribute(HIDDEN_ATTRIBUTE);

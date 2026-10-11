@@ -1,5 +1,27 @@
 # Performance measurements
 
+## X thread context, v1.14.0 (2026-10-10)
+
+Compared with v1.13.1 commit `55217d1` (Node.js v22.17.0, jsdom 29.1.1, 200
+cards, 20 mutation batches). All expected hiding marks still pass. The synthetic
+feed has no thread lines, so these counts show the lookup cost without rescues.
+
+| X scenario | Card lookups | Selector queries |
+| --- | ---: | ---: |
+| Startup (full pass) | 1 → 1 | 1,003 → 1,053 |
+| One-card count changes (20) | 20 → 60 | 190 → 270 |
+| New-card batches (20) | 80 → 220 | 720 → 1,020 |
+| Staggered count bursts | 80 → 240 | 760 → 1,080 |
+
+Each routed X mutation now also reads the posts in the cell itself and the cell
+below, to find thread neighbours (two extra card lookups). A full pass adds one
+query for each visible post whose cell above is hidden. Each thread-line check
+reads one computed CSS width; jsdom timing cannot show what that costs in a real
+browser. Two paired runs gave timings that varied in both directions. YouTube
+counts are unchanged. Turning the switch off removes all of this work. Data:
+[thread-context-performance-results.json](thread-context-performance-results.json).
+
+
 ## Review and bounded statistics batching, v1.13.1 (2026-09-29)
 
 Compared with v1.13.0 commit `5608ce4`, using Node.js v22.17.0 and jsdom 29.1.1.

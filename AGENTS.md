@@ -20,6 +20,10 @@ the platform through negative-feedback actions.
   Each ratio rule has its own switch. Ratios require known, positive views and
   a known numerator; missing likes/bookmarks/replies are unknown, never implicit zero.
 - Whitelisted X accounts bypass all filtering ratio rules as well as the view rules.
+- When X Home shows a reply joined to the post above it and the reply stays
+  visible, keep that parent post (and any joined posts above it) visible even
+  if it fails the rules (user request 2026-10-10). Never reveal a hidden reply
+  below a visible post. This rule has its own switch, default on.
 - Optionally highlight visible X Home posts strictly above an adjustable
   bookmarks/views percentage (default 1%) AND, while its switch is on, strictly
   above an adjustable likes/views percentage (default 2%) AND, while its switch

@@ -23,7 +23,7 @@
     whitelist: document.getElementById(site + "-whitelist"),
     whitelistSize: document.getElementById(site + "-whitelist-size"),
   }));
-  const ratioFields = [
+  const xFields = [
     {key: "xLowLikeRatioEnabled", input: document.getElementById("x-low-like-ratio-enabled")},
     {key: "xMinimumLikePercent", input: document.getElementById("x-minimum-like-percent")},
     {key: "xHighLikeRatioEnabled", input: document.getElementById("x-high-like-ratio-enabled")},
@@ -39,9 +39,11 @@
     {key: "xKeepReplyPercent", input: document.getElementById("x-keep-reply-percent")},
     {key: "xHighlightReplyRequired", input: document.getElementById("x-highlight-reply-required")},
     {key: "xHighlightReplyPercent", input: document.getElementById("x-highlight-reply-percent")},
+    {key: "xThreadContextEnabled", input: document.getElementById("x-thread-context-enabled")},
   ];
   const highlightDetection = document.getElementById("x-bookmark-highlight-enabled");
   const highlightShown = document.getElementById("x-bookmark-highlight-shown");
+  const threadContext = document.getElementById("x-thread-context-enabled");
   // Highlight conditions whose switch and threshold depend on detection.
   const highlightConditions = [
     ["x-highlight-like-required", "x-highlight-like-percent", "xHighlightLikePercent"],
@@ -99,6 +101,7 @@
       threshold.disabled = !xActive || !toggle.checked;
       if (threshold.disabled && !validPercent(threshold)) threshold.value = lastSavedSettings[settingKey];
     }
+    threadContext.disabled = !xActive;
     // Showing the edge and the likes condition depend on detection;
     // recording depends on statistics.
     highlightShown.disabled = !xActive || !highlightDetection.checked;
@@ -123,7 +126,7 @@
     }
     hideUnknown.checked = settings.hideUnknown;
     statisticsEnabled.checked = settings.statisticsEnabled;
-    for (const {key, input} of ratioFields) {
+    for (const {key, input} of xFields) {
       if (typeof DEFAULT_SETTINGS[key] === "boolean") input.checked = settings[key];
       else input.value = settings[key];
     }
@@ -161,7 +164,7 @@
         return null;
       }
     }
-    for (const {key, input} of ratioFields) {
+    for (const {key, input} of xFields) {
       if (typeof DEFAULT_SETTINGS[key] === "boolean") {
         settings[key] = input.checked;
         continue;

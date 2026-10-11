@@ -29,9 +29,11 @@
     xKeepReplyPercent: 0.1,
     xHighlightReplyRequired: true,
     xHighlightReplyPercent: 0.1,
+    // Keep a hidden X post visible while a visible reply joined to it shows.
+    xThreadContextEnabled: true,
   });
   const MAXIMUM_VIEWS = 1_000_000_000_000;
-  const X_RATIO_SETTING_KEYS = Object.freeze([
+  const X_SETTING_KEYS = Object.freeze([
     "xLowLikeRatioEnabled", "xMinimumLikePercent",
     "xHighLikeRatioEnabled", "xKeepLikePercent",
     "xHighBookmarkRatioEnabled", "xKeepBookmarkPercent",
@@ -39,14 +41,16 @@
     "xHighlightLikeRequired", "xHighlightLikePercent",
     "xHighReplyRatioEnabled", "xKeepReplyPercent",
     "xHighlightReplyRequired", "xHighlightReplyPercent",
+    "xThreadContextEnabled",
   ]);
   const PERCENT_SETTING_KEYS = Object.freeze([
     "xMinimumLikePercent", "xKeepLikePercent", "xKeepBookmarkPercent", "xHighlightBookmarkPercent",
     "xHighlightLikePercent", "xKeepReplyPercent", "xHighlightReplyPercent",
   ]);
-  const X_RATIO_TOGGLE_KEYS = Object.freeze([
+  const X_TOGGLE_KEYS = Object.freeze([
     "xLowLikeRatioEnabled", "xHighLikeRatioEnabled", "xHighBookmarkRatioEnabled", "xBookmarkHighlightEnabled", "xBookmarkHighlightShown",
     "xHighlightLikeRequired", "xHighReplyRatioEnabled", "xHighlightReplyRequired",
+    "xThreadContextEnabled",
   ]);
   // Browser-account sync storage: Chrome/Firefox copy it between computers;
   // Brave keeps it on this computer only.
@@ -145,7 +149,7 @@
     for (const key of [
       "xEnabled", "youtubeEnabled", "xMinimumViewsEnabled", "youtubeMinimumViewsEnabled",
       "xWhitelistEnabled", "youtubeWhitelistEnabled", "hideUnknown", "statisticsEnabled",
-      ...X_RATIO_TOGGLE_KEYS,
+      ...X_TOGGLE_KEYS,
     ]) {
       if (typeof value[key] === "boolean") settings[key] = value[key];
     }
@@ -210,7 +214,7 @@
   }
 
   const api = {
-    DEFAULTS, MAXIMUM_VIEWS, X_RATIO_SETTING_KEYS, PERCENT_SETTING_KEYS,
+    DEFAULTS, MAXIMUM_VIEWS, X_SETTING_KEYS, PERCENT_SETTING_KEYS,
     STORAGE_AREA, SITE_PAGE_PATTERNS, WHITELIST_CREATOR_MESSAGE,
     normalizeAccountIdentifier, parseWhitelistInput, normalizeSettings,
     oversizedSyncKeys, formatSettingsTransfer, parseSettingsTransfer,
