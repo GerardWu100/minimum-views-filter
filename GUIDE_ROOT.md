@@ -656,3 +656,12 @@ was closed; no installed extension or other extension setting was changed.
 Last checked: 2026-09-27, Firefox 156.0.1, Node.js 26.8.2, jsdom 29.1.1,
 web-ext 10.7.0. Runtime tests caught and verified the fix for a startup storage
 race; the corrected merge retains unrelated stored settings.
+
+## GitHub wiki
+
+`docs/wiki/` holds the source of the GitHub wiki (user-facing pages plus
+`_Sidebar.md`); the README stays the full reference. GitHub creates the wiki's
+Git repository only after the first page is saved in the web editor. After that,
+publish by cloning `https://github.com/GerardWu100/minimum-views-filter.wiki.git`,
+copying `docs/wiki/*.md` over its files, and pushing. Update the pages when
+behavior, installation, or limits change, the same as the README.
