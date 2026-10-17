@@ -17,8 +17,11 @@
   const X_QUOTE_OR_CARD_SELECTOR = '[data-testid="quoteTweet"], [data-testid="quotedTweet"], [role="link"], ' + X_CARD_SELECTOR;
   // X joins a reply to the post above it with a thread line: an empty div about
   // 2px wide at the top of the reply's avatar column, six first-child levels
-  // below the article (the signal Control Panel for Twitter also reads).
+  // below the article (the signal Control Panel for Twitter also reads). The
+  // post above continues that line below its avatar, as a later sibling of the
+  // avatar or of one of the avatar's nearest ancestors.
   const X_THREAD_LINE_MAX_DEPTH = 8;
+  const X_OUTGOING_LINE_MAX_ANCESTORS = 3;
   const X_THREAD_LINE_MAX_WIDTH_PX = 3;
   const X_AVATAR_SELECTOR = '[data-testid="Tweet-User-Avatar"]';
   const GENERIC_YOUTUBE_CARD_SELECTOR = 'ytd-rich-item-renderer, yt-lockup-view-model';
@@ -626,24 +629,59 @@
     return link?.getAttribute ? creatorIdentifierFromLink(link, site) : null;
   }
 
+  /** Report whether an element is an empty div outside the avatar drawn as X's thin thread line. */
+  function isXThreadLine(element) {
+    if (!element || element.firstElementChild || element.tagName !== 'DIV' || element.closest(X_AVATAR_SELECTOR)) return false;
+    const width = parseFloat(element.ownerDocument.defaultView.getComputedStyle(element).width);
+    return width > 0 && width <= X_THREAD_LINE_MAX_WIDTH_PX;
+  }
+
   /**
-   * Report whether X draws this post as a reply joined to the post above it.
+   * Find the thread line X draws above this post's avatar, joining it to the post above.
    *
    * @param {Element} card One X card returned by getCards.
-   * @returns {boolean} True when the article's first-child chain ends, within
-   *   X_THREAD_LINE_MAX_DEPTH levels, in an empty div outside the avatar whose
-   *   computed width is above 0 and at most X_THREAD_LINE_MAX_WIDTH_PX. Any other
-   *   layout returns false, so an unrecognized layout changes no decision.
-   *   The width comes from CSS, so the check also works inside a hidden cell.
+   * @returns {Element|null} The element that ends the article's first-child
+   *   chain within X_THREAD_LINE_MAX_DEPTH levels when it is an empty div outside
+   *   the avatar whose computed width is above 0 and at most
+   *   X_THREAD_LINE_MAX_WIDTH_PX; otherwise null, so an unrecognized layout
+   *   changes no decision. The width comes from CSS, so the check also works
+   *   inside a hidden cell.
    */
-  function isXReplyToPreviousPost(card) {
+  function getXIncomingThreadLine(card) {
     let element = card.firstElementChild;
     for (let depth = 1; element?.firstElementChild && depth < X_THREAD_LINE_MAX_DEPTH; depth++) {
       element = element.firstElementChild;
     }
-    if (!element || element.firstElementChild || element.tagName !== 'DIV' || element.closest(X_AVATAR_SELECTOR)) return false;
-    const width = parseFloat(card.ownerDocument.defaultView.getComputedStyle(element).width);
-    return width > 0 && width <= X_THREAD_LINE_MAX_WIDTH_PX;
+    return isXThreadLine(element) ? element : null;
+  }
+
+  /**
+   * Report whether X draws this post as a reply joined to the post above it.
+   *
+   * @param {Element} card One X card returned by getCards.
+   * @returns {boolean} True when getXIncomingThreadLine finds a line.
+   */
+  function isXReplyToPreviousPost(card) {
+    return getXIncomingThreadLine(card) !== null;
+  }
+
+  /**
+   * Find the thread line X draws below this post's avatar, toward a joined reply.
+   *
+   * @param {Element} card One X card returned by getCards.
+   * @returns {Element|null} The first later sibling of the avatar, or of one of
+   *   its X_OUTGOING_LINE_MAX_ANCESTORS nearest ancestors inside the card, that
+   *   is an empty div with the thread line's thin computed width; else null.
+   */
+  function getXOutgoingThreadLine(card) {
+    let element = card.querySelector(X_AVATAR_SELECTOR);
+    for (let level = 0; element && element !== card && level <= X_OUTGOING_LINE_MAX_ANCESTORS; level++) {
+      for (let sibling = element.nextElementSibling; sibling; sibling = sibling.nextElementSibling) {
+        if (isXThreadLine(sibling)) return sibling;
+      }
+      element = element.parentElement;
+    }
+    return null;
   }
 
   /**
@@ -662,7 +700,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, shouldHighlightX, getItemMetadata, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget, isXReplyToPreviousPost };
+  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, shouldHighlightX, getItemMetadata, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget, isXReplyToPreviousPost, getXIncomingThreadLine, getXOutgoingThreadLine };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);

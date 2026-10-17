@@ -121,7 +121,21 @@ neighbours (`addXThreadNeighbours`): above the first cell while its post is a
 joined reply, and below the last cell while the next post is one. A change to
 either a reply or its parent therefore re-evaluates the whole joined group.
 Only single-post cells join groups. `xThreadContextEnabled` (default true)
-switches all of this off; then no thread lookups run.
+switches the parent rescue off.
+
+Thread-line trimming (2026-10-17) runs on X regardless of that switch. A user
+screenshot showed a visible post's line running into an unrelated post after
+the joined reply between them was hidden. After the hiding marks are final,
+each visible single-post cell checks its sibling cells: when the cell below is
+hidden and its post is a joined reply, `getXOutgoingThreadLine` (the first thin
+empty div after the avatar or one of its 3 nearest ancestors) gets
+`data-minimum-views-thread-cut`; when the cell above is hidden and this post is
+a joined reply, the incoming line from `getXIncomingThreadLine` gets it. CSS
+uses `visibility: hidden`, so the layout does not move. Partial scans therefore
+always add thread neighbours on X. `restorePage` removes the mark. The
+outgoing-line position comes from X's known layout (avatar column: avatar, then
+a 2px line div); it was not checked against a live signed-in X page. If X moves
+the line, nothing is marked and the old dangling line returns.
 
 ## X engagement decisions and history
 

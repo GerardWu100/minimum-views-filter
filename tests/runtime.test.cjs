@@ -1467,3 +1467,56 @@ test('X thread context ignores a second post sharing a cell and never reveals a 
   assertVisible(window, '#cell-3', true);
   assertVisible(window, '#cell-4', false);
 });
+
+/**
+ * Add X's outgoing thread line below the avatar, as drawn on a post joined to a
+ * reply below it. The line is the avatar wrapper's later sibling.
+ */
+const X_REPLY_AVATAR = '<div data-testid="Tweet-User-Avatar"><div style="width: 2px"></div></div>';
+const X_OUTGOING_LINE = '<div class="thread-out" style="width: 2px"></div>';
+const withOutgoingLine = (html) => html.includes(X_REPLY_AVATAR)
+  ? html.replace(X_REPLY_AVATAR, X_REPLY_AVATAR + X_OUTGOING_LINE)
+  : html.replace('<div data-testid="tweetText">', `<div><div data-testid="Tweet-User-Avatar"></div></div>${X_OUTGOING_LINE}<div data-testid="tweetText">`);
+const isThreadCut = (document, selector) => document.querySelector(selector).hasAttribute('data-minimum-views-thread-cut');
+const incomingLine = (id) => `#post-${id} > div > div > div > div > div > div`;
+
+test('X hides the thread line of a shown post whose joined reply is hidden, and restores it', async (t) => {
+  const {window, document, storage} = openContent(t, {html:
+    withOutgoingLine(xCard(1, '2,000')) + xReplyCard(2, '100')
+    + withOutgoingLine(xCard(3, '2,000')) + xCard(4, '100')});
+  await wait();
+  assertVisible(window, '#cell-2', false);
+  assert.equal(isThreadCut(document, '#post-1 .thread-out'), true);
+  assert.equal(window.getComputedStyle(document.querySelector('#post-1 .thread-out')).visibility, 'hidden');
+  // A hidden post that is not a joined reply leaves the line alone.
+  assert.equal(isThreadCut(document, '#post-3 .thread-out'), false);
+  // The reply qualifies again: the line returns with it.
+  setXViews(document, 2, '3,000');
+  await Promise.resolve();
+  assertVisible(window, '#cell-2', true);
+  assert.equal(isThreadCut(document, '#post-1 .thread-out'), false);
+  setXViews(document, 2, '100');
+  await Promise.resolve();
+  assert.equal(isThreadCut(document, '#post-1 .thread-out'), true);
+  // Leaving the allowed page removes this mark like the hiding marks.
+  storage.change({xEnabled: false});
+  await wait();
+  assert.equal(document.querySelectorAll('[data-minimum-views-thread-cut]').length, 0);
+});
+
+test('X hides the incoming thread line of a shown reply only while thread context leaves its parent hidden', async (t) => {
+  const {window, document, storage} = openContent(t, {stored: {xThreadContextEnabled: false}, html:
+    withOutgoingLine(xCard(1, '100')) + withOutgoingLine(xReplyCard(2, '2,000')) + xReplyCard(3, '100')});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  assertVisible(window, '#cell-3', false);
+  assert.equal(isThreadCut(document, incomingLine(2)), true);
+  assert.equal(isThreadCut(document, '#post-2 .thread-out'), true);
+  storage.change({xThreadContextEnabled: true});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  assert.equal(isThreadCut(document, incomingLine(2)), false);
+  // The hidden reply below the shown reply still cuts that post's outgoing line.
+  assert.equal(isThreadCut(document, '#post-2 .thread-out'), true);
+  assert.equal(isThreadCut(document, '#post-1 .thread-out'), false);
+});

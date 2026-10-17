@@ -166,6 +166,12 @@ The extension recognizes the join only by X's thread line in the reply. If X
 changes that layout, or a cell holds more than one post, the parent is filtered
 on its own as before.
 
+When the extension hides one post of a joined pair and shows the other, it also
+hides the shown post's thread line. Otherwise the line would point at the next,
+unrelated post and make the two look like a conversation. This happens with or
+without the switch above. X still leaves out the divider under a joined parent,
+so the gap between the two posts can look slightly tighter than usual.
+
 ## X engagement rules
 
 The Settings page has three independent filtering switches and percentage thresholds. All three
@@ -365,8 +371,9 @@ See [the measured workloads and reproduction command](docs/performance.md).
 
 ## Existing extensions
 
-The filter uses its own `data-minimum-views-hidden` and
-`data-minimum-views-highlighted` attributes. It does not rewrite
+The filter uses its own `data-minimum-views-hidden`,
+`data-minimum-views-highlighted` and `data-minimum-views-thread-cut`
+attributes. It does not rewrite
 existing styles/classes, reveal counters, replace titles/thumbnails, or hook
 keyboard, audio, player, and network APIs. Turning it off removes only its own
 hiding/highlight marks; a card hidden by another extension stays hidden.

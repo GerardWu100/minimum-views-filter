@@ -9,6 +9,9 @@
   const ACTIVE_ATTRIBUTE = "data-minimum-views-active";
   const HIDDEN_SELECTOR = "[" + HIDDEN_ATTRIBUTE + "]";
   const HIGHLIGHT_SELECTOR = "[" + HIGHLIGHT_ATTRIBUTE + "]";
+  // Marks an X thread line that would join a shown post to a hidden one.
+  const THREAD_CUT_ATTRIBUTE = "data-minimum-views-thread-cut";
+  const THREAD_CUT_SELECTOR = "[" + THREAD_CUT_ATTRIBUTE + "]";
   const MARK_SELECTOR = HIDDEN_SELECTOR + "," + HIGHLIGHT_SELECTOR;
   const X_CELL_SELECTOR = '[data-testid="cellInnerDiv"]';
   const SCAN_DELAY_MS = 80;
@@ -238,6 +241,7 @@
     document.documentElement.removeAttribute(ACTIVE_ATTRIBUTE);
     for (const target of document.querySelectorAll(HIDDEN_SELECTOR)) target.removeAttribute(HIDDEN_ATTRIBUTE);
     for (const target of document.querySelectorAll(HIGHLIGHT_SELECTOR)) target.removeAttribute(HIGHLIGHT_ATTRIBUTE);
+    for (const target of document.querySelectorAll(THREAD_CUT_SELECTOR)) target.removeAttribute(THREAD_CUT_ATTRIBUTE);
   }
 
   /**
@@ -267,17 +271,22 @@
     }
     const roots = fullScanRequired ? [document] : [...pendingRoots];
     const threadContext = SITE === "x" && settings.xThreadContextEnabled;
-    if (threadContext && !fullScanRequired) addXThreadNeighbours(roots);
+    // Thread lines are trimmed even with thread context off, so X always needs
+    // the joined neighbours of a changed cell.
+    if (SITE === "x" && !fullScanRequired) addXThreadNeighbours(roots);
     pendingRoots.clear();
     fullScanRequired = false;
     // Hide target -> {card, event}. Hiding waits until joined replies are known.
     const hiddenCards = new Map();
-    // Cards this pass leaves visible, so joined replies can keep their parents.
+    // X cards this pass leaves visible: joined replies can keep their parents,
+    // and thread lines toward hidden neighbours are trimmed.
     const visibleCards = [];
     const nextHidden = new Set();
     const previousHidden = new Set();
     const nextHighlighted = new Set();
     const previousHighlighted = new Set();
+    const nextThreadCuts = new Set();
+    const previousThreadCuts = new Set();
     const locale = document.documentElement.lang || navigator.language || "en";
     // Detection needs bookmark reads only when its result is shown or recorded.
     const highlightDetected = SITE === "x" && settings.xBookmarkHighlightEnabled
@@ -320,6 +329,7 @@
       }
       for (const target of root.querySelectorAll(HIDDEN_SELECTOR)) previousHidden.add(target);
       for (const target of root.querySelectorAll(HIGHLIGHT_SELECTOR)) previousHighlighted.add(target);
+      for (const target of root.querySelectorAll(THREAD_CUT_SELECTOR)) previousThreadCuts.add(target);
       for (const card of core.getCards(root, SITE)) {
         const views = core.getViewCount(card, SITE, locale);
         // The highlight also needs bookmarks on posts that pass all hide rules.
@@ -355,13 +365,13 @@
           hiddenCards.set(core.getHideTarget(card, SITE), {card, event: {outcome: "hidden", reason, views, ...engagement}});
           continue;
         }
-        if (threadContext) visibleCards.push(card);
+        if (SITE === "x") visibleCards.push(card);
       }
     }
     // A visible reply keeps the post it answers visible, and so on up the
     // joined thread, so the reply never shows without its context. Rescued
     // parents are not hidden, so they leave no hidden-history event.
-    for (const card of visibleCards) {
+    for (const card of threadContext ? visibleCards : []) {
       for (let reply = card, cell = card.closest(X_CELL_SELECTOR); cell;) {
         const parentCell = siblingXCell(cell, true);
         // Only a sole-post cell is its own hide target, so this also skips shared cells.
@@ -389,6 +399,26 @@
     }
     for (const target of nextHighlighted) {
       if (!target.hasAttribute(HIGHLIGHT_ATTRIBUTE)) target.setAttribute(HIGHLIGHT_ATTRIBUTE, "");
+    }
+    // A hidden joined reply or parent would leave the shown post's thread line
+    // pointing at the next, unrelated post. Hidden marks are final here, and
+    // neighbours outside the roots keep their marks from earlier passes.
+    for (const card of visibleCards) {
+      const cell = card.closest(X_CELL_SELECTOR);
+      if (!cell || core.getHideTarget(card, SITE) !== cell) continue;
+      const below = siblingXCell(cell, false);
+      const reply = below?.hasAttribute(HIDDEN_ATTRIBUTE) && soleXCard(below);
+      const outgoing = reply && core.isXReplyToPreviousPost(reply) && core.getXOutgoingThreadLine(card);
+      if (outgoing) nextThreadCuts.add(outgoing);
+      const above = siblingXCell(cell, true);
+      const incoming = above?.hasAttribute(HIDDEN_ATTRIBUTE) && core.getXIncomingThreadLine(card);
+      if (incoming) nextThreadCuts.add(incoming);
+    }
+    for (const target of previousThreadCuts) {
+      if (!nextThreadCuts.has(target)) target.removeAttribute(THREAD_CUT_ATTRIBUTE);
+    }
+    for (const target of nextThreadCuts) {
+      if (!target.hasAttribute(THREAD_CUT_ATTRIBUTE)) target.setAttribute(THREAD_CUT_ATTRIBUTE, "");
     }
     if (!document.documentElement.hasAttribute(ACTIVE_ATTRIBUTE)) document.documentElement.setAttribute(ACTIVE_ATTRIBUTE, "");
     recordBatch();

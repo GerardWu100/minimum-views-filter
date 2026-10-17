@@ -1,4 +1,6 @@
 html[data-minimum-views-active] [data-minimum-views-hidden] { display: none !important; }
+/* An X thread line toward a hidden post; visibility keeps the layout unchanged. */
+html[data-minimum-views-active] [data-minimum-views-thread-cut] { visibility: hidden !important; }
 
 /*
  * Bookmark highlight: a thin warm edge on the post's left side only, so the
