@@ -659,9 +659,10 @@ race; the corrected merge retains unrelated stored settings.
 
 ## GitHub wiki
 
-`docs/wiki/` holds the source of the GitHub wiki (user-facing pages plus
-`_Sidebar.md`); the README stays the full reference. GitHub creates the wiki's
-Git repository only after the first page is saved in the web editor. After that,
-publish by cloning `https://github.com/GerardWu100/minimum-views-filter.wiki.git`,
-copying `docs/wiki/*.md` over its files, and pushing. Update the pages when
-behavior, installation, or limits change, the same as the README.
+The GitHub wiki (`https://github.com/GerardWu100/minimum-views-filter/wiki`)
+holds short user-facing pages plus `_Sidebar.md`; the README stays the full
+reference. Its pages live only in the wiki's own Git repository,
+`https://github.com/GerardWu100/minimum-views-filter.wiki.git`, not in this
+repository. GitHub creates that repository only after the first page is saved
+in the web editor. Update the pages when behavior, installation, or limits
+change, the same as the README.
