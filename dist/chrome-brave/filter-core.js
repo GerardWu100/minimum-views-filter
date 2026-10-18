@@ -476,6 +476,29 @@
       && (!settings.xHighlightReplyRequired || exceeds(engagement.replies ?? null, settings.xHighlightReplyPercent));
   }
 
+  /** True when an inline style (not a stylesheet) sets display: none. */
+  function hasInlineDisplayNone(element) {
+    return element.style?.display === 'none';
+  }
+
+  /**
+   * Read text, skipping subtrees another extension hid with an inline style.
+   *
+   * Title replacers such as DeArrow keep the original and their own title side
+   * by side and hide one with style="display: none", so textContent would join
+   * both ("Original titleNew title"). Inline styles need no layout, unlike
+   * innerText, and this filter's own hidden marks use attributes, not styles.
+   */
+  function shownTextContent(element) {
+    if (!element || hasInlineDisplayNone(element)) return '';
+    let text = '';
+    for (const child of element.childNodes) {
+      if (child.nodeType === 3) text += child.nodeValue;
+      else if (child.nodeType === 1) text += shownTextContent(child);
+    }
+    return text;
+  }
+
   /**
    * Extract a canonical item link and short title for local filtered-item history.
    *
@@ -509,7 +532,9 @@
         // but descriptions and creator metadata can link to unrelated videos.
         !link.closest(YOUTUBE_NON_AUTHOR_LINK_SELECTOR + ',' + YOUTUBE_CREATOR_SOURCE_SELECTOR)
       ));
-      title = card.querySelector(YOUTUBE_TITLE_LINK_SELECTORS.join(','))?.textContent || 'YouTube video';
+      // A replacer may clone the title link itself; prefer the copy left shown.
+      const titleLinks = Array.from(card.querySelectorAll(YOUTUBE_TITLE_LINK_SELECTORS.join(',')));
+      title = shownTextContent(titleLinks.find((link) => !hasInlineDisplayNone(link))) || titleLinks[0]?.textContent || 'YouTube video';
     }
     const destinations = new Set();
     for (const link of links) {

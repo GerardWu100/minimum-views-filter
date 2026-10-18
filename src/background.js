@@ -219,7 +219,37 @@
     await showResult(tab.id, result);
   }
 
-  extension.runtime.onInstalled.addListener(createMenu);
+  /**
+   * Give open X/YouTube tabs the current page script after an install or update.
+   *
+   * Browsers inject manifest content scripts only into pages loaded later. An
+   * update or reload leaves earlier copies cut off: they could keep hiding with
+   * stale settings while every statistics message fails. The fresh copy makes
+   * any cut-off copy in that tab remove its marks and stop (see content.js).
+   * Discarded tabs and pages that refuse scripting load the script normally later.
+   */
+  async function injectIntoOpenTabs() {
+    const [contentScript] = extension.runtime.getManifest().content_scripts || [];
+    if (!contentScript || !extension.scripting) return;
+    const tabs = await extension.tabs.query({url: [...SITE_PAGE_PATTERNS]});
+    await Promise.all(tabs.filter((tab) => typeof tab.id === "number" && !tab.discarded).map(async (tab) => {
+      const target = {tabId: tab.id};
+      try {
+        await extension.scripting.insertCSS({target, files: contentScript.css});
+        await extension.scripting.executeScript({target, files: contentScript.js});
+      } catch {
+        // The tab closed, navigated to an error page, or does not allow scripts.
+      }
+    }));
+  }
+
+  async function onInstalled(details) {
+    // A browser update (reason "chrome_update") does not replace page scripts.
+    if (details?.reason === "install" || details?.reason === "update") injectIntoOpenTabs().catch(() => {});
+    await createMenu();
+  }
+
+  extension.runtime.onInstalled.addListener(onInstalled);
   extension.runtime.onStartup.addListener(createMenu);
   extension.contextMenus.onClicked.addListener(onMenuClicked);
   extension.runtime.onMessage.addListener(onRuntimeMessage);

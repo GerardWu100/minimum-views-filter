@@ -20,15 +20,26 @@ const listenerSlot = () => {
  * settings.js); 'firefox' loads settings.js first like manifest background scripts.
  * sendMessage is the tabs.sendMessage implementation under test.
  */
-function openBackground({style = 'chrome', sendMessage = async () => ({result: 'added'})} = {}) {
+function openBackground({style = 'chrome', sendMessage = async () => ({result: 'added'}), openTabs = [], failingTabs = []} = {}) {
   const calls = [];
   const timers = [];
   const record = (name) => async (...args) => { calls.push([name, ...args]); };
   const api = {
-    runtime: {id: 'extension-id', onInstalled: listenerSlot(), onStartup: listenerSlot(), onMessage: listenerSlot(), getURL: (name) => `chrome-extension://extension-id/${name}`, getManifest: () => ({action: {default_title: 'Minimum Views Filter'}})},
+    runtime: {id: 'extension-id', onInstalled: listenerSlot(), onStartup: listenerSlot(), onMessage: listenerSlot(), getURL: (name) => `chrome-extension://extension-id/${name}`, getManifest: () => ({action: {default_title: 'Minimum Views Filter'},
+      content_scripts: [{js: ['settings.js', 'filter-core.js', 'content.js'], css: ['content.css']}]})},
     storage: {local: {get: async () => ({}), set: async () => {}}, sync: {get: async () => ({})}},
     contextMenus: {removeAll: record('removeAll'), create: (...args) => calls.push(['create', ...args]), onClicked: listenerSlot()},
-    tabs: {sendMessage: (...args) => { calls.push(['sendMessage', ...args]); return sendMessage(...args); }},
+    tabs: {
+      sendMessage: (...args) => { calls.push(['sendMessage', ...args]); return sendMessage(...args); },
+      query: async (filter) => { calls.push(['query', filter]); return openTabs; },
+    },
+    scripting: {
+      insertCSS: async (options) => { calls.push(['insertCSS', options]); },
+      executeScript: async (options) => {
+        calls.push(['executeScript', options]);
+        if (failingTabs.includes(options.target.tabId)) throw new Error('Cannot access contents of the page');
+      },
+    },
     action: {setBadgeText: record('setBadgeText'), setTitle: record('setTitle')},
   };
   // Timer IDs are 1-based indexes into timers; cleared timers stay listed.
@@ -52,10 +63,25 @@ function openBackground({style = 'chrome', sendMessage = async () => ({result: '
 for (const style of ['chrome', 'firefox']) {
   test(`${style}: install and startup recreate one menu limited to X and YouTube pages`, async () => {
     const {api, calls} = openBackground({style});
-    for (const event of [api.runtime.onInstalled, api.runtime.onStartup]) await event.listeners[0]();
+    await api.runtime.onInstalled.listeners[0]({reason: 'chrome_update'});
+    await api.runtime.onStartup.listeners[0]();
     const created = calls.filter(([name]) => name === 'create').map(([, options]) => JSON.parse(JSON.stringify(options)));
     assert.deepEqual(calls.map(([name]) => name), ['removeAll', 'create', 'removeAll', 'create']);
     assert.deepEqual(created[0], {id: 'always-show-creator', title: 'Always show this creator', contexts: ['all'], documentUrlPatterns: [...SITE_PAGE_PATTERNS]});
+  });
+}
+
+for (const reason of ['install', 'update']) {
+  test(`${reason}: open X/YouTube tabs get the current page script, skipping discarded and refusing tabs`, async () => {
+    const {api, calls} = openBackground({openTabs: [{id: 4}, {id: 5, discarded: true}, {id: 6}], failingTabs: [4]});
+    await api.runtime.onInstalled.listeners[0]({reason});
+    await new Promise((resolve) => setImmediate(resolve));
+    const plain = JSON.parse(JSON.stringify(calls.filter(([name]) => ['query', 'insertCSS', 'executeScript'].includes(name))));
+    assert.deepEqual(plain[0], ['query', {url: [...SITE_PAGE_PATTERNS]}]);
+    assert.deepEqual(plain.slice(1).map(([name, {target}]) => [name, target.tabId]).sort(),
+      [['executeScript', 4], ['executeScript', 6], ['insertCSS', 4], ['insertCSS', 6]]);
+    assert.deepEqual(plain.find(([name]) => name === 'executeScript')[1].files, ['settings.js', 'filter-core.js', 'content.js']);
+    assert.deepEqual(plain.find(([name]) => name === 'insertCSS')[1].files, ['content.css']);
   });
 }
 

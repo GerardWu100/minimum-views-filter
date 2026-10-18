@@ -282,6 +282,20 @@ test('X repeated profiles agree, but later conflicting profiles or permalinks re
   assert.deepEqual(core.getCreatorIdentifiers(card, 'x'), []);
 });
 
+test('history titles skip a title another extension hid inline, such as DeArrow\'s original or replacement', () => {
+  const title = (html) => core.getItemMetadata(documentOf(html).body.firstElementChild, 'youtube').title;
+  // 2024 lockup: DeArrow inserts its title beside the original inside the title link.
+  assert.equal(title(`<yt-lockup-view-model><a class="yt-lockup-metadata-view-model__title" href="/watch?v=a">
+    <span class="cbCustomTitle">New Title</span><span style="display: none;">Original title</span></a></yt-lockup-view-model>`), 'New Title');
+  assert.equal(title(`<yt-lockup-view-model><a class="yt-lockup-metadata-view-model__title" href="/watch?v=a">
+    <span class="cbCustomTitle" style="display: none;">New Title</span><span>Original title</span></a></yt-lockup-view-model>`), 'Original title');
+  // Classic layout: DeArrow clones the title link itself and hides the original.
+  assert.equal(title(`<ytd-video-renderer><a id="video-title" class="cbCustomTitle" href="/watch?v=a">New Title</a>
+    <a id="video-title" href="/watch?v=a" style="display: none;">Original title</a></ytd-video-renderer>`), 'New Title');
+  // A stylesheet hide (this filter's own marks) does not remove title text.
+  assert.equal(title(`<ytd-video-renderer data-minimum-views-hidden><a id="video-title" href="/watch?v=a">Plain title</a></ytd-video-renderer>`), 'Plain title');
+});
+
 test('history author is the X @handle in displayed case or the YouTube channel name', () => {
   const author = (html, site) => core.getItemAuthor(documentOf(html).body.firstElementChild, site);
   assert.equal(author(`<article data-testid="tweet">

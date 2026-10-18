@@ -67,7 +67,9 @@ extension and X/YouTube tabs using the steps below.
 1. Replace the files in the existing extension folder with the new browser ZIP's contents.
 2. Open `chrome://extensions` or `brave://extensions` and click **Reload** on
    **Minimum Views Filter**. Check that the displayed version matches the download.
-3. Reload X and YouTube tabs, then open **Settings** and check your preferences.
+3. Open **Settings** and check your preferences. Since 1.15.1 the extension puts
+   its new page script into already open X and YouTube tabs by itself; reload a
+   tab only if it still behaves like the old version.
 
 **Upgrading from 1.4.0 or earlier resets your settings once.** Version 1.5.0 and later
 stores settings in sync storage and gives the Chromium build a fixed extension ID
@@ -81,6 +83,13 @@ Chromium can load the new popup while still injecting cached content scripts.
 The popup and page filter can then disagree about the settings they understand.
 [Chrome's reload requirements](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#when_to_reload_the_extension)
 require both an extension reload and a host-page reload for content-script changes.
+
+Before 1.15.1, an X or YouTube tab left open across an extension reload kept
+running the old page script cut off from the extension: it still hid posts with
+the settings it had loaded, but it could not save statistics or see setting
+changes. From 1.15.1 that old copy removes its marks and stops, and the
+extension injects the current copy into open tabs (the `scripting` permission).
+A discarded (sleeping) tab gets the current copy when you return to it.
 
 If X still behaves as though the minimum is 1,000 after you save 10,000, perform
 both reloads above before investigating count parsing. Check that X Home is
@@ -259,9 +268,11 @@ kept X posts separately, each labeled with the rule that would have hidden it.
 **Highlighted** has its own total and latest 1,000 links, including posts detected
 while **Show highlight in feed** is off. A post may be both kept
 and highlighted, so these totals overlap and should not be added together.
-Entries show a link, post snippet or video title, the author (the X **@handle**
+Entries show a link, post snippet or video title (the title you see when a
+title-replacing extension such as DeArrow hides the other one), the author (the X **@handle**
 or the YouTube **channel name**, read from the card's own author line), the
-reason, counts/ratios at the time of the event, and the last event time. Repeated URLs share one recent entry.
+reason, counts/ratios at the time of the event, and the last event time. Items saved in one write share
+the same time, so several entries often show the identical second. Repeated URLs share one recent entry.
 **Export CSV** saves one spreadsheet row per recent item from all three lists
 (outcome, site, author, title, link, reason, counts, events, last seen in UTC).
 **Export JSON** saves the totals and all three lists as stored. Both files are
@@ -304,7 +315,8 @@ which).
 Inside a card this is always the card's author, never a mentioned or quoted
 account. Outside cards, right-click a profile or channel link, such as the
 channel name below a YouTube video. It works on every X/YouTube page, not only
-filtered ones. Open X/YouTube tabs from before installation need a reload first.
+filtered ones. Open X/YouTube tabs from before installation get the page script
+automatically; if the menu does nothing there, reload the tab.
 
 You can also edit the lists in Settings: open **X account whitelist** or
 **YouTube channel whitelist**, enter one creator per line or separate entries

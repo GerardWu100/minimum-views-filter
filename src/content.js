@@ -4,6 +4,21 @@
   const core = globalThis.MinimumViewsCore;
   const {normalizeSettings, oversizedSyncKeys, STORAGE_AREA, WHITELIST_CREATOR_MESSAGE, X_SETTING_KEYS} = globalThis.MinimumViewsSettings;
   const extension = globalThis.browser || globalThis.chrome;
+  // A reloaded or updated extension leaves this script running but cut off:
+  // runtime.id disappears and messages fail. The background then injects a
+  // fresh copy into open tabs (see background.js), so the old copy must stop.
+  const isExtensionAlive = () => {
+    try { return Boolean(extension.runtime?.id); } catch { return false; }
+  };
+  // Same isolated world: a fresh injection replaces a dead copy, and a second
+  // copy beside a live one exits so events are never recorded twice.
+  const INSTANCE_KEY = "minimumViewsFilterContentScript";
+  const previousInstance = globalThis[INSTANCE_KEY];
+  if (previousInstance?.isAlive()) return;
+  previousInstance?.stop();
+  // Another isolated world (an older extension context) only shares the DOM,
+  // so announce startup there; a dead copy that hears it stops itself.
+  const TAKEOVER_EVENT = "minimum-views-filter:content-script-started";
   const HIDDEN_ATTRIBUTE = "data-minimum-views-hidden";
   const HIGHLIGHT_ATTRIBUTE = "data-minimum-views-highlighted";
   const ACTIVE_ATTRIBUTE = "data-minimum-views-active";
@@ -168,6 +183,10 @@
 
   /** Record a URL change and request a full pass; return whether one occurred. */
   function checkNavigation() {
+    if (!isExtensionAlive()) {
+      stop();
+      return false;
+    }
     if (location.href === previousUrl) return false;
     previousUrl = location.href;
     scheduleScan(true);
@@ -257,6 +276,11 @@
     clearTimeout(pendingScan);
     pendingScan = null;
     if (stopped || !ready || isSuspended()) return;
+    // A cut-off copy could still hide with stale settings but never record.
+    if (!isExtensionAlive()) {
+      stop();
+      return;
+    }
     previousUrl = location.href;
     const enabled = settings[SITE + "Enabled"] && core.isSupportedPage(SITE, location.pathname);
     if (!enabled) {
@@ -544,11 +568,23 @@
     for (const eventName of PAGE_EVENTS) window.removeEventListener(eventName, onPageEvent);
     window.removeEventListener("pagehide", onPageHide);
     document.removeEventListener("visibilitychange", onVisibilityChange);
-    extension.storage.onChanged.removeListener(onSettingsChanged);
     document.removeEventListener("contextmenu", onContextMenu, true);
-    extension.runtime.onMessage.removeListener(onRuntimeMessage);
+    document.removeEventListener(TAKEOVER_EVENT, onTakeover);
     contextMenuCreator = null;
     restorePage();
+    if (globalThis[INSTANCE_KEY] === instance) delete globalThis[INSTANCE_KEY];
+    // A cut-off extension context may no longer expose these APIs.
+    try {
+      extension.storage.onChanged.removeListener(onSettingsChanged);
+      extension.runtime.onMessage.removeListener(onRuntimeMessage);
+    } catch {
+      // Their listeners can no longer fire either.
+    }
+  }
+
+  /** A newer copy started in another isolated world; a cut-off copy yields to it. */
+  function onTakeover() {
+    if (!isExtensionAlive()) stop();
   }
 
   function onPageHide(event) {
@@ -560,6 +596,12 @@
     }
   }
 
+  const instance = {isAlive: isExtensionAlive, stop};
+  globalThis[INSTANCE_KEY] = instance;
+  // Dispatch is synchronous, so a dead copy removes its marks before this
+  // copy's first scan and cannot remove marks this copy sets later.
+  document.dispatchEvent(new CustomEvent(TAKEOVER_EVENT));
+  document.addEventListener(TAKEOVER_EVENT, onTakeover);
   for (const eventName of PAGE_EVENTS) window.addEventListener(eventName, onPageEvent);
   window.addEventListener("pagehide", onPageHide);
   document.addEventListener("visibilitychange", onVisibilityChange);

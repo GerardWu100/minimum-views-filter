@@ -13,7 +13,7 @@ globalThis.browser = {
       removeListener: callback => fixtureListeners.delete(callback),
     },
   },
-  runtime: {sendMessage: async () => ({ok: true}), onMessage: {addListener() {}, removeListener() {}}},
+  runtime: {id: 'fixture-extension', sendMessage: async () => ({ok: true}), onMessage: {addListener() {}, removeListener() {}}},
 };
 const fixtureSite = card => card.matches('article') ? "x" : "youtube";
 globalThis.MinimumViewsCore = {

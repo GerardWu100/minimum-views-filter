@@ -52,7 +52,7 @@ function build(browser) {
     version: VERSION,
     description: DESCRIPTION,
     homepage_url: REPOSITORY_URL,
-    permissions: ["storage", "contextMenus"],
+    permissions: ["storage", "contextMenus", "scripting"],
     host_permissions: [...SITE_PAGE_PATTERNS],
     icons,
     action: {default_title: "Minimum Views Filter", default_popup: "popup.html", default_icon: icons},

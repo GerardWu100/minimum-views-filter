@@ -19,6 +19,22 @@ worker, or a Firefox background script after `settings.js` and `history-store.js
 owns the right-click menu and serializes local history reads/writes/resets. There
 is no page-world injection, network request, or dependency in the installed package.
 
+Cut-off content scripts: browsers inject manifest content scripts only into
+pages loaded later, so a tab left open across an extension reload or update
+kept an old copy whose `runtime.id` and `storage` are gone. Until 1.15.1 it kept
+hiding with stale settings while every statistics message failed silently
+(observed in Brave: X totals froze for four days while YouTube tabs, reloaded,
+kept recording). Now `content.js` checks `runtime.id` at each scan and
+navigation check and, when it is gone, removes its marks and stops (its
+`stop()` tolerates the missing APIs). On `onInstalled` with reason `install` or
+`update`, `background.js` inserts the manifest's content CSS and scripts into
+open, non-discarded tabs matching the site patterns (`scripting` permission).
+A fresh copy replaces a dead copy in the same isolated world through a
+`globalThis` instance key, exits beside a live copy (no double recording), and
+announces itself with a synchronous DOM event so a dead copy in an older
+isolated world restores the page before the first scan. A page can send that
+event, but only a copy whose extension is already gone obeys it.
+
 `settings.js` is the shared source of settings rules and constants: defaults,
 `STORAGE_AREA` (`sync`), the 8,192-byte per-item sync quota check, site URL
 patterns (also used by the build for manifest matches), the menu message type,
@@ -195,7 +211,10 @@ lists: `entries` (hidden), `keptEntries` (kept), and `highlightedEntries`, under
 normalize to zero. Each entry has an optional `author` label (at most 100
 characters): `core.getItemAuthor` returns the X `@Handle` in displayed case from
 the same unambiguous author metadata as the whitelist, or the distinct YouTube
-channel names on author links. It labels history only, never identity; a later
+channel names on author links. YouTube titles skip subtrees hidden by an
+inline `display: none` (DeArrow keeps original and replacement titles side by
+side and hides one this way), so the stored title is the one shown. Authors
+label history only, never identity; a later
 sighting without an author keeps the earlier label, and entries from before
 1.15.0 load with `author: null`. Messages carry `outcome`; stored entries omit it because their
 list identifies it. Kept events must come from X, name `high-engagement`

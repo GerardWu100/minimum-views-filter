@@ -40,7 +40,7 @@ function createStorage({stored = {}, get, set} = {}) {
           removeListener: (listener) => listeners.delete(listener),
         },
       },
-      runtime: {sendMessage: async (message) => {recordedMessages.push(JSON.parse(JSON.stringify(message))); return {ok: true};}, onMessage: {
+      runtime: {id: 'test-extension', sendMessage: async (message) => {recordedMessages.push(JSON.parse(JSON.stringify(message))); return {ok: true};}, onMessage: {
         addListener: (listener) => messageListeners.add(listener),
         removeListener: (listener) => messageListeners.delete(listener),
       }},
@@ -1528,3 +1528,53 @@ test('recorded history events carry the X @handle and the YouTube channel name',
   assert.deepEqual(historyItems(x.storage).map(({author, url}) => ({author, url})), [{author: '@writer', url: 'https://x.com/writer/status/1'}]);
   assert.deepEqual(historyItems(youtube.storage).map(({author}) => author), ['Creator']);
 });
+
+test('a cut-off copy (extension reloaded) removes its marks and stops instead of hiding without recording', async (t) => {
+  const {window, document, storage} = openContent(t, {html: xCard(1, '999')});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  // Chrome drops runtime.id and storage from a content script whose extension reloaded.
+  storage.api.runtime.id = undefined;
+  storage.api.storage = undefined;
+  const messagesBefore = storage.recordedMessages.length;
+  document.body.insertAdjacentHTML('beforeend', xCard(2, '999'));
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  assertVisible(window, '#cell-2', true);
+  assert.equal(document.querySelectorAll('[data-minimum-views-hidden]').length, 0);
+  assert.equal(document.documentElement.hasAttribute('data-minimum-views-active'), false);
+  assert.equal(storage.recordedMessages.length, messagesBefore);
+});
+
+test('an injected copy beside a live copy exits, so each hide is recorded once', async (t) => {
+  const {window, document, storage} = openContent(t, {html: xCard(1, '999')});
+  await wait();
+  window.eval(source('content.js'));
+  await wait();
+  document.body.insertAdjacentHTML('beforeend', xCard(2, '999'));
+  await wait();
+  assertVisible(window, '#cell-2', false);
+  assert.deepEqual(historyItems(storage).map(({url}) => url), ['https://x.com/author/status/1', 'https://x.com/author/status/2']);
+});
+
+for (const sameWorld of [true, false]) {
+  test(`a fresh copy replaces a cut-off copy and keeps filtering and recording (${sameWorld ? 'same' : 'separate'} isolated world)`, async (t) => {
+    const {window, document, storage} = openContent(t, {html: xCard(1, '999')});
+    await wait();
+    storage.api.runtime.id = undefined;
+    const oldMessages = storage.recordedMessages.length;
+    // The fresh copy gets the new extension context's API object.
+    const fresh = createStorage({stored: {}});
+    window.browser = fresh.api;
+    if (!sameWorld) delete window.minimumViewsFilterContentScript;
+    window.eval(source('content.js'));
+    await wait();
+    assertVisible(window, '#cell-1', false);
+    document.body.insertAdjacentHTML('beforeend', xCard(2, '999'));
+    await wait();
+    assertVisible(window, '#cell-2', false);
+    assert.deepEqual(historyItems(fresh).map(({url}) => url), ['https://x.com/author/status/1', 'https://x.com/author/status/2']);
+    assert.equal(storage.recordedMessages.length, oldMessages, 'the cut-off copy stopped instead of also handling card 2');
+    fresh.listeners.clear();
+  });
+}

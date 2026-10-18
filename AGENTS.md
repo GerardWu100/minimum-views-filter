@@ -68,6 +68,8 @@ the platform through negative-feedback actions.
   changes. Suspend work in hidden tabs, disconnect DOM observation on excluded
   or disabled pages, bound pending queues, and do not retain hidden DOM nodes.
   Measure representative workloads before making performance or RAM claims.
+- After an extension install, reload or update, replace cut-off page scripts in
+  open tabs so they never keep hiding without recording (2026-10-17).
 - Handle new cards, changed counts, recycled DOM nodes, and navigation without
   requiring full-page reloads. Never fetch counts or run background collection.
 - Coexist with the user's extensions. Add/remove only this extension's own
