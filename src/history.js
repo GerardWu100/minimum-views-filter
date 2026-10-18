@@ -11,6 +11,8 @@
   const status = document.getElementById("status");
   const recentShown = document.getElementById("recent-shown");
   const clearButton = document.getElementById("clear-history");
+  const confirmResetButton = document.getElementById("confirm-reset");
+  const cancelResetButton = document.getElementById("cancel-reset");
   const exportCsvButton = document.getElementById("export-csv");
   const exportJsonButton = document.getElementById("export-json");
   // Firefox can cancel a download whose blob URL is revoked in the same task.
@@ -253,7 +255,23 @@
     saveFile(exportFilename("json"), JSON.stringify({exportedAt: new Date().toISOString(), ...latestHistory}, null, 2) + "\n", "application/json");
   });
 
-  clearButton.addEventListener("click", async () => {
+  /** Swap Reset for Confirm/Cancel, so one stray click cannot erase history. */
+  function showResetConfirmation(shown) {
+    clearButton.hidden = shown;
+    confirmResetButton.hidden = !shown;
+    cancelResetButton.hidden = !shown;
+    // Cancel is the safe default for Enter or Space right after the first click.
+    (shown ? cancelResetButton : clearButton).focus();
+  }
+
+  clearButton.addEventListener("click", () => showResetConfirmation(true));
+  cancelResetButton.addEventListener("click", () => showResetConfirmation(false));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !confirmResetButton.hidden) showResetConfirmation(false);
+  });
+
+  confirmResetButton.addEventListener("click", async () => {
+    showResetConfirmation(false);
     clearingHistory = true;
     historyGeneration++;
     historyNeedsRefresh = false;

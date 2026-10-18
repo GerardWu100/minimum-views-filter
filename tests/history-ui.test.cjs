@@ -88,6 +88,7 @@ test('a history read finishing after a successful reset cannot restore old rows 
   page.changed();
   const staleRead = page.messages[1];
   page.document.querySelector('#clear-history').click();
+  page.document.querySelector('#confirm-reset').click();
   assert.equal(page.messages[2].message.type, 'minimum-views-filter:clear-history');
   page.messages[2].resolve({ok: true, history: store.emptyHistory()});
   await tick();
@@ -109,6 +110,7 @@ test('a failed reset reloads history after invalidating an in-flight refresh', a
   page.changed();
   const staleRead = page.messages[1];
   page.document.querySelector('#clear-history').click();
+  page.document.querySelector('#confirm-reset').click();
   page.messages[2].resolve({ok: false});
   await tick();
 
@@ -198,4 +200,34 @@ test('rows show the author, and Export CSV saves every list with formula-safe ce
   assert.equal(lines[1], `hidden,youtube,"Channel, Inc","'=HYPERLINK(""x"")",https://www.youtube.com/watch?v=a,low-views,,10,,,,1,2026-10-17T00:00:00.000Z`);
   assert.equal(lines[2], 'kept,x,@NASA,Kept post,https://x.com/nasa/status/1,high-engagement,low-views,500,10,3,1,2,');
   assert.equal(lines.length, 3);
+});
+
+test('Reset statistics asks for confirmation; Cancel and Escape keep history', async (t) => {
+  const page = openHistory(t);
+  page.messages[0].resolve({ok: true, history: fullHistory()});
+  await tick();
+  const button = (id) => page.document.querySelector(id);
+  button('#clear-history').click();
+  assert.equal(page.messages.length, 1, 'the first click only asks');
+  assert.equal(button('#clear-history').hidden, true);
+  assert.equal(button('#confirm-reset').hidden, false);
+  assert.equal(page.document.activeElement, button('#cancel-reset'));
+  button('#cancel-reset').click();
+  assert.equal(button('#clear-history').hidden, false);
+  assert.equal(button('#confirm-reset').hidden, true);
+  assert.equal(button('#cancel-reset').hidden, true);
+
+  button('#clear-history').click();
+  page.document.dispatchEvent(new page.document.defaultView.KeyboardEvent('keydown', {key: 'Escape'}));
+  assert.equal(button('#confirm-reset').hidden, true);
+  assert.equal(page.messages.length, 1);
+  assert.equal(page.document.querySelectorAll('#entries li').length, store.MAX_ENTRIES);
+
+  button('#clear-history').click();
+  button('#confirm-reset').click();
+  assert.equal(page.messages[1].message.type, 'minimum-views-filter:clear-history');
+  assert.equal(button('#clear-history').hidden, false);
+  page.messages[1].resolve({ok: true, history: store.emptyHistory()});
+  await tick();
+  assert.equal(page.document.querySelectorAll('#entries li').length, 0);
 });

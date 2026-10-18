@@ -286,7 +286,9 @@ Export CSV/JSON build a Blob from the loaded history and save it through a
 temporary `<a download>` link (no `downloads` permission, no network). CSV cells
 that start with `= + - @` get a leading apostrophe so spreadsheets do not run
 them as formulas; a plain X `@handle` is left unchanged. Export buttons follow
-the same enabled state as Reset.
+the same enabled state as Reset. Reset is two-step: the first click swaps it for
+Confirm reset and Cancel (focused, the safe default; Esc also cancels), and
+only Confirm sends the clear message.
 
 ## Right-click whitelist and sync
 

@@ -277,7 +277,8 @@ the same time, so several entries often show the identical second. Repeated URLs
 (outcome, site, author, title, link, reason, counts, events, last seen in UTC).
 **Export JSON** saves the totals and all three lists as stored. Both files are
 built on your device; nothing is uploaded.
-**Reset statistics** clears all hidden, kept, and highlighted totals and lists.
+**Reset statistics** asks first: click **Confirm reset** to clear all hidden, kept,
+and highlighted totals and lists, or **Cancel** (or press Esc) to keep them.
 Current cards are not counted again merely because history was reset.
 
 Totals count events since reset, not lifetime unique IDs or the number currently

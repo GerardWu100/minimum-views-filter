@@ -254,6 +254,7 @@ test('history page renders titles as text and updates counters from local storag
   assert.doesNotMatch(youtubeRow.querySelector('.entry-metrics').textContent, /Likes|Bookmarks/);
   assert.ok(dom.window.document.querySelector('details.about-counts summary').textContent.includes('About these counts'));
   dom.window.document.querySelector('#clear-history').click();
+  dom.window.document.querySelector('#confirm-reset').click();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(dom.window.document.querySelector('#x-count').textContent, '0');
   assert.equal(dom.window.document.querySelector('#entries').children.length, 0);
@@ -272,6 +273,7 @@ test('history can clear a late enrichment entry even when reset left both totals
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(dom.window.document.querySelector('#clear-history').disabled, false);
   dom.window.document.querySelector('#clear-history').click();
+  dom.window.document.querySelector('#confirm-reset').click();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(dom.window.document.querySelector('#entries').children.length, 0);
   assert.equal(dom.window.document.querySelector('#clear-history').disabled, true);
