@@ -330,6 +330,15 @@ The installed Brave extension was observed before this change; the rebuilt
 package has not been installed, reloaded, or tested against live X. See the
 [sanitized seen-list investigation](docs/x-seen-list-check.md).
 
+Statistics authors, 1,000-link lists and CSV/JSON export (v1.15.0, 2026-10-17):
+217 tests, both 22-file builds and Firefox lint passed; Mozilla signed the
+unlisted XPI and its runtime files and manifest match the build. A synthetic
+Node measurement of one 100-event write into full lists took about 2.0 ms
+(1.3 ms with 500-entry lists); a full stored history is about 0.7-0.9 MB, well
+below Chrome's 10 MB `storage.local` quota. Author extraction was tested on
+synthetic X/YouTube markup only, not a live feed. Export was tested in jsdom
+with a stubbed download link, not by saving a file in a real browser.
+
 For v1.14.0, run `npm ci`, `npm test`, `npm run build`, and
 `npm run lint:firefox`. If the shared npm cache is not writable, use a
 command-local `--cache /tmp/minimum-views-npm-cache`; no global changes are needed.
