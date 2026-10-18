@@ -1504,6 +1504,30 @@ test('X hides the thread line of a shown post whose joined reply is hidden, and 
   assert.equal(document.querySelectorAll('[data-minimum-views-thread-cut]').length, 0);
 });
 
+test('X draws the divider under a shown post whose joined reply is hidden, in the page theme, and removes it', async (t) => {
+  const {window, document, storage} = openContent(t, {html:
+    xCard(1, '2,000') + xReplyCard(2, '100') + xCard(3, '2,000') + xCard(4, '100')});
+  await wait();
+  const isThreadEnd = (id) => document.querySelector(`#cell-${id}`).hasAttribute('data-minimum-views-thread-end');
+  const divider = (id) => window.getComputedStyle(document.querySelector(`#cell-${id}`)).boxShadow;
+  assert.equal(isThreadEnd(1), true);
+  assert.equal(divider(1), 'inset 0 -1px 0 rgb(239 243 244)');
+  // X's Lights out theme sets a black body background inline.
+  document.body.setAttribute('style', 'background-color: rgb(0, 0, 0);');
+  assert.equal(divider(1), 'inset 0 -1px 0 rgb(47 51 54)');
+  // X draws its own divider above an unjoined hidden post.
+  assert.equal(isThreadEnd(3), false);
+  setXViews(document, 2, '3,000');
+  await Promise.resolve();
+  assert.equal(isThreadEnd(1), false);
+  setXViews(document, 2, '100');
+  await Promise.resolve();
+  assert.equal(isThreadEnd(1), true);
+  storage.change({xEnabled: false});
+  await wait();
+  assert.equal(document.querySelectorAll('[data-minimum-views-thread-end]').length, 0);
+});
+
 test('X hides the incoming thread line of a shown reply only while thread context leaves its parent hidden', async (t) => {
   const {window, document, storage} = openContent(t, {stored: {xThreadContextEnabled: false}, html:
     withOutgoingLine(xCard(1, '100')) + withOutgoingLine(xReplyCard(2, '2,000')) + xReplyCard(3, '100')});

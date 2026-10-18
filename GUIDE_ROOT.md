@@ -148,7 +148,19 @@ empty div after the avatar or one of its 3 nearest ancestors) gets
 `data-minimum-views-thread-cut`; when the cell above is hidden and this post is
 a joined reply, the incoming line from `getXIncomingThreadLine` gets it. CSS
 uses `visibility: hidden`, so the layout does not move. Partial scans therefore
-always add thread neighbours on X. `restorePage` removes the mark. The
+always add thread neighbours on X.
+
+X draws no bottom divider on a cell joined to the reply below it. A user
+screenshot (2026-10-18) showed a shown post running into the next, unrelated
+post with no divider after its joined reply was hidden. The same check that cuts
+the outgoing line (cell below hidden and its post a joined reply) also marks the
+shown cell with `data-minimum-views-thread-end`, even when no outgoing line is
+found. `content.css` draws a 1px inset `box-shadow` at the cell's bottom in X's
+divider color, chosen by the inline `background-color` X sets on `<body>` per
+theme (`rgb(21, 32, 43)` Dim, `rgb(0, 0, 0)` Lights out, else Default). The
+colors and the body style come from X's known themes, not from a live signed-in
+page; an unknown theme gets the Default color. If X itself draws a divider
+there, the shadow covers the same pixel row. `restorePage` removes the mark. The
 outgoing-line position comes from X's known layout (avatar column: avatar, then
 a 2px line div); it was not checked against a live signed-in X page. If X moves
 the line, nothing is marked and the old dangling line returns.

@@ -1,6 +1,15 @@
 html[data-minimum-views-active] [data-minimum-views-hidden] { display: none !important; }
 /* An X thread line toward a hidden post; visibility keeps the layout unchanged. */
 html[data-minimum-views-active] [data-minimum-views-thread-cut] { visibility: hidden !important; }
+/*
+ * The divider X leaves out under a post joined to the reply below it, drawn
+ * when this extension hides that reply. X sets the theme's background inline
+ * on <body>; the colors are X's own divider colors for Default (white), Dim
+ * (rgb 21 32 43) and Lights out (black). An inset shadow adds no layout shift.
+ */
+html[data-minimum-views-active] [data-minimum-views-thread-end] { box-shadow: inset 0 -1px 0 rgb(239 243 244); }
+html[data-minimum-views-active] body[style*="rgb(21, 32, 43)"] [data-minimum-views-thread-end] { box-shadow: inset 0 -1px 0 rgb(56 68 77); }
+html[data-minimum-views-active] body[style*="rgb(0, 0, 0)"] [data-minimum-views-thread-end] { box-shadow: inset 0 -1px 0 rgb(47 51 54); }
 
 /*
  * Bookmark highlight: a thin warm edge on the post's left side only, so the

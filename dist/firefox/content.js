@@ -27,6 +27,10 @@
   // Marks an X thread line that would join a shown post to a hidden one.
   const THREAD_CUT_ATTRIBUTE = "data-minimum-views-thread-cut";
   const THREAD_CUT_SELECTOR = "[" + THREAD_CUT_ATTRIBUTE + "]";
+  // Marks a shown X cell whose joined reply below is hidden. X leaves out the
+  // divider under a post joined to the next one, so content.css draws it.
+  const THREAD_END_ATTRIBUTE = "data-minimum-views-thread-end";
+  const THREAD_END_SELECTOR = "[" + THREAD_END_ATTRIBUTE + "]";
   const MARK_SELECTOR = HIDDEN_SELECTOR + "," + HIGHLIGHT_SELECTOR;
   const X_CELL_SELECTOR = '[data-testid="cellInnerDiv"]';
   const SCAN_DELAY_MS = 80;
@@ -261,6 +265,7 @@
     for (const target of document.querySelectorAll(HIDDEN_SELECTOR)) target.removeAttribute(HIDDEN_ATTRIBUTE);
     for (const target of document.querySelectorAll(HIGHLIGHT_SELECTOR)) target.removeAttribute(HIGHLIGHT_ATTRIBUTE);
     for (const target of document.querySelectorAll(THREAD_CUT_SELECTOR)) target.removeAttribute(THREAD_CUT_ATTRIBUTE);
+    for (const target of document.querySelectorAll(THREAD_END_SELECTOR)) target.removeAttribute(THREAD_END_ATTRIBUTE);
   }
 
   /**
@@ -311,6 +316,8 @@
     const previousHighlighted = new Set();
     const nextThreadCuts = new Set();
     const previousThreadCuts = new Set();
+    const nextThreadEnds = new Set();
+    const previousThreadEnds = new Set();
     const locale = document.documentElement.lang || navigator.language || "en";
     // Detection needs bookmark reads only when its result is shown or recorded.
     const highlightDetected = SITE === "x" && settings.xBookmarkHighlightEnabled
@@ -350,10 +357,14 @@
         const ancestor = root.closest(HIDDEN_SELECTOR);
         if (ancestor) previousHidden.add(ancestor);
         if (root.matches(HIGHLIGHT_SELECTOR)) previousHighlighted.add(root);
+        // A changed article sits inside its marked cell.
+        const endedCell = root.closest(THREAD_END_SELECTOR);
+        if (endedCell) previousThreadEnds.add(endedCell);
       }
       for (const target of root.querySelectorAll(HIDDEN_SELECTOR)) previousHidden.add(target);
       for (const target of root.querySelectorAll(HIGHLIGHT_SELECTOR)) previousHighlighted.add(target);
       for (const target of root.querySelectorAll(THREAD_CUT_SELECTOR)) previousThreadCuts.add(target);
+      for (const target of root.querySelectorAll(THREAD_END_SELECTOR)) previousThreadEnds.add(target);
       for (const card of core.getCards(root, SITE)) {
         const views = core.getViewCount(card, SITE, locale);
         // The highlight also needs bookmarks on posts that pass all hide rules.
@@ -425,15 +436,20 @@
       if (!target.hasAttribute(HIGHLIGHT_ATTRIBUTE)) target.setAttribute(HIGHLIGHT_ATTRIBUTE, "");
     }
     // A hidden joined reply or parent would leave the shown post's thread line
-    // pointing at the next, unrelated post. Hidden marks are final here, and
-    // neighbours outside the roots keep their marks from earlier passes.
+    // pointing at the next, unrelated post, and a hidden joined reply would
+    // leave the shown post without the divider X draws only under a thread's
+    // last post. Hidden marks are final here, and neighbours outside the roots
+    // keep their marks from earlier passes.
     for (const card of visibleCards) {
       const cell = card.closest(X_CELL_SELECTOR);
       if (!cell || core.getHideTarget(card, SITE) !== cell) continue;
       const below = siblingXCell(cell, false);
       const reply = below?.hasAttribute(HIDDEN_ATTRIBUTE) && soleXCard(below);
-      const outgoing = reply && core.isXReplyToPreviousPost(reply) && core.getXOutgoingThreadLine(card);
-      if (outgoing) nextThreadCuts.add(outgoing);
+      if (reply && core.isXReplyToPreviousPost(reply)) {
+        nextThreadEnds.add(cell);
+        const outgoing = core.getXOutgoingThreadLine(card);
+        if (outgoing) nextThreadCuts.add(outgoing);
+      }
       const above = siblingXCell(cell, true);
       const incoming = above?.hasAttribute(HIDDEN_ATTRIBUTE) && core.getXIncomingThreadLine(card);
       if (incoming) nextThreadCuts.add(incoming);
@@ -443,6 +459,12 @@
     }
     for (const target of nextThreadCuts) {
       if (!target.hasAttribute(THREAD_CUT_ATTRIBUTE)) target.setAttribute(THREAD_CUT_ATTRIBUTE, "");
+    }
+    for (const target of previousThreadEnds) {
+      if (!nextThreadEnds.has(target)) target.removeAttribute(THREAD_END_ATTRIBUTE);
+    }
+    for (const target of nextThreadEnds) {
+      if (!target.hasAttribute(THREAD_END_ATTRIBUTE)) target.setAttribute(THREAD_END_ATTRIBUTE, "");
     }
     if (!document.documentElement.hasAttribute(ACTIVE_ATTRIBUTE)) document.documentElement.setAttribute(ACTIVE_ATTRIBUTE, "");
     recordBatch();

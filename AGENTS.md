@@ -25,7 +25,9 @@ the platform through negative-feedback actions.
   if it fails the rules (user request 2026-10-10). Never reveal a hidden reply
   below a visible post. This rule has its own switch, default on.
   When one post of a joined pair is hidden and the other shown, hide the shown
-  post's thread line so it never points at an unrelated post (2026-10-17).
+  post's thread line so it never points at an unrelated post (2026-10-17), and
+  draw the divider X leaves out under a shown post whose joined reply is hidden
+  (2026-10-18).
 - Optionally highlight visible X Home posts strictly above an adjustable
   bookmarks/views percentage (default 1%) AND, while its switch is on, strictly
   above an adjustable likes/views percentage (default 2%) AND, while its switch
@@ -73,7 +75,7 @@ the platform through negative-feedback actions.
 - Handle new cards, changed counts, recycled DOM nodes, and navigation without
   requiring full-page reloads. Never fetch counts or run background collection.
 - Coexist with the user's extensions. Add/remove only this extension's own
-  hiding, highlight and thread-line attributes; preserve existing classes, inline styles, hidden attributes,
+  hiding, highlight, thread-line and divider attributes; preserve existing classes, inline styles, hidden attributes,
   player controls, network behavior, titles, thumbnails, and other filters.
 - Do not promise complete compatibility with arbitrary user scripts or styles.
   If every copy of a count is removed, use the unknown-count policy.

@@ -160,7 +160,7 @@ filtered when they expose counts; known ad containers are excluded. Live
 concurrent viewers are not interpreted as total views.
 
 When you navigate away from Home or a YouTube watch page, this extension removes
-its hiding, highlight and thread-line marks from retained cards. Other extensions' hiding rules remain intact.
+its hiding, highlight, thread-line and divider marks from retained cards. Other extensions' hiding rules remain intact.
 
 ## X thread context
 
@@ -179,8 +179,10 @@ on its own as before.
 When the extension hides one post of a joined pair and shows the other, it also
 hides the shown post's thread line. Otherwise the line would point at the next,
 unrelated post and make the two look like a conversation. This happens with or
-without the switch above. X still leaves out the divider under a joined parent,
-so the gap between the two posts can look slightly tighter than usual.
+without the switch above. X draws no divider under a post joined to the reply
+below it, so when that reply is hidden the extension draws a 1-pixel divider in
+X's color for the current theme (Default, Dim or Lights out). Without it the
+shown post would run into the next, unrelated post.
 
 ## X engagement rules
 
