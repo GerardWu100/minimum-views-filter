@@ -349,6 +349,14 @@ The installed Brave extension was observed before this change; the rebuilt
 package has not been installed, reloaded, or tested against live X. See the
 [sanitized seen-list investigation](docs/x-seen-list-check.md).
 
+Cut-off page scripts and DeArrow titles (v1.15.1, 2026-10-17): 224 tests,
+both builds and Firefox lint passed; the five new tests fail on 1.15.0. Mozilla
+signed the XPI and its files match the build. Re-injection and the dead-copy
+handover were tested in jsdom and a mocked background, not yet in a live
+browser after a real extension reload. Next live check: reload the extension
+with an X Home tab open, then confirm Statistics records new X events without
+reloading the tab.
+
 Statistics authors, 1,000-link lists and CSV/JSON export (v1.15.0, 2026-10-17):
 217 tests, both 22-file builds and Firefox lint passed; Mozilla signed the
 unlisted XPI and its runtime files and manifest match the build. A synthetic
