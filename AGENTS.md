@@ -33,19 +33,21 @@ the platform through negative-feedback actions.
   (user requests 2026-09-29), using a thin left-edge accent with no background tint. A
   separate switch hides the accent while statistics keep recording. This
   independent rule never rescues a hidden post; whitelisted posts may highlight.
-  Track highlighted events and a separate 500-link list locally, under the same
+  Track highlighted events and a separate 1,000-link list locally, under the same
   bounded, never-a-blacklist history rules.
 - Keep Settings and Statistics on separate pages. Give every behavioral setting
   an off switch, including view floors, whitelists, and statistics collection;
   disabling a rule preserves its threshold/list, and pausing collection keeps history.
-- Keep local filtering-event totals and the latest 500 identifiable filtered
-  items with canonical links, snippets/titles, count snapshots, reasons, and
-  timestamps. Provide a reset action. This user-requested history must never
+- Keep local filtering-event totals and the latest 1,000 identifiable filtered
+  items (raised from 500 on 2026-10-17) with canonical links, snippets/titles,
+  the author (X @handle, YouTube channel name; 2026-10-17), count snapshots,
+  reasons, and timestamps. Provide a reset action and local CSV/JSON export
+  (2026-10-17). This user-requested history must never
   become a blacklist, be synced, be uploaded, or hold DOM references.
 - Also count and list X posts that the high likes/bookmarks/replies-per-view rules
   kept visible when they would otherwise be hidden (user request 2026-09-28),
   under the same local, bounded, never-a-blacklist rules and a separate
-  500-link list, so kept posts never displace filtered items.
+  1,000-link list, so kept posts never displace filtered items.
 - Do not permanently blacklist IDs. An item must become eligible again when the
   site's displayed counts meet the current rules, including on a later visit.
 - Expose independent X and YouTube minimums and switches; the user may set a

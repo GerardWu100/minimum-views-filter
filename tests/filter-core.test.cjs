@@ -282,6 +282,25 @@ test('X repeated profiles agree, but later conflicting profiles or permalinks re
   assert.deepEqual(core.getCreatorIdentifiers(card, 'x'), []);
 });
 
+test('history author is the X @handle in displayed case or the YouTube channel name', () => {
+  const author = (html, site) => core.getItemAuthor(documentOf(html).body.firstElementChild, site);
+  assert.equal(author(`<article data-testid="tweet">
+    <div data-testid="socialContext"><a href="/reposter">Reposter</a></div>
+    <div data-testid="User-Name"><a href="/NASA">NASA</a><a href="/NASA">@NASA</a>
+      <a href="/NASA/status/1"><time>Now</time></a></div>
+    <div data-testid="tweetText"><a href="/mentioned">@mentioned</a></div></article>`, 'x'), '@NASA');
+  assert.equal(author(`<article data-testid="tweet"><a href="/Original/status/1"><time>Now</time></a></article>`, 'x'), '@original',
+    'a permalink-only author falls back to the lowercase handle');
+  assert.equal(author(`<article data-testid="tweet"><div data-testid="User-Name"><a href="/first">First</a></div>
+    <a href="/second/status/1"><time>Now</time></a></article>`, 'x'), null, 'ambiguous X authors are not labeled');
+  assert.equal(author(`<ytd-compact-video-renderer><a id="video-title" href="/watch?v=v">Title by @other</a>
+    <ytd-channel-name><a href="/@NASA">  NASA\n</a></ytd-channel-name>
+    <div id="byline-container"><a href="/channel/UC123">NASA</a></div></ytd-compact-video-renderer>`, 'youtube'), 'NASA');
+  assert.equal(author(`<yt-lockup-view-model><div class="yt-content-metadata-view-model__metadata-text">
+    <a href="/@one">One</a> and <a href="/@two">Two</a></div></yt-lockup-view-model>`, 'youtube'), 'One, Two');
+  assert.equal(author(`<ytd-video-renderer><ytd-channel-name>NASA</ytd-channel-name></ytd-video-renderer>`, 'youtube'), null);
+});
+
 test('classic YouTube author containers yield canonical handles and case-sensitive channel IDs', () => {
   const html = `<ytd-compact-video-renderer>
     <a id="video-title" href="/watch?v=video">Title</a>

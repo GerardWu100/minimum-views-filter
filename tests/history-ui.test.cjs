@@ -63,7 +63,7 @@ test('hidden history pages do no reads or row rebuilds until visible, then refre
   assert.equal(page.messages.length, 1);
   page.messages[0].resolve({ok: true, history: fullHistory()});
   await tick();
-  assert.equal(page.document.querySelectorAll('#entries li').length, 500);
+  assert.equal(page.document.querySelectorAll('#entries li').length, store.MAX_ENTRIES);
   assert.equal(page.renderCount, 1);
 });
 
@@ -77,7 +77,7 @@ test('twenty changes during a pending history read coalesce into one fresh read 
   assert.equal(page.renderCount, 0, 'the superseded snapshot must not replace the page');
   page.messages[1].resolve({ok: true, history: fullHistory()});
   await tick();
-  assert.equal(page.document.querySelectorAll('#entries li').length, 500);
+  assert.equal(page.document.querySelectorAll('#entries li').length, store.MAX_ENTRIES);
   assert.equal(page.renderCount, 1);
 });
 
@@ -104,7 +104,7 @@ test('a failed reset reloads history after invalidating an in-flight refresh', a
   const page = openHistory(t);
   page.messages[0].resolve({ok: true, history: fullHistory()});
   await tick();
-  assert.equal(page.document.querySelectorAll('#entries li').length, 500);
+  assert.equal(page.document.querySelectorAll('#entries li').length, store.MAX_ENTRIES);
 
   page.changed();
   const staleRead = page.messages[1];
@@ -120,7 +120,7 @@ test('a failed reset reloads history after invalidating an in-flight refresh', a
   page.messages[3].resolve({ok: true, history: fullHistory()});
   await tick();
 
-  assert.equal(page.document.querySelectorAll('#entries li').length, 500);
+  assert.equal(page.document.querySelectorAll('#entries li').length, store.MAX_ENTRIES);
   assert.equal(page.document.querySelector('#clear-history').disabled, false);
 });
 
@@ -162,4 +162,40 @@ test('statistics shows highlighted totals, separate entries, settings link, and 
   assert.equal(page.document.querySelector('#collection-status').hidden, false);
   page.setCollectionEnabled(true);
   assert.equal(page.document.querySelector('#collection-status').hidden, true);
+});
+
+test('rows show the author, and Export CSV saves every list with formula-safe cells', async (t) => {
+  const page = openHistory(t);
+  const history = store.emptyHistory();
+  history.counts.x['low-views'] = 1;
+  history.xKeptCounts['high-engagement'] = 1;
+  history.entries = [{site: 'youtube', url: 'https://www.youtube.com/watch?v=a', title: '=HYPERLINK("x")', author: 'Channel, Inc',
+    reason: 'low-views', views: 10, likes: null, bookmarks: null, replies: null, lastFilteredAt: Date.UTC(2026, 9, 17), events: 1}];
+  history.keptEntries = [{site: 'x', url: 'https://x.com/nasa/status/1', title: 'Kept post', author: '@NASA', reason: 'high-engagement',
+    bypassedReason: 'low-views', views: 500, likes: 10, bookmarks: 3, replies: 1, lastFilteredAt: 0, events: 2}];
+  page.messages[0].resolve({ok: true, history});
+  await tick();
+  const meta = page.document.querySelector('#entries li .entry-meta');
+  assert.equal(meta.querySelector('.entry-author').textContent, 'Channel, Inc');
+  assert.match(meta.textContent, /^Low views · YouTube · Channel, Inc · /);
+
+  const window = page.document.defaultView;
+  const saved = [];
+  window.URL.createObjectURL = (blob) => {
+    saved.push(blob);
+    return 'blob:export';
+  };
+  window.URL.revokeObjectURL = () => {};
+  let downloadName = null;
+  window.HTMLAnchorElement.prototype.click = function () {downloadName = this.download;};
+  const exportButton = page.document.querySelector('#export-csv');
+  assert.equal(exportButton.disabled, false);
+  exportButton.click();
+  assert.match(downloadName, /^minimum-views-statistics-\d{4}-\d{2}-\d{2}\.csv$/);
+  const csv = (await saved[0].text()).replace(/^\ufeff/, '');
+  const lines = csv.trimEnd().split('\r\n');
+  assert.equal(lines[0], 'outcome,site,author,title,url,reason,kept_despite,views,likes,bookmarks,replies,events,last_seen_utc');
+  assert.equal(lines[1], `hidden,youtube,"Channel, Inc","'=HYPERLINK(""x"")",https://www.youtube.com/watch?v=a,low-views,,10,,,,1,2026-10-17T00:00:00.000Z`);
+  assert.equal(lines[2], 'kept,x,@NASA,Kept post,https://x.com/nasa/status/1,high-engagement,low-views,500,10,3,1,2,');
+  assert.equal(lines.length, 3);
 });

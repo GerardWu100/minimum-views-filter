@@ -66,19 +66,35 @@ test('canonical URL validation excludes redirects, foreign sites, credentials, a
 });
 
 test('history caps recent links and deduplicates repeat appearances while preserving total events', () => {
+  const total = store.MAX_ENTRIES + 10;
+  assert.equal(store.MAX_ENTRIES, 1000);
   let history = store.emptyHistory();
-  for (let id = 1; id <= 510; id++) history = store.addEvents(history, [xEvent(id)], 'x', id).history;
-  assert.equal(store.siteTotal(history.counts.x), 510);
-  assert.equal(history.entries.length, 500);
-  assert.equal(history.entries[0].url, 'https://x.com/author/status/510');
+  for (let id = 1; id <= total; id++) history = store.addEvents(history, [xEvent(id)], 'x', id).history;
+  assert.equal(store.siteTotal(history.counts.x), total);
+  assert.equal(history.entries.length, store.MAX_ENTRIES);
+  assert.equal(history.entries[0].url, `https://x.com/author/status/${total}`);
   assert.equal(history.entries.at(-1).url, 'https://x.com/author/status/11');
-  const repeated = store.addEvents(history, [xEvent(42, {title: 'Updated'})], 'x', 999).history;
-  assert.equal(store.siteTotal(repeated.counts.x), 511);
-  assert.equal(repeated.entries.length, 500);
+  const repeated = store.addEvents(history, [xEvent(42, {title: 'Updated'})], 'x', total + 1).history;
+  assert.equal(store.siteTotal(repeated.counts.x), total + 1);
+  assert.equal(repeated.entries.length, store.MAX_ENTRIES);
   assert.equal(repeated.entries[0].title, 'Updated');
   assert.equal(repeated.entries[0].events, 2);
   assert.equal(repeated.entries.filter((entry) => entry.url.endsWith('/42')).length, 1);
-  assert.equal(store.addEvents(repeated, [xEvent(1, {url: null})], 'x', 1000).history.entries.length, 500);
+  assert.equal(store.addEvents(repeated, [xEvent(1, {url: null})], 'x', total + 2).history.entries.length, store.MAX_ENTRIES);
+});
+
+test('history stores the X @handle or YouTube channel name and keeps it when a later sighting lacks one', () => {
+  let history = store.addEvents(null, [xEvent(1, {author: '@NASA'})], 'x', 1).history;
+  history = store.addEvents(history, [youtubeEvent('a', {author: ' Veritasium\n'})], 'youtube', 2).history;
+  assert.deepEqual(history.entries.map((entry) => entry.author), ['Veritasium', '@NASA']);
+  history = store.addEvents(history, [xEvent(1, {author: null})], 'x', 3).history;
+  assert.equal(history.entries[0].author, '@NASA');
+  assert.equal(history.entries[0].events, 2);
+  assert.equal(store.normalizeHistory({entries: [{...xEvent(2), lastFilteredAt: 1, events: 1}]}).entries[0].author, null,
+    'entries saved before authors were recorded load with a null author');
+  assert.equal(store.normalizeEvent(xEvent(3, {author: 'x'.repeat(store.MAX_AUTHOR_LENGTH + 1)}), 'x', 'hidden'), null);
+  assert.equal(store.normalizeEvent(xEvent(3, {author: 7}), 'x', 'hidden'), null);
+  assert.equal(store.normalizeEvent(xEvent(3, {author: '  '}), 'x', 'hidden').author, null);
 });
 
 test('malformed batches and unsafe fields cannot bloat storage or increment counts', () => {
@@ -333,12 +349,13 @@ test('highlighted events keep independent totals and bounded links alongside kep
   history = store.addEvents(history, [highlightedEvent(2, {enrich: true})], 'x', 2).history;
   assert.equal(history.xHighlightedCount, 2);
   assert.equal(history.highlightedEntries[0].url, 'https://x.com/author/status/2');
-  for (let id = 3; id <= 511; id++) history = store.addEvents(history, [highlightedEvent(id)], 'x', id).history;
-  assert.equal(history.xHighlightedCount, 511);
+  const lastId = store.MAX_ENTRIES + 11;
+  for (let id = 3; id <= lastId; id++) history = store.addEvents(history, [highlightedEvent(id)], 'x', id).history;
+  assert.equal(history.xHighlightedCount, lastId);
   assert.equal(history.highlightedEntries.length, store.MAX_ENTRIES);
-  assert.equal(history.highlightedEntries[0].url, 'https://x.com/author/status/511');
+  assert.equal(history.highlightedEntries[0].url, `https://x.com/author/status/${lastId}`);
   assert.equal(history.keptEntries.length, 1);
-  history = store.addEvents(history, [highlightedEvent(42, {title: 'Updated highlight'})], 'x', 512).history;
+  history = store.addEvents(history, [highlightedEvent(42, {title: 'Updated highlight'})], 'x', lastId + 1).history;
   assert.equal(history.highlightedEntries[0].title, 'Updated highlight');
   assert.equal(history.highlightedEntries[0].events, 2);
   assert.equal(history.highlightedEntries.length, store.MAX_ENTRIES);

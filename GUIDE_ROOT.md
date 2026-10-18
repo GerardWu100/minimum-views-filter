@@ -189,10 +189,15 @@ with limits of 256 requests and 2,048 items including in-flight work. Overload
 returns `history-busy` without retry; statistics can omit these events while
 filtering continues. `history-store.js` keeps
 `counts[site][reason]` hide events (a site total is `siteTotal` of its reasons,
-so the two cannot disagree), `xKeptCounts[keptReason]`, and `xHighlightedCount`, with three independently bounded 500-entry URL
+so the two cannot disagree), `xKeptCounts[keptReason]`, and `xHighlightedCount`, with three independently bounded 1,000-entry URL
 lists: `entries` (hidden), `keptEntries` (kept), and `highlightedEntries`, under
 `storage.local.filterHistory` (version 4). Stored counts in any other shape
-normalize to zero. Messages carry `outcome`; stored entries omit it because their
+normalize to zero. Each entry has an optional `author` label (at most 100
+characters): `core.getItemAuthor` returns the X `@Handle` in displayed case from
+the same unambiguous author metadata as the whitelist, or the distinct YouTube
+channel names on author links. It labels history only, never identity; a later
+sighting without an author keeps the earlier label, and entries from before
+1.15.0 load with `author: null`. Messages carry `outcome`; stored entries omit it because their
 list identifies it. Kept events must come from X, name `high-engagement`
 (1.13.0+), or a per-rule reason recorded by 1.12.0 and earlier
 (`high-like-and-bookmark-ratio`, `high-like-ratio`, `high-bookmark-ratio`, which
@@ -258,6 +263,11 @@ The Statistics page filters loaded entries by Hidden, Kept by high engagement,
 or Highlighted, then site/reason. Kept/highlighted lists are X-only. Switching
 outcomes clears reason selection; highlighted and kept totals overlap when both
 apply to one post. All three lists retain independent event snapshots and bounds.
+Export CSV/JSON build a Blob from the loaded history and save it through a
+temporary `<a download>` link (no `downloads` permission, no network). CSV cells
+that start with `= + - @` get a leading apostrophe so spreadsheets do not run
+them as formulas; a plain X `@handle` is left unchanged. Export buttons follow
+the same enabled state as Reset.
 
 ## Right-click whitelist and sync
 

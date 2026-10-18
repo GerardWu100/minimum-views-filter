@@ -2,10 +2,12 @@
   "use strict";
 
   const STORAGE_KEY = "filterHistory";
-  const MAX_ENTRIES = 500;
+  const MAX_ENTRIES = 1000;
   const MAX_BATCH_ITEMS = 100;
   const MAX_EVENT_BATCHES = 32;
   const MAX_TITLE_LENGTH = 240;
+  // Longest stored author: "@" plus a 15-character X handle, or a YouTube channel name.
+  const MAX_AUTHOR_LENGTH = 100;
   const MAX_COUNT = 1_000_000_000_000;
   const MAX_TOTAL = Number.MAX_SAFE_INTEGER;
   // Every hide reason from MinimumViewsCore.getFilterReason, in display order.
@@ -60,7 +62,7 @@
   function canonicalItemUrl(value, site) {
     if (typeof value !== "string" || value.length > 2048) return null;
     // Persisted entries already use these exact forms. Avoid rebuilding up to
-    // 1,000 URL objects whenever a new batch validates the bounded history.
+    // 3,000 URL objects whenever a new batch validates the bounded history.
     if ((site === "x" && CANONICAL_X_URL.test(value)) || (site === "youtube" && CANONICAL_YOUTUBE_URL.test(value))) return value;
     let url;
     try { url = new URL(value); } catch { return null; }
@@ -108,6 +110,10 @@
     if (value.enrich === true && !url) return null;
     if (typeof value.title !== "string" || value.title.length > MAX_TITLE_LENGTH) return null;
     const title = value.title.replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+    // author is optional: "@handle" on X, the channel name on YouTube, or null.
+    const rawAuthor = value.author ?? null;
+    if (rawAuthor !== null && (typeof rawAuthor !== "string" || rawAuthor.length > MAX_AUTHOR_LENGTH)) return null;
+    const author = rawAuthor === null ? null : rawAuthor.replace(/[\u0000-\u001f\u007f]/g, " ").trim() || null;
     const views = countOrNull(value.views);
     const likes = countOrNull(value.likes);
     const bookmarks = countOrNull(value.bookmarks);
@@ -130,7 +136,7 @@
     } else if (views === null || views === 0 || bookmarks === null) {
       return null;
     }
-    const event = {site, url, title, reason: value.reason, views, likes, bookmarks, replies};
+    const event = {site, url, title, author, reason: value.reason, views, likes, bookmarks, replies};
     return outcome === "kept" ? {...event, bypassedReason: value.bypassedReason} : event;
   }
 
@@ -199,6 +205,8 @@
       const previous = previousIndex < 0 ? null : list.splice(previousIndex, 1)[0];
       list.unshift({
         ...event,
+        // A later sighting may lack author metadata that an earlier one had.
+        author: event.author ?? previous?.author ?? null,
         lastFilteredAt: now,
         events: Math.min(MAX_TOTAL, (previous?.events || 0) + 1),
       });
@@ -242,7 +250,7 @@
     return result ? {history: result.history, recorded: result.recorded} : null;
   }
 
-  const api = {STORAGE_KEY, MAX_ENTRIES, MAX_BATCH_ITEMS, MAX_EVENT_BATCHES, REASONS, KEPT_REASONS, emptyHistory, siteTotal, canonicalItemUrl, normalizeEvent, normalizeHistory, addEvents, addEventBatches};
+  const api = {STORAGE_KEY, MAX_ENTRIES, MAX_AUTHOR_LENGTH, MAX_BATCH_ITEMS, MAX_EVENT_BATCHES, REASONS, KEPT_REASONS, emptyHistory, siteTotal, canonicalItemUrl, normalizeEvent, normalizeHistory, addEvents, addEventBatches};
   globalThis.MinimumViewsHistory = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -21,7 +21,8 @@ Statistics keeps recording those posts.
 
 The toolbar popup opens separate **Settings** and **Statistics** pages. Statistics
 shows hidden, kept-by-engagement, and highlighted posts with separate recent-link
-lists. History stays in your browser; collection has its own off switch.
+lists, each with the X @handle or YouTube channel name, and exports them as CSV
+or JSON. History stays in your browser; collection has its own off switch.
 
 It filters X Home (For You and Following), YouTube Home, and the
 recommendations next to a video you're watching. Search, profiles, channels,
@@ -252,14 +253,19 @@ counted as **High engagement**. Counts recorded by 1.12.0 and earlier keep their
 per-rule labels. Posts that
 pass your rules anyway, and whitelisted creators, are not counted.
 
-The **Hidden** tab lists the latest **500 identifiable items** across both sites.
-Chips filter by site and reason. **Kept by high engagement** lists the latest 500
+The **Hidden** tab lists the latest **1,000 identifiable items** across both sites.
+Chips filter by site and reason. **Kept by high engagement** lists the latest 1,000
 kept X posts separately, each labeled with the rule that would have hidden it.
-**Highlighted** has its own total and latest 500 links, including posts detected
+**Highlighted** has its own total and latest 1,000 links, including posts detected
 while **Show highlight in feed** is off. A post may be both kept
 and highlighted, so these totals overlap and should not be added together.
-Entries show a link, post snippet or video title, the reason, counts/ratios at the
-time of the event, and the last event time. Repeated URLs share one recent entry.
+Entries show a link, post snippet or video title, the author (the X **@handle**
+or the YouTube **channel name**, read from the card's own author line), the
+reason, counts/ratios at the time of the event, and the last event time. Repeated URLs share one recent entry.
+**Export CSV** saves one spreadsheet row per recent item from all three lists
+(outcome, site, author, title, link, reason, counts, events, last seen in UTC).
+**Export JSON** saves the totals and all three lists as stored. Both files are
+built on your device; nothing is uploaded.
 **Reset statistics** clears all hidden, kept, and highlighted totals and lists.
 Current cards are not counted again merely because history was reset.
 

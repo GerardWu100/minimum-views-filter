@@ -100,6 +100,8 @@
   const PERCENT_SCALE = 100;
   const RATIO_COMPARISON_EPSILON = 2 * Number.EPSILON;
   const HISTORY_TITLE_LENGTH = 240;
+  // Matches MAX_AUTHOR_LENGTH in history-store.js.
+  const HISTORY_AUTHOR_LENGTH = 100;
   // Lazily resolved: the browser fixture loads this file before settings.js.
   let settingsApi = null;
 
@@ -617,6 +619,47 @@
   }
 
   /**
+   * Read a display label for the card's author, for the local Statistics list.
+   *
+   * @param {Element} card One card returned by getCards.
+   * @param {'x'|'youtube'} site Adapter name.
+   * @returns {string|null} X: "@Handle" in its displayed case, from the same
+   *   unambiguous author metadata as getCreatorIdentifiers. YouTube: the
+   *   distinct channel names shown on author links, joined by ", " for
+   *   collaborations. At most HISTORY_AUTHOR_LENGTH characters; null when no
+   *   author link is present. It labels history only and never sets identity.
+   */
+  function getItemAuthor(card, site) {
+    if (!card?.querySelectorAll) return null;
+    if (site === 'x') {
+      const [handle] = getXCreatorIdentifiers(card);
+      if (!handle) return null;
+      // X shows "@Handle" as one of the User-Name links; keep its case.
+      for (const link of card.querySelectorAll('[data-testid="User-Name"] a[href]')) {
+        const text = link.textContent.trim();
+        if (isOwnXAuthorMetadata(link, card) && text.toLowerCase() === '@' + handle) return text;
+      }
+      return '@' + handle;
+    }
+    if (site !== 'youtube') return null;
+    // Identifier -> displayed channel name, in DOM order.
+    const names = new Map();
+    for (const container of card.querySelectorAll(YOUTUBE_CREATOR_SOURCE_SELECTOR)) {
+      const links = container.matches('a[href]') ? [container] : container.querySelectorAll('a[href]');
+      for (const link of links) {
+        if (link.closest(YOUTUBE_NON_AUTHOR_LINK_SELECTOR)) continue;
+        const identifier = creatorIdentifierFromLink(link, 'youtube');
+        const name = link.textContent.replace(/\s+/g, ' ').trim();
+        if (identifier && (!names.has(identifier) || !names.get(identifier))) names.set(identifier, name);
+      }
+    }
+    if (!names.size) return null;
+    // A handle link and a channel-ID link to one channel show the same name.
+    const label = [...new Set([...names].map(([identifier, name]) => name || identifier))].join(', ');
+    return label.slice(0, HISTORY_AUTHOR_LENGTH);
+  }
+
+  /**
    * Read the creator a profile or channel link points to.
    *
    * @param {Element} link Anchor the user chose outside any recognized card,
@@ -700,7 +743,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, shouldHighlightX, getItemMetadata, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget, isXReplyToPreviousPost, getXIncomingThreadLine, getXOutgoingThreadLine };
+  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, shouldHighlightX, getItemMetadata, getItemAuthor, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget, isXReplyToPreviousPost, getXIncomingThreadLine, getXOutgoingThreadLine };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);

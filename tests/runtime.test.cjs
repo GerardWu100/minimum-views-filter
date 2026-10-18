@@ -1520,3 +1520,11 @@ test('X hides the incoming thread line of a shown reply only while thread contex
   assert.equal(isThreadCut(document, '#post-2 .thread-out'), true);
   assert.equal(isThreadCut(document, '#post-1 .thread-out'), false);
 });
+
+test('recorded history events carry the X @handle and the YouTube channel name', async (t) => {
+  const x = openContent(t, {html: xCard(1, '999', 'Writer')});
+  const youtube = openContent(t, {url: 'https://www.youtube.com/', html: youtubeCard(2, '999')});
+  await wait();
+  assert.deepEqual(historyItems(x.storage).map(({author, url}) => ({author, url})), [{author: '@writer', url: 'https://x.com/writer/status/1'}]);
+  assert.deepEqual(historyItems(youtube.storage).map(({author}) => author), ['Creator']);
+});

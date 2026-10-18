@@ -316,7 +316,7 @@
       const newItem = !hadPrevious || (metadata.url && previousUrl && metadata.url !== previousUrl);
       if (metadata.url || !previousUrl) recordedCards.set(card, metadata.url);
       if (!newItem && !enrich) return;
-      historyItems.push({site: SITE, ...metadata, ...event, ...(enrich ? {enrich: true} : {})});
+      historyItems.push({site: SITE, ...metadata, author: core.getItemAuthor(card, SITE), ...event, ...(enrich ? {enrich: true} : {})});
       if (historyItems.length === HISTORY_BATCH_SIZE) recordBatch();
     };
     for (const root of roots) {

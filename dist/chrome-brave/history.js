@@ -11,6 +11,29 @@
   const status = document.getElementById("status");
   const recentShown = document.getElementById("recent-shown");
   const clearButton = document.getElementById("clear-history");
+  const exportCsvButton = document.getElementById("export-csv");
+  const exportJsonButton = document.getElementById("export-json");
+  // Firefox can cancel a download whose blob URL is revoked in the same task.
+  const DOWNLOAD_URL_LIFETIME_MS = 60_000;
+  // Spreadsheets run a cell starting with one of these as a formula.
+  const SPREADSHEET_FORMULA_PREFIX = /^[=+\-@\t\r]/;
+  const X_HANDLE_LABEL = /^@[A-Za-z0-9_]{1,15}$/;
+  // Export column name -> value read from one stored entry of a given outcome.
+  const CSV_COLUMNS = Object.freeze([
+    ["outcome", (item, outcome) => outcome],
+    ["site", (item) => item.site],
+    ["author", (item) => item.author],
+    ["title", (item) => item.title],
+    ["url", (item) => item.url],
+    ["reason", (item) => item.reason],
+    ["kept_despite", (item) => item.bypassedReason ?? null],
+    ["views", (item) => item.views],
+    ["likes", (item) => item.likes],
+    ["bookmarks", (item) => item.bookmarks],
+    ["replies", (item) => item.replies],
+    ["events", (item) => item.events],
+    ["last_seen_utc", (item) => item.lastFilteredAt > 0 ? new Date(item.lastFilteredAt).toISOString() : null],
+  ]);
   const siteCounts = {x: document.getElementById("x-count"), youtube: document.getElementById("youtube-count")};
   const siteReasons = {x: document.getElementById("x-reasons"), youtube: document.getElementById("youtube-reasons")};
   const keptCount = document.getElementById("x-kept-count");
@@ -71,11 +94,16 @@
     reason.textContent = REASON_LABELS[item.reason];
     const date = new Date(item.lastFilteredAt);
     const metaParts = [SITE_NAMES[item.site]];
+    const author = document.createElement("span");
+    author.className = "entry-author";
+    author.textContent = item.author || "";
     // Kept entries name the hide reason their high engagement overrode.
     if (item.bypassedReason) metaParts.push("kept despite " + REASON_LABELS[item.bypassedReason].toLowerCase());
     if (item.events > 1) metaParts.push(outcome + " " + item.events.toLocaleString() + " times");
     if (item.lastFilteredAt > 0 && !Number.isNaN(date.getTime())) metaParts.push(date.toLocaleString());
-    meta.append(reason, " · " + metaParts.join(" · "));
+    // reason · site · author · details, with the author in its own bold span.
+    const parts = [reason, metaParts[0], ...(item.author ? [author] : []), ...metaParts.slice(1)];
+    meta.append(...parts.flatMap((part, index) => index ? [" · ", part] : [part]));
 
     const metrics = document.createElement("p");
     metrics.className = "entry-metrics";
@@ -135,7 +163,7 @@
     entryCounts.hidden.textContent = history.entries.length.toLocaleString();
     entryCounts.kept.textContent = history.keptEntries.length.toLocaleString();
     entryCounts.highlighted.textContent = history.highlightedEntries.length.toLocaleString();
-    clearButton.disabled = siteTotal(history.counts.x) === 0 && siteTotal(history.counts.youtube) === 0 && siteTotal(history.xKeptCounts) === 0
+    clearButton.disabled = exportCsvButton.disabled = exportJsonButton.disabled = siteTotal(history.counts.x) === 0 && siteTotal(history.counts.youtube) === 0 && siteTotal(history.xKeptCounts) === 0
       && history.xHighlightedCount === 0 && history.entries.length === 0 && history.keptEntries.length === 0 && history.highlightedEntries.length === 0;
     renderEntries();
   }
@@ -168,7 +196,7 @@
         } catch {
           if (generation === historyGeneration && !historyNeedsRefresh && !clearingHistory && document.visibilityState !== "hidden") {
             status.textContent = "Could not load history. Try reopening this page.";
-            clearButton.disabled = true;
+            clearButton.disabled = exportCsvButton.disabled = exportJsonButton.disabled = true;
           }
         }
       } while (historyNeedsRefresh && !clearingHistory && document.visibilityState !== "hidden");
@@ -176,6 +204,54 @@
       historyLoadRunning = false;
     }
   }
+
+  /** Quote one CSV cell (RFC 4180) and stop spreadsheets reading text as a formula. */
+  function csvCell(value) {
+    if (value === null || value === undefined) return "";
+    let text = String(value);
+    // A plain X handle such as @nasa stays readable; other formula-like text gets a leading apostrophe.
+    if (typeof value === "string" && SPREADSHEET_FORMULA_PREFIX.test(text) && !X_HANDLE_LABEL.test(text)) text = "'" + text;
+    return /[",\r\n]/.test(text) ? '"' + text.replaceAll('"', '""') + '"' : text;
+  }
+
+  /** Build one CSV row per stored entry: hidden, then kept, then highlighted. */
+  function historyCsv(history) {
+    const rows = [CSV_COLUMNS.map(([name]) => name).join(",")];
+    for (const [outcome, list] of [["hidden", history.entries], ["kept", history.keptEntries], ["highlighted", history.highlightedEntries]]) {
+      for (const item of list) rows.push(CSV_COLUMNS.map(([, read]) => csvCell(read(item, outcome))).join(","));
+    }
+    return rows.join("\r\n") + "\r\n";
+  }
+
+  /** Save text through a temporary local blob link; no network or downloads permission. */
+  function saveFile(filename, text, type) {
+    const url = URL.createObjectURL(new Blob([text], {type}));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_LIFETIME_MS);
+  }
+
+  /** File name stamped with the local date, e.g. minimum-views-statistics-2026-10-17.csv. */
+  function exportFilename(extension) {
+    const now = new Date();
+    const date = [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((part) => String(part).padStart(2, "0")).join("-");
+    return `minimum-views-statistics-${date}.${extension}`;
+  }
+
+  exportCsvButton.addEventListener("click", () => {
+    if (!latestHistory) return;
+    // The byte-order mark lets Excel read non-ASCII titles and names as UTF-8.
+    saveFile(exportFilename("csv"), "\ufeff" + historyCsv(latestHistory), "text/csv;charset=utf-8");
+  });
+  exportJsonButton.addEventListener("click", () => {
+    if (!latestHistory) return;
+    saveFile(exportFilename("json"), JSON.stringify({exportedAt: new Date().toISOString(), ...latestHistory}, null, 2) + "\n", "application/json");
+  });
 
   clearButton.addEventListener("click", async () => {
     clearingHistory = true;

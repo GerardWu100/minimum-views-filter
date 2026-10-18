@@ -67,7 +67,7 @@ h2 { font-size: 1.15rem; margin: 0; }
 .entry-title { color: var(--text-primary); font-weight: 650; text-decoration: none; overflow-wrap: anywhere; }
 .entry-title:hover { color: var(--accent-text); text-decoration: underline; }
 .entry-meta { margin: .25rem 0 0; font-size: .85rem; color: var(--text-muted); }
-.entry-meta .entry-reason { color: var(--text-secondary); font-weight: 650; }
+.entry-meta .entry-reason, .entry-meta .entry-author { color: var(--text-secondary); font-weight: 650; }
 .entry-metrics { margin: .45rem 0 0; display: flex; flex-wrap: wrap; gap: .35rem; font-size: .82rem; }
 .metric { padding: .12em .6em; border-radius: 6px; background: var(--surface-sunken); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .metric b { color: var(--text-primary); font-weight: 650; }
