@@ -75,6 +75,15 @@
     'yt-shorts-lockup-view-model__metadata-subhead', 'ytLockupMetadataViewModelTitle',
     'yt-lockup-metadata-view-model__title', 'yt-lockup-metadata-view-model__description',
   ];
+  // Every element ID the YouTube adapter's selectors name. Gaining or losing one
+  // can change a count, creator or card decision; other IDs cannot.
+  const YOUTUBE_DECISION_IDS = [
+    'metadata-line', 'view-count', 'channel-name', 'byline-container', 'video-title',
+    'video-title-link', 'description', 'description-text', 'shorts-player',
+  ];
+  // Creator display-name sources: channel links and name elements, never the
+  // wider byline, which can also hold the view count.
+  const YOUTUBE_CREATOR_NAME_SELECTOR = 'ytd-channel-name, #channel-name, a[href^="/@"], a[href^="/channel/"], a[href^="/user/"], a[href^="/c/"]';
   const VIEW_WORD = '(?:views?|vues?)';
   const COUNT_TOKEN = '(?:no|aucune|[0-9][0-9.,\\s\\u00a0\\u202f]*(?:md|[kmb]|thousand|million|billion)?)';
 
@@ -177,6 +186,17 @@
    */
   function getDecisionClassNames(site) {
     return site === 'youtube' ? [...YOUTUBE_DECISION_CLASS_NAMES] : [];
+  }
+
+  /**
+   * List element IDs whose presence can change the adapter's decision.
+   *
+   * @param {'x'|'youtube'} site Adapter name.
+   * @returns {string[]} IDs named by the adapter's selectors, including the
+   *   excluded Shorts player ancestor. X reads no IDs, so it returns an empty array.
+   */
+  function getDecisionIds(site) {
+    return site === 'youtube' ? [...YOUTUBE_DECISION_IDS] : [];
   }
 
   /**
@@ -293,16 +313,45 @@
         }
       }
     }
+    let creatorNames = null;
     for (const link of card.querySelectorAll(YOUTUBE_TITLE_LABEL_SELECTOR)) {
       if (!/(?:\/watch\?|\/shorts\/)/.test(link.getAttribute('href') || '')) continue;
       const title = (link.getAttribute('title') || link.textContent).trim();
       const label = link.getAttribute('aria-label').trim();
       // Only the suffix after a verified title can supply a count.
       if (!title || !label.startsWith(title)) continue;
-      const matches = viewCountCandidates(label.slice(title.length), locale);
+      // The suffix also names the channel ("Title by Channel 1,234 views 3 days
+      // ago"), and a channel can be named like a count, such as "10 views".
+      creatorNames ??= youtubeCreatorNames(card);
+      const matches = viewCountCandidates(withoutCreatorNames(label.slice(title.length), creatorNames), locale);
       if (matches.length === 1) accessible.push(matches[0]);
     }
     return preferredCount(accessible, visible);
+  }
+
+  /** List the card's shown creator names, longest first, whitespace collapsed. */
+  function youtubeCreatorNames(card) {
+    const names = new Set();
+    for (const element of card.querySelectorAll(YOUTUBE_CREATOR_NAME_SELECTOR)) {
+      if (element.closest(YOUTUBE_NON_AUTHOR_LINK_SELECTOR)) continue;
+      const name = element.textContent.replace(/\s+/g, ' ').trim();
+      if (name) names.add(name);
+    }
+    return [...names].sort((first, second) => second.length - first.length);
+  }
+
+  /**
+   * Remove the first whole-word occurrence of each creator name from label text.
+   * Before: " by 10 views 3 days ago". After, for the name "10 views": " by 3 days ago ".
+   */
+  function withoutCreatorNames(text, names) {
+    let result = ' ' + text.replace(/\s+/g, ' ') + ' ';
+    for (const name of names) {
+      // Spaces on both sides: the name "1" never removes the start of "1,000 views".
+      const index = result.indexOf(' ' + name + ' ');
+      if (index >= 0) result = result.slice(0, index) + result.slice(index + name.length + 1);
+    }
+    return result;
   }
 
   /**
@@ -753,6 +802,32 @@
   }
 
   /**
+   * Report whether an element sits where X draws a thread line in this card.
+   *
+   * @param {Element} element Element whose class or style changed.
+   * @param {Element} card The outer X card containing it.
+   * @returns {boolean} True for the end of the article's first-child chain
+   *   (incoming line) or a later sibling of the avatar or of one of its
+   *   X_OUTGOING_LINE_MAX_ANCESTORS nearest ancestors (outgoing line), whatever
+   *   its current width. A restyle there can join or split a thread; a restyle
+   *   elsewhere cannot change getXIncomingThreadLine or getXOutgoingThreadLine.
+   */
+  function isXThreadLinePosition(element, card) {
+    let chainEnd = card.firstElementChild;
+    for (let depth = 1; chainEnd?.firstElementChild && depth < X_THREAD_LINE_MAX_DEPTH; depth++) {
+      chainEnd = chainEnd.firstElementChild;
+    }
+    if (chainEnd === element) return true;
+    let anchor = card.querySelector(X_AVATAR_SELECTOR);
+    for (let level = 0; anchor && anchor !== card && level <= X_OUTGOING_LINE_MAX_ANCESTORS; level++) {
+      if (element.parentElement === anchor.parentElement
+          && anchor.compareDocumentPosition(element) & anchor.DOCUMENT_POSITION_FOLLOWING) return true;
+      anchor = anchor.parentElement;
+    }
+    return false;
+  }
+
+  /**
    * Select a safe outer wrapper whose removal will not hide another tweet.
    *
    * @param {Element} card One card returned by getCards.
@@ -768,7 +843,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, shouldHighlightX, getItemMetadata, getItemAuthor, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget, isXReplyToPreviousPost, getXIncomingThreadLine, getXOutgoingThreadLine };
+  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getDecisionIds, isXThreadLinePosition, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, shouldHighlightX, getItemMetadata, getItemAuthor, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget, isXReplyToPreviousPost, getXIncomingThreadLine, getXOutgoingThreadLine };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);

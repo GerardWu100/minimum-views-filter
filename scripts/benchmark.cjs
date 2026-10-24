@@ -35,6 +35,7 @@ const SETTLED_CHECKPOINTS = 3;
 const HIDDEN_ATTRIBUTE = 'data-minimum-views-hidden';
 const SOURCE_FILES = ['settings.js', 'filter-core.js', 'content.js'];
 const INITIAL_COUNTS = [999, 1000, null, 2500];
+const BENCHMARK_EXTENSION_ID = 'benchmark-extension';
 
 function parseArguments() {
   const options = {source: path.resolve(__dirname, '../src'), cards: DEFAULT_CARD_COUNT, batches: DEFAULT_BATCH_COUNT};
@@ -162,7 +163,8 @@ async function benchmarkSite(sourceDirectory, site, cardCount, batchCount) {
       sync: settingsArea,
       onChanged: {addListener: (callback) => storageListeners.add(callback), removeListener: (callback) => storageListeners.delete(callback)},
     },
-    runtime: {sendMessage: async () => ({ok: true}), onMessage: {addListener() {}, removeListener() {}}},
+    // A stable ID: the production liveness guard stops a copy without one.
+    runtime: {id: BENCHMARK_EXTENSION_ID, sendMessage: async () => ({ok: true}), onMessage: {addListener() {}, removeListener() {}}},
   };
 
   async function flush() {

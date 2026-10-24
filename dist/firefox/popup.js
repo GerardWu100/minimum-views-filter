@@ -4,7 +4,7 @@
   const extension = globalThis.browser || globalThis.chrome;
   const {
     normalizeSettings, parseWhitelistInput, oversizedSyncKeys,
-    formatSettingsTransfer, parseSettingsTransfer, MAXIMUM_VIEWS, STORAGE_AREA,
+    formatSettingsTransfer, parseSettingsTransfer, MAXIMUM_VIEWS, STORAGE_AREA, UPDATE_SETTINGS_MESSAGE,
   } = globalThis.MinimumViewsSettings;
   const storage = extension.storage[STORAGE_AREA];
   const form = document.getElementById("settings-form");
@@ -58,7 +58,9 @@
   ];
   const DEFAULT_SETTINGS = normalizeSettings();
   const SWITCH_ANIMATION_DELAY_MS = 100;
-  let lastSavedSettings = DEFAULT_SETTINGS;
+  // Stored value each control last matched, key by key. A control that differs
+  // from it holds an unsaved edit; only those edits are saved.
+  let baseline = {...DEFAULT_SETTINGS};
 
   function validMinimum(input) {
     const value = Number(input.value);
@@ -86,10 +88,10 @@
       fields.whitelist.disabled = !active || !fields.whitelistEnabled.checked;
       // An inactive rule retains its last valid value, so it can be saved or turned on later.
       if (fields.minimum.disabled && !validMinimum(fields.minimum)) {
-        fields.minimum.value = lastSavedSettings[fields.site + "MinimumViews"];
+        fields.minimum.value = baseline[fields.site + "MinimumViews"];
       }
       if (fields.whitelist.disabled && parseWhitelistInput(fields.whitelist.value, fields.site).invalidEntries.length) {
-        fields.whitelist.value = lastSavedSettings[fields.site + "Whitelist"].map((identifier) => fields.site === "x" ? "@" + identifier : identifier).join("\n");
+        fields.whitelist.value = formatWhitelist(fields.site, baseline[fields.site + "Whitelist"]);
         showWhitelistSize(fields);
       }
     }
@@ -99,7 +101,7 @@
       toggle.disabled = !xActive;
       const threshold = document.getElementById(thresholdId);
       threshold.disabled = !xActive || !toggle.checked;
-      if (threshold.disabled && !validPercent(threshold)) threshold.value = lastSavedSettings[settingKey];
+      if (threshold.disabled && !validPercent(threshold)) threshold.value = baseline[settingKey];
     }
     threadContext.disabled = !xActive;
     // Showing the edge and the likes condition depend on detection;
@@ -110,26 +112,57 @@
       const threshold = document.getElementById(thresholdId);
       toggle.disabled = !xActive || !highlightDetection.checked;
       threshold.disabled = toggle.disabled || !toggle.checked;
-      if (threshold.disabled && !validPercent(threshold)) threshold.value = lastSavedSettings[settingKey];
+      if (threshold.disabled && !validPercent(threshold)) threshold.value = baseline[settingKey];
     }
   }
 
-  function showSettings(settings) {
-    for (const fields of siteFields) {
-      const {site, minimum, whitelist, enabled, minimumEnabled, whitelistEnabled} = fields;
-      minimum.value = settings[site + "MinimumViews"];
-      whitelist.value = settings[site + "Whitelist"].map((identifier) => site === "x" ? "@" + identifier : identifier).join("\n");
-      enabled.checked = settings[site + "Enabled"];
-      minimumEnabled.checked = settings[site + "MinimumViewsEnabled"];
-      whitelistEnabled.checked = settings[site + "WhitelistEnabled"];
+  // Settings key -> {input, kind, fields}; kind is "boolean", "minimum",
+  // "percent" or "whitelist", and fields is the site's group for whitelists.
+  const controlsByKey = new Map([
+    ["hideUnknown", {input: hideUnknown, kind: "boolean"}],
+    ["statisticsEnabled", {input: statisticsEnabled, kind: "boolean"}],
+    ...siteFields.flatMap((fields) => [
+      [fields.site + "Enabled", {input: fields.enabled, kind: "boolean"}],
+      [fields.site + "MinimumViewsEnabled", {input: fields.minimumEnabled, kind: "boolean"}],
+      [fields.site + "MinimumViews", {input: fields.minimum, kind: "minimum"}],
+      [fields.site + "WhitelistEnabled", {input: fields.whitelistEnabled, kind: "boolean"}],
+      [fields.site + "Whitelist", {input: fields.whitelist, kind: "whitelist", fields}],
+    ]),
+    ...xFields.map(({key, input}) => [key, {input, kind: typeof DEFAULT_SETTINGS[key] === "boolean" ? "boolean" : "percent"}]),
+  ]);
+
+  function formatWhitelist(site, identifiers) {
+    return identifiers.map((identifier) => site === "x" ? "@" + identifier : identifier).join("\n");
+  }
+
+  /** Read one control as a setting value, or null while its text is invalid. */
+  function controlValue(key) {
+    const {input, kind, fields} = controlsByKey.get(key);
+    if (kind === "boolean") return input.checked;
+    if (kind === "minimum") return validMinimum(input) ? Number(input.value) : null;
+    if (kind === "percent") return validPercent(input) ? Number(input.value) : null;
+    const parsed = parseWhitelistInput(input.value, fields.site);
+    return parsed.invalidEntries.length ? null : parsed.identifiers;
+  }
+
+  /** Compare setting values; whitelist order carries no meaning. */
+  function sameValue(first, second) {
+    if (!Array.isArray(first) || !Array.isArray(second)) return first === second;
+    const members = new Set(first);
+    return members.size === new Set(second).size && second.every((identifier) => members.has(identifier));
+  }
+
+  function setControl(key, value) {
+    const {input, kind, fields} = controlsByKey.get(key);
+    if (kind === "boolean") input.checked = value;
+    else if (kind === "whitelist") {
+      input.value = formatWhitelist(fields.site, value);
       showWhitelistSize(fields);
-    }
-    hideUnknown.checked = settings.hideUnknown;
-    statisticsEnabled.checked = settings.statisticsEnabled;
-    for (const {key, input} of xFields) {
-      if (typeof DEFAULT_SETTINGS[key] === "boolean") input.checked = settings[key];
-      else input.value = settings[key];
-    }
+    } else input.value = value;
+  }
+
+  function showSettings(settings) {
+    for (const key of controlsByKey.keys()) setControl(key, settings[key]);
     updateControlAvailability();
   }
 
@@ -181,27 +214,96 @@
     return settings;
   }
 
+  /**
+   * Follow a change another tab, the context menu, or browser sync stored.
+   *
+   * A control still showing its baseline takes the new value. A control the
+   * user edited keeps the edit, which wins when saved; whitelist edits are
+   * saved as additions and removals, so the other change's entries survive.
+   */
+  function applyStoredChanges(changes) {
+    let keptEdits = false;
+    for (const key of controlsByKey.keys()) {
+      if (!Object.hasOwn(changes, key)) continue;
+      const value = normalizeSettings({[key]: changes[key].newValue})[key];
+      const current = controlValue(key);
+      if (current !== null && sameValue(current, value)) {
+        baseline[key] = value;
+      } else if (current !== null && sameValue(current, baseline[key])) {
+        setControl(key, value);
+        baseline[key] = value;
+      } else {
+        keptEdits = true;
+      }
+    }
+    updateControlAvailability();
+    if (keptEdits) status.textContent = "Settings changed elsewhere. Your unsaved edits are kept; Save applies them.";
+  }
+
+  // Changes stored before the first read resolves; merged over its result.
+  let changesDuringLoad = {};
+  extension.storage.onChanged.addListener((changes, area) => {
+    if (area !== STORAGE_AREA) return;
+    if (changesDuringLoad) Object.assign(changesDuringLoad, changes);
+    else applyStoredChanges(changes);
+  });
+
   storage.get(null).then((stored) => {
-    lastSavedSettings = normalizeSettings(stored);
-    showSettings(lastSavedSettings);
+    const pending = Object.fromEntries(Object.entries(changesDuringLoad).map(([key, {newValue}]) => [key, newValue]));
+    changesDuringLoad = null;
+    baseline = normalizeSettings({...stored, ...pending});
+    showSettings(baseline);
     controls.disabled = false;
     setTimeout(() => document.body.toggleAttribute("data-settings-shown", true), SWITCH_ANIMATION_DELAY_MS);
   }).catch(() => {
     status.textContent = "Could not load settings. Reopen the extension.";
   });
 
+  /** List the user's edits against the baseline, as the background writer's update. */
+  function editsFrom(settings) {
+    const values = {};
+    const whitelists = {};
+    for (const key of controlsByKey.keys()) {
+      if (sameValue(settings[key], baseline[key])) continue;
+      const {kind, fields} = controlsByKey.get(key);
+      if (kind !== "whitelist") {
+        values[key] = settings[key];
+        continue;
+      }
+      const before = new Set(baseline[key]);
+      const after = new Set(settings[key]);
+      whitelists[fields.site] = {
+        add: settings[key].filter((identifier) => !before.has(identifier)),
+        remove: baseline[key].filter((identifier) => !after.has(identifier)),
+      };
+    }
+    return {values, whitelists};
+  }
+
   form.addEventListener("change", updateControlAvailability);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const settings = readForm();
     if (!settings) return;
+    const {values, whitelists} = editsFrom(settings);
+    if (!Object.keys(values).length && !Object.keys(whitelists).length) {
+      status.textContent = "No changes to save.";
+      return;
+    }
+    // Disabled controls cannot gain new edits while the write is in flight.
     controls.disabled = true;
     try {
-      await storage.set(settings);
-      lastSavedSettings = settings;
+      const response = await extension.runtime.sendMessage({type: UPDATE_SETTINGS_MESSAGE, values, whitelists});
+      if (!response?.ok) throw new Error(response?.error || "failed");
+      // Every edit was saved; show the stored result, including entries
+      // another tab added meanwhile.
+      baseline = normalizeSettings(await storage.get(null));
+      showSettings(baseline);
       status.textContent = "Saved. Open feeds update automatically.";
-    } catch {
-      status.textContent = "Could not save. Please try again.";
+    } catch (error) {
+      status.textContent = error.message === "full"
+        ? "A whitelist is too long to sync. Remove some entries."
+        : "Could not save. Please try again.";
     } finally {
       controls.disabled = false;
       updateControlAvailability();

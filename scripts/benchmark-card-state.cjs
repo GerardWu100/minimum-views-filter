@@ -13,6 +13,7 @@ const {JSDOM} = require('jsdom');
 const CARD_COUNT = 200;
 const TITLE_LENGTH = 240;
 const SETTLE_ROUNDS = 10;
+const BENCHMARK_EXTENSION_ID = 'benchmark-extension';
 const SOURCE_FILES = ['settings.js', 'filter-core.js', 'content.js'];
 const currentSource = path.resolve(__dirname, '../src');
 const baselineSource = process.argv[2] && path.resolve(process.argv[2]);
@@ -35,7 +36,8 @@ async function measure(sourceDirectory) {
     const messages = [];
     window.browser = {
       storage: {sync: {get: async () => ({statisticsEnabled: true})}, onChanged: {addListener() {}, removeListener() {}}},
-      runtime: {sendMessage: async (message) => {messages.push(JSON.parse(JSON.stringify(message))); return {ok: true};},
+      // A stable ID: the production liveness guard stops a copy without one.
+      runtime: {id: BENCHMARK_EXTENSION_ID, sendMessage: async (message) => {messages.push(JSON.parse(JSON.stringify(message))); return {ok: true};},
         onMessage: {addListener() {}, removeListener() {}}},
     };
     for (const file of SOURCE_FILES) window.eval(readFileSync(path.join(sourceDirectory, file), 'utf8'));

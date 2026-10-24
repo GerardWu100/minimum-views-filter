@@ -231,3 +231,33 @@ test('Reset statistics asks for confirmation; Cancel and Escape keep history', a
   await tick();
   assert.equal(page.document.querySelectorAll('#entries li').length, 0);
 });
+
+// Audit 2026-10-24: a summary-only change must not rebuild 1,000 unchanged rows.
+test('a counter-only change keeps every Statistics row; one changed item replaces only its row', async (t) => {
+  const page = openHistory(t);
+  const history = fullHistory();
+  for (const item of history.entries) Object.assign(item, {likes: 1, bookmarks: 2, replies: 3, author: '@author'});
+  page.messages[0].resolve({ok: true, history: structuredClone(history)});
+  await tick();
+  const rows = [...page.document.querySelectorAll('#entries li')];
+  assert.equal(rows.length, store.MAX_ENTRIES);
+  let created = 0;
+  const createElement = page.document.createElement.bind(page.document);
+  page.document.createElement = (...args) => { created++; return createElement(...args); };
+  for (let change = 1; change <= 3; change++) {
+    page.changed();
+    page.messages.at(-1).resolve({ok: true, history: {...structuredClone(history), xHighlightedCount: change}});
+    await tick();
+    assert.equal(page.document.querySelector('#x-highlighted-count').textContent, String(change));
+  }
+  assert.equal(created, 0);
+  assert.deepEqual([...page.document.querySelectorAll('#entries li')], rows);
+  history.entries[5].views = 20;
+  page.changed();
+  page.messages.at(-1).resolve({ok: true, history: structuredClone(history)});
+  await tick();
+  const after = [...page.document.querySelectorAll('#entries li')];
+  assert.equal(after.filter((row, index) => row !== rows[index]).length, 1);
+  assert.notEqual(after[5], rows[5]);
+  assert.match(after[5].textContent, /Views 20/);
+});

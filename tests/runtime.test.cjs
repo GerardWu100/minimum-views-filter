@@ -5,7 +5,7 @@ const {readFileSync} = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {JSDOM} = require('jsdom');
-const {normalizeSettings} = require('../src/settings.js');
+const {normalizeSettings, applySettingsUpdate, UPDATE_SETTINGS_MESSAGE} = require('../src/settings.js');
 
 const SOURCE = path.join(__dirname, '..', 'src');
 const source = (name) => readFileSync(path.join(SOURCE, name), 'utf8');
@@ -40,10 +40,24 @@ function createStorage({stored = {}, get, set} = {}) {
           removeListener: (listener) => listeners.delete(listener),
         },
       },
-      runtime: {id: 'test-extension', sendMessage: async (message) => {recordedMessages.push(JSON.parse(JSON.stringify(message))); return {ok: true};}, onMessage: {
+      runtime: {id: 'test-extension', sendMessage: async (message) => {
+        if (message?.type === UPDATE_SETTINGS_MESSAGE) return mock.applyUpdate({values: message.values, whitelists: message.whitelists});
+        recordedMessages.push(JSON.parse(JSON.stringify(message)));
+        return {ok: true};
+      }, onMessage: {
         addListener: (listener) => messageListeners.add(listener),
         removeListener: (listener) => messageListeners.delete(listener),
       }},
+    },
+    /** Apply one edit like the background's serialized settings writer. */
+    async applyUpdate(update) {
+      try {
+        const outcome = applySettingsUpdate(await mock.api.storage.sync.get(null), JSON.parse(JSON.stringify(update)));
+        if (outcome.ok && Object.keys(outcome.changes).length) await mock.api.storage.sync.set(outcome.changes);
+        return outcome.ok ? {ok: true} : {ok: false, error: outcome.error};
+      } catch {
+        return {ok: false, error: 'storage-unavailable'};
+      }
     },
     change(values, area = 'sync') {
       const changes = Object.fromEntries(Object.entries(values).map(([key, newValue]) => [key, {newValue}]));
@@ -328,7 +342,8 @@ for (const namespace of ['browser', 'chrome']) {
     document.querySelector('#hide-unknown').checked = false;
     submit();
     await wait(0);
-    assert.deepEqual(storage.writes, [normalizeSettings({xMinimumViews: 2000, youtubeMinimumViews: 750, xWhitelist: ['nasa', 'spacex'], youtubeWhitelist: ['@science', 'channel/UCExample'], xEnabled: true, youtubeEnabled: false, hideUnknown: false})]);
+    // Only edited settings are written; untouched ones keep whatever is stored.
+    assert.deepEqual(storage.writes, [{xMinimumViews: 2000, youtubeMinimumViews: 750, xWhitelist: ['nasa', 'spacex'], youtubeWhitelist: ['@science', 'channel/UCExample'], xEnabled: true, youtubeEnabled: false, hideUnknown: false}]);
     assert.match(document.querySelector('#status').textContent, /Saved/);
     assert.equal(document.querySelector('#controls').disabled, false);
   });
@@ -363,6 +378,11 @@ test('popup reports save failure and permits a retry', async (t) => {
   let attempts = 0;
   const {document, storage, submit} = openPopup(t, {set: async () => {if (++attempts === 1) throw new Error('Unavailable');}});
   await wait(0);
+  submit();
+  await wait(0);
+  assert.match(document.querySelector('#status').textContent, /No changes/);
+  assert.equal(storage.writes.length, 0);
+  document.querySelector('#x-minimum-views').value = '1500';
   submit();
   await wait(0);
   assert.match(document.querySelector('#status').textContent, /Could not save/);
@@ -831,35 +851,28 @@ for (const pathname of ['/', '/watch?v=playing']) {
 
 const WHITELIST_MESSAGE = {type: 'minimum-views-filter:whitelist-creator'};
 const rightClick = (window, element) => element.dispatchEvent(new window.MouseEvent('contextmenu', {bubbles: true, cancelable: true}));
+/** Act as the background: ask the page for the creator, then add it through the settings writer. */
+async function whitelistFromMenu(storage) {
+  const response = await storage.sendMessage(WHITELIST_MESSAGE);
+  if (response?.result === 'found') await storage.applyUpdate({whitelists: {[response.site]: {add: [response.identifier]}}});
+  return response;
+}
 
-test('context menu whitelists the X card author, not a mentioned account, and reveals their posts', async (t) => {
+test('context menu names the X card author, not a mentioned account, and the added entry reveals their posts', async (t) => {
   const {window, document, storage} = openContent(t, {html: xCard(1, '800', 'writer') + xCard(2, '300', 'writer') + xCard(3, '300', 'other')});
   document.querySelector('#post-1 [data-testid="tweetText"]').insertAdjacentHTML('beforeend', ' <a id="mention" href="/mentioned">@mentioned</a>');
   await wait();
   assertVisible(window, '#cell-1', false);
   rightClick(window, document.querySelector('#mention'));
-  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'added', identifier: 'writer'});
+  assert.deepEqual(await whitelistFromMenu(storage), {result: 'found', site: 'x', identifier: 'writer'});
   assert.deepEqual(storage.writes, [{xWhitelist: ['writer']}]);
   await wait();
   assertVisible(window, '#cell-1', true);
   assertVisible(window, '#cell-2', true);
   assertVisible(window, '#cell-3', false);
   rightClick(window, document.querySelector('#post-2 time'));
-  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'present', identifier: 'writer'});
-  assert.equal(storage.writes.length, 1);
-});
-
-test('context menu stores the author but reports a switched-off whitelist', async (t) => {
-  const {window, document, storage} = openContent(t, {html: xCard(1, '800', 'writer'), stored: {xWhitelistEnabled: false}});
-  await wait();
-  rightClick(window, document.querySelector('#post-1 time'));
-  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'switched-off', identifier: 'writer'});
-  assert.deepEqual(storage.writes, [{xWhitelist: ['writer']}]);
-  await wait();
-  assertVisible(window, '#cell-1', false);
-  rightClick(window, document.querySelector('#post-1 time'));
-  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'switched-off', identifier: 'writer'});
-  assert.equal(storage.writes.length, 1);
+  assert.deepEqual(await whitelistFromMenu(storage), {result: 'found', site: 'x', identifier: 'writer'});
+  assert.equal(storage.writes.length, 1, 'an entry already present is not written again');
 });
 
 test('context menu uses the right-clicked post when one X cell holds two posts', async (t) => {
@@ -867,20 +880,20 @@ test('context menu uses the right-clicked post when one X cell holds two posts',
   const {window, document, storage} = openContent(t, {html});
   await wait();
   rightClick(window, document.querySelector('#post-2 [data-testid="tweetText"]'));
-  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'added', identifier: 'second'});
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'found', site: 'x', identifier: 'second'});
 });
 
-test('context menu reports missing creators and never reuses an earlier right-click', async (t) => {
+test('context menu reports missing creators, never reuses an earlier right-click, and never writes storage itself', async (t) => {
   const {window, document, storage} = openContent(t, {html: '<aside id="sidebar">Trends</aside>' + xCard(1, '800', 'writer')});
   await wait();
   assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'missing'});
   rightClick(window, document.querySelector('#sidebar'));
   assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'missing'});
   rightClick(window, document.querySelector('#post-1'));
-  assert.equal((await storage.sendMessage(WHITELIST_MESSAGE)).result, 'added');
+  assert.equal((await storage.sendMessage(WHITELIST_MESSAGE)).result, 'found');
   assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'missing'});
   assert.equal(await storage.sendMessage({type: 'unrelated'}), undefined);
-  assert.equal(storage.writes.length, 1);
+  assert.equal(storage.writes.length, 0);
 });
 
 test('context menu uses a YouTube channel link outside cards, including on excluded pages', async (t) => {
@@ -889,28 +902,15 @@ test('context menu uses a YouTube channel link outside cards, including on exclu
   await wait();
   assertVisible(window, '#video-1', false);
   rightClick(window, document.querySelector('#video-link'));
-  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'missing'});
+  assert.deepEqual(await whitelistFromMenu(storage), {result: 'missing'});
   rightClick(window, document.querySelector('#owner a'));
-  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'added', identifier: '@owner'});
+  assert.deepEqual(await whitelistFromMenu(storage), {result: 'found', site: 'youtube', identifier: '@owner'});
   assert.deepEqual(storage.writes, [{youtubeWhitelist: ['@kept', '@owner']}]);
   await wait();
   assertVisible(window, '#video-1', true);
   window.history.pushState({}, '', '/results?search_query=example');
   rightClick(window, document.querySelector('#video-1 a#video-title'));
-  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'present', identifier: '@owner'});
-});
-
-test('context menu refuses to grow a whitelist past the sync item quota', async (t) => {
-  const {oversizedSyncKeys} = require('../src/settings.js');
-  const handles = [];
-  // Fill to the largest list that fits one sync item; fillers match 'writer' in length.
-  const filler = () => 'w' + String(handles.length).padStart(5, '0');
-  while (!oversizedSyncKeys({xWhitelist: [...handles, filler()]}).length) handles.push(filler());
-  const {window, document, storage} = openContent(t, {html: xCard(1, '800', 'writer'), stored: {xWhitelist: handles}});
-  await wait();
-  rightClick(window, document.querySelector('#post-1'));
-  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'full', identifier: 'writer'});
-  assert.equal(storage.writes.length, 0);
+  assert.deepEqual(await storage.sendMessage(WHITELIST_MESSAGE), {result: 'found', site: 'youtube', identifier: '@owner'});
 });
 
 test('popup copies settings as text and loads pasted text for review before saving', async (t) => {
@@ -933,7 +933,8 @@ test('popup copies settings as text and loads pasted text for review before savi
   assert.equal(storage.writes.length, 0);
   submit();
   await wait(0);
-  assert.deepEqual(storage.writes, [normalizeSettings({...stored, xWhitelist: ['spacex']})]);
+  // The loaded text differs from storage only in the X whitelist.
+  assert.deepEqual(storage.writes, [{xWhitelist: ['spacex']}]);
   assert.ok(window);
 });
 
@@ -1602,3 +1603,184 @@ for (const sameWorld of [true, false]) {
     fresh.listeners.clear();
   });
 }
+
+// Audit 2026-10-24: a vanished or restyled thread join must release the parent
+// it kept visible, and clear the marks it caused, at mutation delivery.
+const hiddenUrls = (storage) => historyItems(storage).map(({url}) => url);
+
+test('X hides a thread parent again when its shown joined reply cell is removed', async (t) => {
+  const {window, document, storage, work} = openContent(t, {html: xCard(1, '100') + xReplyCard(2, '2,000') + xCard(3, '2,000')});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  const scans = work.documentScans;
+  document.querySelector('#cell-2').remove();
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', false);
+  assertVisible(window, '#cell-3', true);
+  assert.equal(work.documentScans, scans, 'a removal reconciles its neighbours, not the page');
+  await wait();
+  assert.deepEqual(hiddenUrls(storage), ['https://x.com/author/status/1']);
+});
+
+test('X hides a thread parent again when its reply loses the incoming thread line', async (t) => {
+  const {window, document} = openContent(t, {html: xCard(1, '100') + xReplyCard(2, '2,000')});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  document.querySelector('#post-2 > div').remove();
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', false);
+  assertVisible(window, '#cell-2', true);
+});
+
+test('X hides a thread parent again when its reply\'s thread line is restyled too wide', async (t) => {
+  const {window, document, work} = openContent(t, {html: xCard(1, '100') + xReplyCard(2, '2,000')});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  document.querySelector(incomingLine(2)).style.width = '40px';
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', false);
+  document.querySelector(incomingLine(2)).style.width = '2px';
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', true);
+  // Restyles away from thread-line positions read nothing.
+  const reads = work.getViewCount;
+  document.querySelector('#post-2 a[href$="/analytics"]').style.color = 'red';
+  document.querySelector('#cell-2').style.transform = 'translateY(10px)';
+  await Promise.resolve();
+  assert.equal(work.getViewCount, reads);
+});
+
+test('X removes the thread-line cut and divider a removed hidden reply left on its shown parent', async (t) => {
+  const {document} = openContent(t, {html: withOutgoingLine(xCard(1, '2,000')) + xReplyCard(2, '100') + xCard(3, '2,000')});
+  await wait();
+  assert.equal(isThreadCut(document, '#post-1 .thread-out'), true);
+  assert.equal(document.querySelector('#cell-1').hasAttribute('data-minimum-views-thread-end'), true);
+  document.querySelector('#cell-2').remove();
+  await Promise.resolve();
+  assert.equal(isThreadCut(document, '#post-1 .thread-out'), false);
+  assert.equal(document.querySelector('#cell-1').hasAttribute('data-minimum-views-thread-end'), false);
+});
+
+test('X re-evaluates a thread parent when its reply cell is recycled or moved', async (t) => {
+  const {window, document} = openContent(t, {html: xCard(1, '100') + xReplyCard(2, '2,000') + xCard(3, '2,000') + xCard(4, '100') + xReplyCard(5, '2,000')});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  assertVisible(window, '#cell-4', true);
+  // Recycled: the reply's cell now holds an unjoined post.
+  document.querySelector('#cell-2').innerHTML = xCard(22, '2,000').replace(/^<div[^>]*>|<\/div>$/g, '');
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', false);
+  // Moved: the joined reply now follows a shown post.
+  document.querySelector('#cell-3').after(document.querySelector('#cell-5'));
+  await Promise.resolve();
+  assertVisible(window, '#cell-4', false);
+  assertVisible(window, '#cell-5', true);
+});
+
+/** Turn an X cell's post into a reply joined to the cell above, as xReplyCard does. */
+const asXReply = (html, id) => html.replace(`<article data-testid="tweet" id="post-${id}">`,
+  `<article data-testid="tweet" id="post-${id}"><div><div><div><div><div><div style="width: 2px"></div></div></div></div></div></div>`);
+const NO_KEEP_RULES = {xHighLikeRatioEnabled: false, xHighBookmarkRatioEnabled: false, xHighReplyRatioEnabled: false};
+
+test('X highlights a qualifying parent kept visible by its joined reply, once, and never as kept or hidden', async (t) => {
+  // Parent: 21/500 = 4.2% likes, 11/500 = 2.2% bookmarks, 2/500 = 0.4% replies.
+  const {window, document, storage} = openContent(t, {stored: NO_KEEP_RULES,
+    html: xEngagementCard(1, '500', 21, 11, 2) + asXReply(xEngagementCard(2, '2,000', 10), 2)});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  assert.equal(document.querySelector('#post-1').hasAttribute('data-minimum-views-highlighted'), true);
+  storage.change({hideUnknown: true});
+  await wait();
+  const parentEvents = (outcome) => recordedItems(storage).filter((item) => item.outcome === outcome && item.url.endsWith('/status/1'));
+  assert.equal(parentEvents('highlighted').length, 1);
+  assert.equal(parentEvents('hidden').length + parentEvents('kept').length, 0);
+  // Without the reply, the parent hides and loses its accent.
+  document.querySelector('#cell-2').remove();
+  await Promise.resolve();
+  assertVisible(window, '#cell-1', false);
+  assert.equal(document.querySelector('#post-1').hasAttribute('data-minimum-views-highlighted'), false);
+  await wait();
+  assert.equal(parentEvents('hidden').length, 1);
+});
+
+test('X thread-rescue highlighting follows the thread-context and accent switches', async (t) => {
+  const html = xEngagementCard(1, '500', 21, 11, 2) + asXReply(xEngagementCard(2, '2,000', 10), 2) + xEngagementCard(3, '500', 21, 11, 2);
+  const {window, document, storage} = openContent(t, {stored: {...NO_KEEP_RULES, xBookmarkHighlightShown: false}, html});
+  await wait();
+  // The accent is off, but the rescued parent still counts as highlighted.
+  assert.equal(document.querySelector('#post-1').hasAttribute('data-minimum-views-highlighted'), false);
+  assert.deepEqual(highlightedItems(storage).map(({url}) => url), ['https://x.com/author/status/1']);
+  // A qualifying post with no joined reply stays hidden.
+  assertVisible(window, '#cell-3', false);
+  storage.change({xThreadContextEnabled: false, xBookmarkHighlightShown: true});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  assert.equal(document.querySelectorAll('[data-minimum-views-highlighted]').length, 0);
+});
+
+test('X discovers a changed joined thread once: reads grow linearly with its length', async (t) => {
+  const measure = async (length) => {
+    const html = xCard(0, '2,000') + Array.from({length: length - 1}, (_, index) => xReplyCard(index + 1, '2,000')).join('');
+    const {window, document, work} = openContent(t, {html, stored: {statisticsEnabled: false}});
+    await wait();
+    const counts = {connections: 0, styles: 0};
+    const core = window.MinimumViewsCore;
+    const isReply = core.isXReplyToPreviousPost;
+    core.isXReplyToPreviousPost = (...args) => { counts.connections++; return isReply(...args); };
+    const computedStyle = window.getComputedStyle;
+    window.getComputedStyle = (...args) => { counts.styles++; return computedStyle(...args); };
+    const before = {...work};
+    for (let id = 0; id < length; id++) setXViews(document, id, '2,001');
+    await Promise.resolve();
+    return {getCards: work.getCards - before.getCards, views: work.getViewCount - before.getViewCount, ...counts};
+  };
+  for (const length of [10, 20, 30]) {
+    const counts = await measure(length);
+    assert.equal(counts.views, length);
+    // One sole-card read per cell for discovery plus one per scanned root.
+    assert.ok(counts.getCards <= 2 * length, JSON.stringify(counts));
+    assert.ok(counts.connections <= length && counts.styles <= length, JSON.stringify(counts));
+  }
+});
+
+// Audit 2026-10-24: the YouTube adapter reads these IDs, so ID-only changes
+// must reconcile the card or subtree they affect.
+test('YouTube rereads a card when a count element gains or loses its ID', async (t) => {
+  const {window, document} = openContent(t, {url: 'https://www.youtube.com/', html: youtubeCard(1, '100')
+    + '<ytd-rich-item-renderer id="video-2"><a id="video-title" href="/watch?v=2">Video 2</a><span id="pending">100 views</span></ytd-rich-item-renderer>'});
+  await wait();
+  assertVisible(window, '#video-1', false);
+  assertVisible(window, '#video-2', true);
+  document.querySelector('#video-1 #metadata-line').id = 'old-metadata';
+  document.querySelector('#pending').id = 'view-count';
+  await Promise.resolve();
+  assertVisible(window, '#video-1', true);
+  assertVisible(window, '#video-2', false);
+});
+
+test('YouTube applies the whitelist when a creator container gains its ID', async (t) => {
+  const html = '<ytd-rich-item-renderer id="video-1"><a id="video-title" href="/watch?v=1">Video 1</a><div id="pending-name"><a href="/@author">Creator</a></div><div id="metadata-line"><span>100 views</span></div></ytd-rich-item-renderer>';
+  const {window, document} = openContent(t, {url: 'https://www.youtube.com/', html, stored: {youtubeWhitelist: ['@author']}});
+  await wait();
+  assertVisible(window, '#video-1', false);
+  document.querySelector('#pending-name').id = 'channel-name';
+  await Promise.resolve();
+  assertVisible(window, '#video-1', true);
+});
+
+test('YouTube releases and refilters cards when an ancestor gains or loses the Shorts player ID', async (t) => {
+  const {window, document, work} = openContent(t, {url: 'https://www.youtube.com/', html: '<div id="sidebar"><span>Menu</span></div><div id="wrapper">' + youtubeCard(1, '100') + '</div>'});
+  await wait();
+  assertVisible(window, '#video-1', false);
+  document.querySelector('#wrapper').id = 'shorts-player';
+  await Promise.resolve();
+  assertVisible(window, '#video-1', true);
+  document.querySelector('#shorts-player').id = 'wrapper';
+  await Promise.resolve();
+  assertVisible(window, '#video-1', false);
+  const before = {...work};
+  document.querySelector('#sidebar').id = 'sidebar-collapsed';
+  document.querySelector('#video-1 #metadata-line span:last-child').id = 'published';
+  await Promise.resolve();
+  assert.equal(work.getCards - before.getCards, 0, 'unrelated IDs read nothing');
+});

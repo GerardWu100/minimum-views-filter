@@ -2,7 +2,7 @@
   "use strict";
 
   const core = globalThis.MinimumViewsCore;
-  const {normalizeSettings, oversizedSyncKeys, STORAGE_AREA, WHITELIST_CREATOR_MESSAGE, X_SETTING_KEYS} = globalThis.MinimumViewsSettings;
+  const {normalizeSettings, STORAGE_AREA, WHITELIST_CREATOR_MESSAGE, X_SETTING_KEYS} = globalThis.MinimumViewsSettings;
   const extension = globalThis.browser || globalThis.chrome;
   // A reloaded or updated extension leaves this script running but cut off:
   // runtime.id disappears and messages fail. The background then injects a
@@ -44,18 +44,21 @@
   const PAGE_EVENTS = ["popstate", "yt-navigate-finish", "pageshow"];
   const SETTING_KEYS = [SITE + "MinimumViews", SITE + "MinimumViewsEnabled", SITE + "Whitelist", SITE + "WhitelistEnabled", SITE + "Enabled", "hideUnknown", "statisticsEnabled", ...(SITE === 'x' ? X_SETTING_KEYS : [])];
   const DECISION_CLASS_NAMES = core.getDecisionClassNames(SITE);
+  const DECISION_IDS = core.getDecisionIds(SITE);
   const OBSERVER_OPTIONS = {
     childList: true,
     subtree: true,
     characterData: true,
     attributes: true,
-    // Ignore style/player state and our own marks. X: role/testid can change
-    // whether a subtree is a quoted post; X reads no classes. YouTube: title and
-    // a few metadata classes establish counts, so class records keep old values.
+    // Ignore player state and our own marks. X: role/testid can change whether
+    // a subtree is a quoted post, and class/style set a thread line's computed
+    // width; onMutations drops restyles away from thread-line positions.
+    // YouTube: title, a few metadata classes and IDs establish counts, so class
+    // and ID records keep their old values.
     attributeFilter: SITE === "x"
-      ? ["aria-label", "href", "data-testid", "role", "lang"]
-      : ["aria-label", "title", "href", "class", "lang"],
-    attributeOldValue: DECISION_CLASS_NAMES.length > 0,
+      ? ["aria-label", "href", "data-testid", "role", "lang", "class", "style"]
+      : ["aria-label", "title", "href", "class", "lang", "id"],
+    attributeOldValue: DECISION_CLASS_NAMES.length > 0 || DECISION_IDS.length > 0,
   };
   let settings = normalizeSettings();
   let whitelist = new Set();
@@ -114,33 +117,43 @@
    *
    * A reply's visibility decides whether its parent stays visible, so a change
    * to either one must re-evaluate the whole joined group. Only the first and
-   * last cell of each root can join cells outside it.
+   * last cell of each root can join cells outside it. Each group is walked
+   * once, however many of its cells changed.
    * Before: changed roots. After: the same roots plus outside thread neighbours.
+   *
+   * joinedReply(cell) is the pass's memo: the cell's sole card when it is a
+   * reply joined to the cell above, else null.
    */
-  function addXThreadNeighbours(roots) {
+  function addXThreadNeighbours(roots, joinedReply) {
+    // Cells already placed in a walked group, and every group cell in DOM order.
+    const grouped = new Set();
     const extra = [];
+    const addGroup = (start) => {
+      if (grouped.has(start)) return;
+      let top = start;
+      for (let above; joinedReply(top) && (above = siblingXCell(top, true));) top = above;
+      for (let cell = top; cell;) {
+        grouped.add(cell);
+        extra.push(cell);
+        const below = siblingXCell(cell, false);
+        cell = below && joinedReply(below) ? below : null;
+      }
+    };
     for (const root of roots) {
       if (!root.isConnected) continue;
       const ownCell = root.closest(X_CELL_SELECTOR);
-      const cells = ownCell ? [ownCell] : root.querySelectorAll(X_CELL_SELECTOR);
+      if (ownCell) {
+        addGroup(ownCell);
+        continue;
+      }
+      const cells = root.querySelectorAll(X_CELL_SELECTOR);
       if (!cells.length) continue;
-      // Walk up while the current post is a joined reply to the cell above.
-      for (let cell = cells[0], card = soleXCard(cell); card && core.isXReplyToPreviousPost(card);) {
-        cell = siblingXCell(cell, true);
-        if (!cell) break;
-        extra.push(cell);
-        card = soleXCard(cell);
-      }
-      // Walk down while the cell below is a joined reply to the current one.
-      for (let cell = siblingXCell(cells[cells.length - 1], false); cell;) {
-        const card = soleXCard(cell);
-        if (!card || !core.isXReplyToPreviousPost(card)) break;
-        extra.push(cell);
-        cell = siblingXCell(cell, false);
-      }
+      addGroup(cells[0]);
+      addGroup(cells[cells.length - 1]);
     }
+    const rootSet = new Set(roots);
     for (const cell of extra) {
-      if (roots.some((root) => root.contains(cell))) continue;
+      if (rootSet.has(cell) || roots.some((root) => root.contains(cell))) continue;
       // A root inside this cell would read the same cards twice.
       for (let index = roots.length - 1; index >= 0; index--) {
         if (cell.contains(roots[index])) roots.splice(index, 1);
@@ -157,6 +170,48 @@
 
   function containsCardOrMark(element) {
     return element.matches(CARD_OR_MARK_SELECTOR) || element.querySelector(CARD_OR_MARK_SELECTOR) !== null;
+  }
+
+  /**
+   * Queue the X cells that bordered a removal.
+   *
+   * A removed reply, or a reply that lost its incoming thread line, may have
+   * kept the post above it visible or left marks on it. Walking joins in the
+   * new structure cannot reach that post, so seed it from the record: the cell
+   * above a changed cell, or the record's siblings around removed cells.
+   */
+  function queueFormerXNeighbours(record, element) {
+    const cell = element.closest(X_CELL_SELECTOR);
+    if (cell) {
+      const above = siblingXCell(cell, true);
+      if (above) queueRoot(above);
+      return;
+    }
+    for (const backward of [true, false]) {
+      let node = backward ? record.previousSibling : record.nextSibling;
+      while (node && node.nodeType !== 1) node = backward ? node.previousSibling : node.nextSibling;
+      if (node?.isConnected && containsCardOrMark(node)) queueRoot(cardScope(node) || node);
+    }
+  }
+
+  /**
+   * Route an X class/style record that can change a thread join.
+   * Thread lines are empty divs whose computed width decides a join, so only
+   * those at a thread-line position queue their cell and the cell above.
+   */
+  function routeXRestyle(element) {
+    if (element.tagName !== "DIV" || element.firstElementChild) return;
+    const card = outerCard(element);
+    if (!card || !core.isXThreadLinePosition(element, card)) return;
+    const cell = card.closest(X_CELL_SELECTOR);
+    queueRoot(cell || card);
+    const above = cell && siblingXCell(cell, true);
+    if (above) queueRoot(above);
+  }
+
+  /** True when an ID record gains or loses an ID the YouTube adapter reads. */
+  function changesDecisionId(record) {
+    return DECISION_IDS.includes(record.target.id) || DECISION_IDS.includes(record.oldValue);
   }
 
   /** Collapse overlapping scopes; large bursts become one full scan, not a queue. */
@@ -207,6 +262,7 @@
     }
     // Text/attribute bursts often repeat one target; route each target once.
     const routedTargets = new Set();
+    const restyledTargets = new Set();
     for (const record of records) {
       const element = record.target.nodeType === 1 ? record.target : record.target.parentElement;
       if (!element?.isConnected) continue;
@@ -214,14 +270,25 @@
         if (element === document.documentElement) scheduleScan(true);
         continue;
       }
+      if (SITE === "x" && record.type === "attributes" && (record.attributeName === "class" || record.attributeName === "style")) {
+        if (!restyledTargets.has(element)) {
+          restyledTargets.add(element);
+          routeXRestyle(element);
+        }
+        if (fullScanRequired) break;
+        continue;
+      }
       if (record.type === "attributes" && record.attributeName === "class" && !changesDecisionClass(record)) continue;
-      const changesQuoteRole = record.type === "attributes"
-        && (record.attributeName === "role" || record.attributeName === "data-testid");
-      // Quote role changes and child lists carry more than their target element.
-      if (record.type !== "childList" && !changesQuoteRole) {
+      if (record.type === "attributes" && record.attributeName === "id" && !changesDecisionId(record)) continue;
+      // Quote role changes and a Shorts player ID decide which cards a subtree
+      // holds; like child lists, they carry more than their target element.
+      const changesSubtree = record.type === "attributes"
+        && (record.attributeName === "role" || record.attributeName === "data-testid" || record.attributeName === "id");
+      if (record.type !== "childList" && !changesSubtree) {
         if (routedTargets.has(element)) continue;
         routedTargets.add(element);
       }
+      if (SITE === "x" && record.type === "childList" && record.removedNodes.length) queueFormerXNeighbours(record, element);
       // A formerly hidden wrapper may have lost its card; reconcile its mark
       // before it is reused for another kind of content. One ancestor walk
       // rules out sidebar/player records that lie outside every card and mark.
@@ -234,7 +301,7 @@
         for (const node of record.addedNodes) {
           if (node.nodeType === 1 && containsCardOrMark(node)) queueRoot(cardScope(node) || node);
         }
-      } else if (changesQuoteRole && containsCardOrMark(element)) {
+      } else if (changesSubtree && containsCardOrMark(element)) {
         queueRoot(element);
       }
       if (fullScanRequired) break;
@@ -300,12 +367,27 @@
     }
     const roots = fullScanRequired ? [document] : [...pendingRoots];
     const threadContext = SITE === "x" && settings.xThreadContextEnabled;
+    // Pass-only memo: cell -> its sole card when that card is a reply joined
+    // to the cell above, else null. Our marks change no thread line, so it
+    // stays exact for the pass; it is dropped on return, so it can neither go
+    // stale across mutations nor keep a removed cell alive.
+    // A caller holding a card inside the cell passes it, saving a card search:
+    // that card is the cell's sole card exactly when the cell is its hide target.
+    const joinedReplies = new Map();
+    const joinedReply = (cell, cardInCell) => {
+      if (!joinedReplies.has(cell)) {
+        const card = cardInCell ? (core.getHideTarget(cardInCell, SITE) === cell ? cardInCell : null) : soleXCard(cell);
+        joinedReplies.set(cell, card && core.isXReplyToPreviousPost(card) ? card : null);
+      }
+      return joinedReplies.get(cell);
+    };
     // Thread lines are trimmed even with thread context off, so X always needs
     // the joined neighbours of a changed cell.
-    if (SITE === "x" && !fullScanRequired) addXThreadNeighbours(roots);
+    if (SITE === "x" && !fullScanRequired) addXThreadNeighbours(roots, joinedReply);
     pendingRoots.clear();
     fullScanRequired = false;
-    // Hide target -> {card, event}. Hiding waits until joined replies are known.
+    // Hide target -> {card, views, engagement, event}. Hiding waits until
+    // joined replies are known.
     const hiddenCards = new Map();
     // X cards this pass leaves visible: joined replies can keep their parents,
     // and thread lines toward hidden neighbours are trimmed.
@@ -350,6 +432,18 @@
       historyItems.push({site: SITE, ...metadata, author: core.getItemAuthor(card, SITE), ...event, ...(enrich ? {enrich: true} : {})});
       if (historyItems.length === HISTORY_BATCH_SIZE) recordBatch();
     };
+    /**
+     * Apply the independent accent to a card this pass leaves visible.
+     * A qualifying post is recorded even while its accent is switched off.
+     */
+    const applyHighlight = (card, views, engagement) => {
+      if (highlightDetected && core.shouldHighlightX(views, engagement, settings)) {
+        if (settings.xBookmarkHighlightShown) nextHighlighted.add(card);
+        recordOutcome(recordedHighlightedCards, card, {outcome: "highlighted", reason: "high-bookmark-ratio", views, ...engagement});
+      } else {
+        recordedHighlightedCards.delete(card);
+      }
+    };
     for (const root of roots) {
       if (!root.isConnected) continue;
       if (root.nodeType === 1) {
@@ -382,44 +476,46 @@
           && core.getCreatorIdentifiers(card, SITE).some((identifier) => whitelist.has(identifier));
         if (!reason) recordedHiddenCards.delete(card);
         if (!keptBy) recordedKeptCards.delete(card);
-        // A qualifying post is recorded even while its outline is switched off.
-        const highlighted = highlightDetected && (!reason || whitelisted)
-          && core.shouldHighlightX(views, engagement, settings);
-        if (highlighted) {
-          if (settings.xBookmarkHighlightShown) nextHighlighted.add(card);
-          recordOutcome(recordedHighlightedCards, card, {outcome: "highlighted", reason: "high-bookmark-ratio", views, ...engagement});
-        } else {
-          recordedHighlightedCards.delete(card);
+        if (reason && !whitelisted) {
+          // Highlighting waits too: a joined reply may still keep this card visible.
+          hiddenCards.set(core.getHideTarget(card, SITE), {card, views, engagement, event: {outcome: "hidden", reason, views, ...engagement}});
+          continue;
         }
+        applyHighlight(card, views, engagement);
         if (whitelisted) {
           recordedHiddenCards.delete(card);
           recordedKeptCards.delete(card);
         } else if (keptBy) {
           recordOutcome(recordedKeptCards, card, {outcome: "kept", reason: keptBy, bypassedReason, views, ...engagement});
-        } else if (reason) {
-          hiddenCards.set(core.getHideTarget(card, SITE), {card, event: {outcome: "hidden", reason, views, ...engagement}});
-          continue;
         }
         if (SITE === "x") visibleCards.push(card);
       }
     }
     // A visible reply keeps the post it answers visible, and so on up the
     // joined thread, so the reply never shows without its context. Rescued
-    // parents are not hidden, so they leave no hidden-history event.
+    // parents are not hidden or kept by engagement, so they leave neither
+    // history event, but they may qualify for the independent highlight.
+    const rescuedCards = [];
     for (const card of threadContext ? visibleCards : []) {
       for (let reply = card, cell = card.closest(X_CELL_SELECTOR); cell;) {
         const parentCell = siblingXCell(cell, true);
         // Only a sole-post cell is its own hide target, so this also skips shared cells.
         const hiddenParent = parentCell && hiddenCards.get(parentCell);
         // Thread groups join single-post cells only, matching addXThreadNeighbours.
-        if (!hiddenParent || core.getHideTarget(reply, SITE) !== cell || !core.isXReplyToPreviousPost(reply)) break;
+        if (!hiddenParent || joinedReply(cell, reply) !== reply) break;
         hiddenCards.delete(parentCell);
         recordedHiddenCards.delete(hiddenParent.card);
+        rescuedCards.push(hiddenParent);
         reply = hiddenParent.card;
         cell = parentCell;
       }
     }
+    for (const {card, views, engagement} of rescuedCards) {
+      applyHighlight(card, views, engagement);
+      visibleCards.push(card);
+    }
     for (const [target, {card, event}] of hiddenCards) {
+      recordedHighlightedCards.delete(card);
       nextHidden.add(target);
       recordOutcome(recordedHiddenCards, card, event);
     }
@@ -444,8 +540,7 @@
       const cell = card.closest(X_CELL_SELECTOR);
       if (!cell || core.getHideTarget(card, SITE) !== cell) continue;
       const below = siblingXCell(cell, false);
-      const reply = below?.hasAttribute(HIDDEN_ATTRIBUTE) && soleXCard(below);
-      if (reply && core.isXReplyToPreviousPost(reply)) {
+      if (below?.hasAttribute(HIDDEN_ATTRIBUTE) && joinedReply(below)) {
         nextThreadEnds.add(cell);
         const outgoing = core.getXOutgoingThreadLine(card);
         if (outgoing) nextThreadCuts.add(outgoing);
@@ -548,38 +643,19 @@
   }
 
   /**
-   * Add an identifier to this site's synced whitelist; storage change rescans.
-   * Returns "added", "present", "full", or "switched-off" when the entry is
-   * stored but the site's whitelist switch keeps it from taking effect.
+   * Name the right-clicked creator for the background's context-menu request.
+   *
+   * The background adds it through its serialized settings writer, so two
+   * tabs adding creators at once cannot overwrite each other's entry; the
+   * storage change then rescans this page. Synchronous sendResponse works in
+   * Chrome and Firefox.
    */
-  async function whitelistCreator(identifier) {
-    const key = SITE + "Whitelist";
-    const switchKey = SITE + "WhitelistEnabled";
-    const stored = normalizeSettings(await extension.storage[STORAGE_AREA].get([key, switchKey]));
-    const current = stored[key];
-    const result = current.includes(identifier) ? "present" : "added";
-    if (result === "added") {
-      const update = {[key]: [...current, identifier]};
-      if (oversizedSyncKeys(update).length) return "full";
-      await extension.storage[STORAGE_AREA].set(update);
-    }
-    return stored[switchKey] ? result : "switched-off";
-  }
-
-  /** Answer the background's context-menu request with sendResponse (Chrome and Firefox). */
   function onRuntimeMessage(message, sender, sendResponse) {
     if (message?.type !== WHITELIST_CREATOR_MESSAGE) return false;
     const identifier = contextMenuCreator;
     contextMenuCreator = null;
-    if (!identifier) {
-      sendResponse({result: "missing"});
-      return false;
-    }
-    whitelistCreator(identifier).then(
-      (result) => sendResponse({result, identifier}),
-      () => sendResponse({result: "failed"}),
-    );
-    return true;
+    sendResponse(identifier ? {result: "found", site: SITE, identifier} : {result: "missing"});
+    return false;
   }
 
   function stop() {

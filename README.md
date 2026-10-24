@@ -170,7 +170,9 @@ does not, **Show posts that a shown reply answers** (on by default) keeps that
 post visible, so the reply never appears without its context. It works up a
 longer thread too: a shown reply keeps every joined post above it. It never
 reveals a hidden reply below a shown post. Posts kept this way are not counted
-as hidden in Statistics.
+as hidden in Statistics, but one that meets the highlight thresholds is
+highlighted. If the reply disappears, is replaced, or loses its thread line, the
+post above it is checked again at once.
 
 The extension recognizes the join only by X's thread line in the reply. If X
 changes that layout, or a cell holds more than one post, the parent is filtered
@@ -242,7 +244,8 @@ uses a system-colored outline instead.
 
 Detection has its own switch and threshold. It does not keep an otherwise
 hidden post visible; the filtering and keep rules decide that separately.
-Whitelisted posts can highlight. Zero/unknown views or unknown bookmarks cannot
+Whitelisted posts can highlight, and so can a post kept visible by a joined
+reply ([X thread context](#x-thread-context)). Zero/unknown views or unknown bookmarks cannot
 highlight, nor can unknown likes while the likes condition is on, and quoted-post counts never qualify the containing post. Counts and
 settings changes remove or apply the edge automatically. X's master switch
 disables both filtering and highlighting. The feature operates on X Home only.
@@ -355,6 +358,13 @@ Settings are saved in the browser's extension **sync storage**:
 | Firefox | Syncs through a Firefox account once the add-on is signed and installed on each computer |
 | Brave | Saved on this computer only; Brave Sync does not sync extension data |
 
+**Save** writes only the settings you changed. If another tab, the right-click
+menu or sync changes a setting while Settings is open, untouched fields update;
+fields you edited keep your edit, and Save applies it. Whitelist edits are saved
+as additions and removals, so creators added elsewhere stay and creators you
+deleted stay deleted. Two computers changing the same setting at the same moment
+can still overwrite each other through browser sync.
+
 To move settings anywhere, including between Brave and Firefox, open **Copy
 settings to another browser** in Settings and click **Copy**. In the other
 browser, paste the text into the same box, click **Load pasted**, check the
@@ -375,6 +385,9 @@ or set to zero, and highlight detection is off (or both its feed edge and
 statistics are off), cards meeting the view minimum skip engagement parsing.
 Detection needs bookmark reads even on otherwise eligible posts; disabling statistics skips history metadata and reporting.
 Local history also avoids reparsing links already in canonical form.
+A batch that changes several posts of one X thread walks the thread once, so
+thread checks grow with the number of changed posts, not its square. The
+Statistics page keeps unchanged rows when only a total changes.
 
 Adjacent statistics messages share a local-storage read/write without delaying
 page filtering. Each message still checks the collection switch, and reads and

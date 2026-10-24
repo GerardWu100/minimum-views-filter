@@ -46,7 +46,11 @@ wrappers must link to a video; playlists/channels/playables and known ad wrapper
 are excluded. X quote subtrees never supply the outer post's count.
 `getViewCount` reads bounded metadata across count and accessibility sources,
 preferring exact accessible count labels over rounded ones. Contradictory exact
-labels use the unknown-count policy. Conflicting own timestamp status IDs also
+labels use the unknown-count policy. A YouTube title link's `aria-label` counts
+only in the suffix after the verified title, and only after the card's shown
+creator names (channel links, `ytd-channel-name`, `#channel-name`) are removed
+from it: the suffix reads "by Channel 1,234 views", and a channel named "10
+views" once became the count (audit F3, 2026-10-24). Conflicting own timestamp status IDs also
 return unknown while an X article is being recycled. `getXEngagement` reads only
 own like/bookmark/reply buttons and group
 labels in one subtree query with reusable parsing patterns, excluding quote,
@@ -73,10 +77,17 @@ first; creator metadata is parsed only for cards that would otherwise be hidden,
 because the whitelist can only cancel a hide. Creator and count metadata
 are read fresh for each affected card, so reused nodes cannot inherit a decision.
 
-The observer watches site-specific attributes. X omits `class`/`title`, which its
-adapter never reads. YouTube drops a class record unless one of
-`getDecisionClassNames` appeared or disappeared, so hover restyles on either site
-read no card. The observer routes remaining mutations through
+The observer watches site-specific attributes. X omits `title`, which its
+adapter never reads, and watches `class`/`style` only because a thread line's
+computed width decides a join: `routeXRestyle` drops every restyle except an
+empty div at a thread-line position (`isXThreadLinePosition`), which queues its
+cell and the cell above. YouTube drops a class record unless one of
+`getDecisionClassNames` appeared or disappeared, and an `id` record unless its
+old or new value is in `getDecisionIds` (count, creator, title and description
+IDs, plus the excluded `#shorts-player` ancestor; a test checks the list against
+the selectors). A relevant ID change reconciles its card, or the subtree it
+holds when outside cards. Hover restyles on either site read no card. The
+observer routes remaining mutations through
 `getCardSelector` to the owning outer card or X cell. Added subtrees are
 inspected locally; unrelated sidebar/player changes are discarded.
 Overlapping scopes merge, and more than 32 pending scopes collapse into a full
@@ -108,8 +119,15 @@ filtering. This timer never fetches counts or scans the DOM. Storage failure and
 unload remove the active flag, restore connected marks, and release listeners.
 
 `popup.js`, loaded only by `options.html`, validates view thresholds, whitelists,
-site/rule/statistics switches, and the X ratio settings defined in `settings.js`, then saves to extension
-sync storage. Percentage inputs accept finite values from 0 through 100.
+site/rule/statistics switches, and the X ratio settings defined in `settings.js`.
+It keeps a per-key `baseline`: the stored value each control last matched. Save
+sends only controls that differ from it, with whitelists as additions and
+removals, to the background's serialized writer
+(`UPDATE_SETTINGS_MESSAGE` → `applySettingsUpdate`), then re-reads storage. A
+storage change updates every control still equal to its baseline and keeps
+unsaved edits, which win on Save; changes during the first read are merged over
+it. Before audit F1 (2026-10-24) an old Settings tab wrote its whole form and
+erased newer whitelist entries. Percentage inputs accept finite values from 0 through 100.
 Invalid or over-quota whitelists prevent the whole save and focus the affected
 field. Storage changes update all open supported pages. **Copy** writes the
 validated form as JSON text (clipboard when allowed, selected text otherwise);
@@ -132,11 +150,20 @@ After every root is read, each card left visible walks up through previous
 sibling cells while the cell above is a hidden single-post cell and the current
 post is a joined reply; each such parent leaves `hiddenCards` and its hidden
 WeakMap state. Only the remaining entries are marked and recorded, so rescued
-parents create no hidden-history event. Partial scans first add thread
-neighbours (`addXThreadNeighbours`): above the first cell while its post is a
-joined reply, and below the last cell while the next post is one. A change to
+parents create no hidden-history event. Highlighting waits for this rescue:
+hidden candidates keep their views and engagement, and rescued parents then get
+`applyHighlight` like any visible card (audit F6, 2026-10-24); highlighting never
+rescues. Partial scans first add thread
+neighbours (`addXThreadNeighbours`): the whole joined group around the first and
+last cell of each root, each group walked once. A pass-only `joinedReply` memo
+(cell → its sole card when that card is a joined reply) serves discovery, rescue
+and marks, so a batch changing n posts of one thread costs about n connection
+checks, not n² (audit F8). It is dropped when the pass returns. A change to
 either a reply or its parent therefore re-evaluates the whole joined group.
-Only single-post cells join groups. `xThreadContextEnabled` (default true)
+Discovery sees only the new structure, so removals seed the old neighbours:
+`queueFormerXNeighbours` queues the cell above a changed cell (it may have lost
+its incoming line), or the siblings a removal record names around removed cells
+(audit F2). Only single-post cells join groups. `xThreadContextEnabled` (default true)
 switches the parent rescue off.
 
 Thread-line trimming (2026-10-17) runs on X regardless of that switch. A user
@@ -294,6 +321,10 @@ The Statistics page filters loaded entries by Hidden, Kept by high engagement,
 or Highlighted, then site/reason. Kept/highlighted lists are X-only. Switching
 outcomes clears reason selection; highlighted and kept totals overlap when both
 apply to one post. All three lists retain independent event snapshots and bounds.
+Each refresh reuses rows keyed by outcome and canonical URL whose item JSON is
+unchanged and replaces the list only when its rows or order differ; reason
+breakdowns rebuild only when their counts change. A counter-only refresh of
+1,000 rows once created 20,040 elements and now creates none (audit F9).
 Export CSV/JSON build a Blob from the loaded history and save it through a
 temporary `<a download>` link (no `downloads` permission, no network). CSV cells
 that start with `= + - @` get a leading apostrophe so spreadsheets do not run
@@ -309,8 +340,14 @@ identifier under the pointer, never a DOM reference. Inside a card it uses the
 card's single own author (`getCreatorIdentifiers`; ambiguous cards give none);
 outside cards it uses a profile/channel link (`getLinkCreatorIdentifier`). The
 menu click asks that frame's content script, which consumes the stored value
-once, appends it to the site's synced whitelist unless present or over quota,
-and replies. The background shows ✓, ? or ! on that tab's toolbar badge for 4 s; ! with
+once and replies with the site and identifier. The background adds it through
+`queueSettingsUpdate`, the same serialized writer the Settings page uses: each
+edit re-reads sync storage in its turn, so two tabs adding creators at once both
+keep theirs (audit F5, 2026-10-24). This orders writers in one browser only;
+browser sync between computers can still overwrite a simultaneous edit. The
+writer accepts Settings messages only from `options.html`, validates keys,
+values and identities, checks the sync item quota, and answers after
+`storage.set` finishes. The background shows ✓, ? or ! on that tab's toolbar badge for 4 s; ! with
 the title "switched off" means the author was stored but that site's whitelist switch is off.
 This works on every X/YouTube page because the content script matches the whole
 site; the storage change then rescans filtered pages.
@@ -556,6 +593,10 @@ real DOM mutations and validates every expected hiding mark after each batch.
 Throttle waits, fixture writes, DOM setup and assertions are excluded from timing.
 See [docs/performance.md](docs/performance.md) for the saved comparison and limits.
 No claim is made about measured total Brave/Firefox RAM or live browser CPU.
+Benchmark mocks must give `runtime.id` a value: the production liveness guard
+stops a copy without one, and from 1.15.1 until audit F7 (2026-10-24) both
+benchmarks failed at startup for that reason. `tests/benchmark-smoke.test.cjs`
+now runs both on a small workload during `npm test`.
 
 Runtime fixtures dispatch pagehide before closing jsdom, matching actual browser
 teardown. Use attribute selectors for repeated YouTube IDs in tests; this jsdom

@@ -51,6 +51,12 @@
   // disables the site or reason filter.
   const activeFilters = {outcome: "hidden", site: "all", reason: "all"};
   let latestHistory = null;
+  // "outcome\ncanonical URL" -> {signature, row} for rows now in the list,
+  // where signature is the item's JSON. Rebuilt on each render, so it holds
+  // no row that left the list.
+  let renderedRows = new Map();
+  // Summary element -> JSON of the counts it last showed.
+  const summarySignatures = new Map();
   let historyLoadRunning = false;
   let historyNeedsRefresh = false;
   let clearingHistory = false;
@@ -136,7 +142,21 @@
     const visible = all.filter((item) =>
       (outcome !== "hidden" || activeFilters.site === "all" || item.site === activeFilters.site)
       && (activeFilters.reason === "all" || item.reason === activeFilters.reason));
-    entries.replaceChildren(...visible.map((item) => buildEntry(item, outcome)));
+    // Reuse each row whose item is unchanged; touch the list only when its
+    // rows or their order differ, so a summary-only update replaces nothing.
+    const rows = [];
+    const nextRows = new Map();
+    for (const item of visible) {
+      const key = outcome + "\n" + item.url;
+      const signature = JSON.stringify(item);
+      const previous = renderedRows.get(key);
+      const row = previous?.signature === signature && !nextRows.has(key) ? previous.row : buildEntry(item, outcome);
+      if (!nextRows.has(key)) nextRows.set(key, {signature, row});
+      rows.push(row);
+    }
+    renderedRows = nextRows;
+    const shown = entries.children;
+    if (shown.length !== rows.length || rows.some((row, index) => shown[index] !== row)) entries.replaceChildren(...rows);
     recentShown.textContent = all.length ? (visible.length === all.length
       ? all.length.toLocaleString() + " items"
       : visible.length.toLocaleString() + " of " + all.length.toLocaleString() + " items") : "";
@@ -152,15 +172,23 @@
           : outcome === "highlighted" ? "No highlighted X posts yet." : "No hide events recorded yet.");
   }
 
+  /** Rebuild one reason breakdown only when its counts changed. */
+  function showBreakdown(element, counts, build) {
+    const signature = JSON.stringify(counts);
+    if (summarySignatures.get(element) === signature) return;
+    summarySignatures.set(element, signature);
+    element.replaceChildren(build(counts));
+  }
+
   /** Build the page from validated background data without interpreting HTML. */
   function render(history) {
     latestHistory = history;
     for (const site of ["x", "youtube"]) {
       siteCounts[site].textContent = siteTotal(history.counts[site]).toLocaleString();
-      siteReasons[site].replaceChildren(buildReasonBreakdown(site, history.counts[site]));
+      showBreakdown(siteReasons[site], history.counts[site], (counts) => buildReasonBreakdown(site, counts));
     }
     keptCount.textContent = siteTotal(history.xKeptCounts).toLocaleString();
-    keptReasons.replaceChildren(buildKeptBreakdown(history.xKeptCounts));
+    showBreakdown(keptReasons, history.xKeptCounts, buildKeptBreakdown);
     highlightedCount.textContent = history.xHighlightedCount.toLocaleString();
     entryCounts.hidden.textContent = history.entries.length.toLocaleString();
     entryCounts.kept.textContent = history.keptEntries.length.toLocaleString();

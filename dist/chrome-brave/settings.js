@@ -65,6 +65,11 @@
     "https://youtube.com/*", "https://www.youtube.com/*",
   ]);
   const WHITELIST_CREATOR_MESSAGE = "minimum-views-filter:whitelist-creator";
+  // Settings page -> background: one patch for the serialized settings writer.
+  const UPDATE_SETTINGS_MESSAGE = "minimum-views-filter:update-settings";
+  // Most entries one whitelist edit may add or remove; a full sync item holds
+  // about 500 handles, so this bounds message size without limiting real lists.
+  const MAX_WHITELIST_EDIT_ENTRIES = 2000;
   const TRANSFER_FORMAT = "minimum-views-filter-settings";
   const X_RESERVED_PATHS = new Set([
     "home", "explore", "search", "notifications", "messages", "settings",
@@ -213,11 +218,76 @@
     return settings;
   }
 
+  /** Parse one whitelist edit list; null when it is not an array of valid identities. */
+  function editIdentifiers(entries, site) {
+    if (entries === undefined) return [];
+    if (!Array.isArray(entries) || entries.length > MAX_WHITELIST_EDIT_ENTRIES) return null;
+    const identifiers = entries.map((entry) => normalizeAccountIdentifier(entry, site));
+    return identifiers.includes(null) ? null : identifiers;
+  }
+
+  /**
+   * Apply one intended edit to the current stored settings, for the serialized writer.
+   *
+   * The Settings page sends only the fields the user changed, and whitelist
+   * edits as additions and removals instead of a replacement list, so an entry
+   * another tab added meanwhile survives and an entry the user removed stays
+   * removed. Writes that read then replace a whole list could lose either one.
+   *
+   * Parameters
+   * ----------
+   * stored : object
+   *     Raw sync storage contents; malformed values read as defaults.
+   * update : {values?: object, whitelists?: {x?: {add?: string[], remove?: string[]}, youtube?: {add?: string[], remove?: string[]}}}
+   *     values maps non-whitelist settings keys to their new valid values.
+   *     Whitelist entries may use any spelling normalizeAccountIdentifier accepts.
+   *     A removal applies before an addition of the same identity.
+   *
+   * Returns
+   * -------
+   * {ok: true, changes: object, previous: object, settings: object} | {ok: false, error: "invalid" | "full"}
+   *     changes holds only keys whose normalized value differs, ready for
+   *     storage.set; previous and settings are the normalized states before and
+   *     after. "full" means a resulting whitelist exceeds the sync item quota.
+   */
+  function applySettingsUpdate(stored, update) {
+    if (!update || typeof update !== "object") return {ok: false, error: "invalid"};
+    const {values = {}, whitelists = {}} = update;
+    if (!values || typeof values !== "object" || Array.isArray(values)
+        || !whitelists || typeof whitelists !== "object" || Array.isArray(whitelists)) return {ok: false, error: "invalid"};
+    const previous = normalizeSettings(stored);
+    const settings = {...previous};
+    for (const [key, value] of Object.entries(values)) {
+      if (!Object.hasOwn(DEFAULTS, key) || Array.isArray(DEFAULTS[key])) return {ok: false, error: "invalid"};
+      // normalizeSettings keeps exactly the values it accepts as valid.
+      if (normalizeSettings({[key]: value})[key] !== value) return {ok: false, error: "invalid"};
+      settings[key] = value;
+    }
+    for (const [site, edit] of Object.entries(whitelists)) {
+      if (!PROFILE_HOSTS[site] || !edit || typeof edit !== "object") return {ok: false, error: "invalid"};
+      const added = editIdentifiers(edit.add, site);
+      const removed = editIdentifiers(edit.remove, site);
+      if (!added || !removed) return {ok: false, error: "invalid"};
+      // Before: the current list. After: it minus removals, plus new additions
+      // at the end, without duplicates.
+      const removedSet = new Set(removed);
+      const next = new Set(previous[site + "Whitelist"].filter((identifier) => !removedSet.has(identifier)));
+      for (const identifier of added) next.add(identifier);
+      settings[site + "Whitelist"] = [...next];
+    }
+    const changes = {};
+    for (const key of Object.keys(DEFAULTS)) {
+      if (JSON.stringify(settings[key]) !== JSON.stringify(previous[key])) changes[key] = settings[key];
+    }
+    if (oversizedSyncKeys(changes).length) return {ok: false, error: "full"};
+    return {ok: true, changes, previous, settings};
+  }
+
   const api = {
     DEFAULTS, MAXIMUM_VIEWS, X_SETTING_KEYS, PERCENT_SETTING_KEYS,
-    STORAGE_AREA, SITE_PAGE_PATTERNS, WHITELIST_CREATOR_MESSAGE,
+    STORAGE_AREA, SITE_PAGE_PATTERNS, WHITELIST_CREATOR_MESSAGE, UPDATE_SETTINGS_MESSAGE,
     normalizeAccountIdentifier, parseWhitelistInput, normalizeSettings,
-    oversizedSyncKeys, formatSettingsTransfer, parseSettingsTransfer,
+    oversizedSyncKeys, formatSettingsTransfer, parseSettingsTransfer, applySettingsUpdate,
   };
   globalThis.MinimumViewsSettings = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

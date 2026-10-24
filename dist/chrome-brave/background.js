@@ -6,7 +6,7 @@
   if (!globalThis.MinimumViewsSettings && typeof importScripts === "function") importScripts("settings.js");
   if (!globalThis.MinimumViewsHistory && typeof importScripts === "function") importScripts("history-store.js");
 
-  const {SITE_PAGE_PATTERNS, WHITELIST_CREATOR_MESSAGE} = globalThis.MinimumViewsSettings;
+  const {SITE_PAGE_PATTERNS, STORAGE_AREA, WHITELIST_CREATOR_MESSAGE, UPDATE_SETTINGS_MESSAGE, applySettingsUpdate} = globalThis.MinimumViewsSettings;
   const extension = globalThis.browser || globalThis.chrome;
   const historyStore = globalThis.MinimumViewsHistory;
   const MENU_ITEM_ID = "always-show-creator";
@@ -16,6 +16,8 @@
   const RESULT_BADGE_MS = 4000;
   const MAX_PENDING_HISTORY_REQUESTS = 256;
   const MAX_PENDING_HISTORY_ITEMS = 2048;
+  // Settings edits wait in one queue; more than this many is a runaway sender.
+  const MAX_PENDING_SETTINGS_UPDATES = 64;
   // Badge text and hover title shown on the toolbar icon after a menu click.
   const RESULT_FEEDBACK = {
     added: {text: "✓", title: "Added to whitelist"},
@@ -33,6 +35,31 @@
   let pendingHistoryRequests = 0;
   let pendingHistoryItems = 0;
   let drainingHistory = false;
+  // Tail of the settings write queue; each link settles before the next starts.
+  let settingsQueueTail = Promise.resolve();
+  let pendingSettingsUpdates = 0;
+
+  /**
+   * Apply one settings edit after every earlier one has been stored.
+   *
+   * Each edit re-reads storage inside its turn, so two whitelist additions
+   * from different tabs both survive. This serializes writers in this browser
+   * only; browser sync between computers can still replace a value written at
+   * about the same time elsewhere.
+   * Resolves with applySettingsUpdate's result once storage.set has finished,
+   * or {ok: false, error: "busy" | "storage-unavailable"}.
+   */
+  function queueSettingsUpdate(update) {
+    if (pendingSettingsUpdates >= MAX_PENDING_SETTINGS_UPDATES) return Promise.resolve({ok: false, error: "busy"});
+    pendingSettingsUpdates++;
+    const result = settingsQueueTail.then(async () => {
+      const outcome = applySettingsUpdate(await extension.storage[STORAGE_AREA].get(null), update);
+      if (outcome.ok && Object.keys(outcome.changes).length) await extension.storage[STORAGE_AREA].set(outcome.changes);
+      return outcome;
+    }).catch(() => ({ok: false, error: "storage-unavailable"})).finally(() => { pendingSettingsUpdates--; });
+    settingsQueueTail = result;
+    return result;
+  }
 
   /** Queue a bounded history request; overload never delays page filtering. */
   function queueHistory(request) {
@@ -146,6 +173,14 @@
     return sender?.id === extension.runtime.id && sender.url === extension.runtime.getURL(fileName);
   }
 
+  /** Accept a settings patch only from the extension's own Settings page. */
+  async function processSettingsMessage(message, sender) {
+    if (!isExtensionPage(sender, "options.html")) return {ok: false, error: "forbidden"};
+    const outcome = await queueSettingsUpdate({values: message.values, whitelists: message.whitelists});
+    // The page re-reads storage; full settings objects need not cross the channel.
+    return outcome.ok ? {ok: true} : {ok: false, error: outcome.error};
+  }
+
   async function processHistoryMessage(message, sender) {
     if (message.type === RECORD_MESSAGE) {
       const site = senderSite(sender);
@@ -172,8 +207,8 @@
 
   /** Callback response works in both Chrome and Firefox message listeners. */
   function onRuntimeMessage(message, sender, sendResponse) {
-    if (!message || ![RECORD_MESSAGE, GET_HISTORY_MESSAGE, CLEAR_HISTORY_MESSAGE].includes(message.type)) return false;
-    processHistoryMessage(message, sender)
+    if (!message || ![RECORD_MESSAGE, GET_HISTORY_MESSAGE, CLEAR_HISTORY_MESSAGE, UPDATE_SETTINGS_MESSAGE].includes(message.type)) return false;
+    (message.type === UPDATE_SETTINGS_MESSAGE ? processSettingsMessage(message, sender) : processHistoryMessage(message, sender))
       .then(sendResponse)
       .catch(() => sendResponse({ok: false, error: "storage-unavailable"}));
     return true;
@@ -205,17 +240,30 @@
     }, RESULT_BADGE_MS));
   }
 
+  /**
+   * Add a creator through the settings queue and name the outcome.
+   * Returns "added", "present", "full", "failed", or "switched-off" when the
+   * entry is stored but the site's whitelist switch keeps it from taking effect.
+   */
+  async function whitelistCreator(site, identifier) {
+    const outcome = await queueSettingsUpdate({whitelists: {[site]: {add: [identifier]}}});
+    if (!outcome.ok) return outcome.error === "full" ? "full" : "failed";
+    if (!outcome.settings[site + "WhitelistEnabled"]) return "switched-off";
+    return Object.hasOwn(outcome.changes, site + "Whitelist") ? "added" : "present";
+  }
+
   /** Ask the clicked frame's content script, which knows the right-clicked card. */
   async function onMenuClicked(info, tab) {
     if (info.menuItemId !== MENU_ITEM_ID || typeof tab?.id !== "number") return;
-    let result;
+    let response;
     try {
-      const response = await extension.tabs.sendMessage(tab.id, {type: WHITELIST_CREATOR_MESSAGE}, {frameId: info.frameId ?? 0});
-      result = response?.result;
+      response = await extension.tabs.sendMessage(tab.id, {type: WHITELIST_CREATOR_MESSAGE}, {frameId: info.frameId ?? 0});
     } catch {
       // No content script in that frame, e.g. a tab opened before installation.
-      result = "missing";
     }
+    // applySettingsUpdate rejects a site or identifier it cannot normalize.
+    const result = response?.result === "found" && ["x", "youtube"].includes(response.site)
+      ? await whitelistCreator(response.site, response.identifier) : "missing";
     await showResult(tab.id, result);
   }
 

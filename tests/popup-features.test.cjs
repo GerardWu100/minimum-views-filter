@@ -5,21 +5,51 @@ const {readFileSync} = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {JSDOM} = require('jsdom');
+const {applySettingsUpdate, normalizeSettings, UPDATE_SETTINGS_MESSAGE} = require('../src/settings.js');
 
 const SOURCE = path.join(__dirname, '..', 'src');
 const source = (filename) => readFileSync(path.join(SOURCE, filename), 'utf8');
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-function openPage(t, page, namespace = 'browser', stored = {}) {
-  const dom = new JSDOM(source(page), {url: `https://extension.invalid/${page}`, runScripts: 'outside-only'});
+/** Mock sync storage shared by every page opened on it; set notifies all of them. */
+function createSyncStorage(initial = {}) {
+  const stored = {...initial};
   const writes = [];
+  const listeners = new Set();
+  const sync = {
+    get: async () => ({...stored}),
+    set: async (value) => {
+      writes.push(JSON.parse(JSON.stringify(value)));
+      Object.assign(stored, value);
+      const changes = Object.fromEntries(Object.entries(value).map(([key, newValue]) => [key, {newValue}]));
+      for (const listener of listeners) listener(changes, 'sync');
+    },
+  };
+  return {stored, writes, listeners, sync};
+}
+
+/**
+ * Open an extension page against mock sync storage. Settings saves go through
+ * applySettingsUpdate like the background writer; stored is the live state.
+ * options.storage shares storage between pages, options.get replaces this
+ * page's reads, and options.beforeUpdate runs before the writer reads storage.
+ */
+function openPage(t, page, namespace = 'browser', initial = {}, options = {}) {
+  const dom = new JSDOM(source(page), {url: `https://extension.invalid/${page}`, runScripts: 'outside-only'});
+  const {stored, writes, listeners, sync} = options.storage || createSyncStorage(initial);
   const openedTabs = [];
   dom.window[namespace] = {
-    storage: {sync: {
-      get: async () => stored,
-      set: async (value) => {writes.push(value);},
-    }},
-    runtime: {getURL: (filename) => `https://extension.invalid/${filename}`},
+    storage: {sync: {...sync, get: options.get || sync.get}, onChanged: {addListener: (listener) => listeners.add(listener), removeListener: (listener) => listeners.delete(listener)}},
+    runtime: {
+      getURL: (filename) => `https://extension.invalid/${filename}`,
+      sendMessage: async (message) => {
+        assert.equal(message.type, UPDATE_SETTINGS_MESSAGE);
+        await options.beforeUpdate?.();
+        const outcome = applySettingsUpdate(await sync.get(), JSON.parse(JSON.stringify(message)));
+        if (outcome.ok && Object.keys(outcome.changes).length) await sync.set(outcome.changes);
+        return outcome.ok ? {ok: true} : {ok: false, error: outcome.error};
+      },
+    },
     tabs: {create: async (options) => {openedTabs.push(options);}},
   };
   for (const filename of page === 'popup.html' ? ['popup-nav.js'] : ['settings.js', 'popup.js']) {
@@ -28,7 +58,7 @@ function openPage(t, page, namespace = 'browser', stored = {}) {
   t.after(() => dom.window.close());
   const document = dom.window.document;
   return {
-    document, writes, openedTabs,
+    document, writes, openedTabs, stored, sync,
     submit: () => document.querySelector('#settings-form').dispatchEvent(new dom.window.Event('submit', {bubbles: true, cancelable: true})),
     change: (selector, checked) => {
       const input = document.querySelector(selector);
@@ -53,7 +83,7 @@ for (const namespace of ['browser', 'chrome']) {
   });
 
   test(`${namespace}: Settings loads and saves every switch and threshold`, async (t) => {
-    const {document, writes, submit, change} = openPage(t, 'options.html', namespace, {
+    const {document, writes, stored, submit, change} = openPage(t, 'options.html', namespace, {
       xMinimumViews: 1200, xMinimumLikePercent: 1.25,
       xHighLikeRatioEnabled: false, xKeepLikePercent: 4.5,
       xBookmarkHighlightEnabled: false, xHighlightBookmarkPercent: 1.8, xBookmarkHighlightShown: false,
@@ -98,27 +128,29 @@ for (const namespace of ['browser', 'chrome']) {
     submit();
     await tick();
     assert.equal(writes.length, 1);
-    assert.equal(writes[0].xMinimumViewsEnabled, false);
-    assert.equal(writes[0].xMinimumViews, 1200);
-    assert.equal(writes[0].youtubeWhitelistEnabled, false);
-    assert.equal(writes[0].statisticsEnabled, false);
-    assert.equal(writes[0].hideUnknown, true);
-    assert.equal(writes[0].xBookmarkHighlightEnabled, true);
-    assert.equal(writes[0].xHighlightBookmarkPercent, 2.3);
-    assert.equal(writes[0].xBookmarkHighlightShown, true);
-    assert.equal(writes[0].xHighlightLikeRequired, true);
-    assert.equal(writes[0].xHighlightLikePercent, 3.1);
-    assert.equal(writes[0].xHighlightReplyRequired, false);
-    assert.equal(writes[0].xHighlightReplyPercent, 0.1);
-    assert.equal(writes[0].xHighReplyRatioEnabled, false);
-    assert.equal(writes[0].xKeepReplyPercent, 0.1);
-    assert.equal(writes[0].xThreadContextEnabled, true);
+    // Raw storage omits never-changed defaults.
+    const saved = normalizeSettings(stored);
+    assert.equal(saved.xMinimumViewsEnabled, false);
+    assert.equal(saved.xMinimumViews, 1200);
+    assert.equal(saved.youtubeWhitelistEnabled, false);
+    assert.equal(saved.statisticsEnabled, false);
+    assert.equal(saved.hideUnknown, true);
+    assert.equal(saved.xBookmarkHighlightEnabled, true);
+    assert.equal(saved.xHighlightBookmarkPercent, 2.3);
+    assert.equal(saved.xBookmarkHighlightShown, true);
+    assert.equal(saved.xHighlightLikeRequired, true);
+    assert.equal(saved.xHighlightLikePercent, 3.1);
+    assert.equal(saved.xHighlightReplyRequired, false);
+    assert.equal(saved.xHighlightReplyPercent, 0.1);
+    assert.equal(saved.xHighReplyRatioEnabled, false);
+    assert.equal(saved.xKeepReplyPercent, 0.1);
+    assert.equal(saved.xThreadContextEnabled, true);
     assert.match(document.querySelector('#status').textContent, /Saved/);
   });
 }
 
 test('site and rule switches disable child editing without deleting stored values', async (t) => {
-  const {document, writes, submit, change} = openPage(t, 'options.html', 'browser', {
+  const {document, writes, stored, submit, change} = openPage(t, 'options.html', 'browser', {
     xMinimumViews: 2500, xWhitelist: ['nasa'], xMinimumLikePercent: 0.7,
     youtubeMinimumViews: 3500, youtubeWhitelist: ['@science'],
   });
@@ -142,11 +174,13 @@ test('site and rule switches disable child editing without deleting stored value
   assert.equal(document.querySelector('#youtube-whitelist').disabled, true);
   submit();
   await tick();
-  assert.equal(writes[0].xMinimumViews, 2500);
-  assert.deepEqual(Array.from(writes[0].xWhitelist), ['nasa']);
-  assert.equal(writes[0].xMinimumLikePercent, 0.7);
-  assert.equal(writes[0].youtubeMinimumViews, 3500);
-  assert.deepEqual(Array.from(writes[0].youtubeWhitelist), ['@science']);
+  // Only the two switches were edited, so only they are written.
+  assert.deepEqual(writes, [{youtubeMinimumViewsEnabled: false, youtubeWhitelistEnabled: false, xEnabled: false}]);
+  assert.equal(stored.xMinimumViews, 2500);
+  assert.deepEqual(Array.from(stored.xWhitelist), ['nasa']);
+  assert.equal(stored.xMinimumLikePercent, 0.7);
+  assert.equal(stored.youtubeMinimumViews, 3500);
+  assert.deepEqual(Array.from(stored.youtubeWhitelist), ['@science']);
 });
 
 test('Settings validates percentages and opens the affected section', async (t) => {
@@ -162,7 +196,7 @@ test('Settings validates percentages and opens the affected section', async (t) 
 });
 
 test('switching off a rule restores invalid disabled input to its last saved value', async (t) => {
-  const {document, writes, submit, change} = openPage(t, 'options.html', 'browser', {
+  const {document, writes, stored, submit, change} = openPage(t, 'options.html', 'browser', {
     xMinimumViews: 2100, xWhitelist: ['nasa'], xMinimumLikePercent: 0.8,
   });
   await tick();
@@ -178,9 +212,9 @@ test('switching off a rule restores invalid disabled input to its last saved val
   submit();
   await tick();
   assert.equal(writes.length, 1);
-  assert.equal(writes[0].xMinimumViewsEnabled, false);
-  assert.equal(writes[0].xWhitelistEnabled, false);
-  assert.equal(writes[0].xLowLikeRatioEnabled, false);
+  assert.equal(stored.xMinimumViewsEnabled, false);
+  assert.equal(stored.xWhitelistEnabled, false);
+  assert.equal(stored.xLowLikeRatioEnabled, false);
 });
 
 test('Settings exports and loads complete switch values without saving until requested', async (t) => {
@@ -204,4 +238,88 @@ test('Settings exports and loads complete switch values without saving until req
   assert.equal(document.querySelector('#statistics-enabled').checked, false);
   assert.equal(document.querySelector('#x-highlight-bookmark-percent').disabled, true);
   assert.equal(writes.length, 0);
+});
+
+test('an old Settings page saves only its edit and keeps a whitelist entry added elsewhere', async (t) => {
+  const storage = createSyncStorage({xWhitelist: ['nasa']});
+  const {document, submit} = openPage(t, 'options.html', 'browser', {}, {storage});
+  await tick();
+  // Another tab adds a creator after this page loaded.
+  await storage.sync.set({xWhitelist: ['nasa', 'spacex']});
+  assert.equal(document.querySelector('#x-whitelist').value, '@nasa\n@spacex');
+  document.querySelector('#youtube-minimum-views').value = '5000';
+  submit();
+  await tick();
+  assert.deepEqual(normalizeSettings(storage.stored).xWhitelist, ['nasa', 'spacex']);
+  assert.equal(storage.stored.youtubeMinimumViews, 5000);
+  assert.deepEqual(storage.writes.at(-1), {youtubeMinimumViews: 5000});
+  assert.match(document.querySelector('#status').textContent, /Saved/);
+});
+
+test('two Settings pages keep each other\'s saved edits and the explicit whitelist removal', async (t) => {
+  const storage = createSyncStorage({xWhitelist: ['nasa']});
+  const first = openPage(t, 'options.html', 'browser', {}, {storage});
+  const second = openPage(t, 'options.html', 'chrome', {}, {storage});
+  await tick();
+  first.document.querySelector('#x-minimum-views').value = '3000';
+  first.document.querySelector('#x-whitelist').value = '@nasa\n@first';
+  second.document.querySelector('#youtube-minimum-views').value = '4000';
+  second.document.querySelector('#x-whitelist').value = '';
+  first.submit();
+  await tick();
+  // The second page follows the untouched minimum and keeps its whitelist draft.
+  assert.equal(second.document.querySelector('#x-minimum-views').value, '3000');
+  assert.equal(second.document.querySelector('#x-whitelist').value, '');
+  assert.match(second.document.querySelector('#status').textContent, /unsaved edits are kept/);
+  second.submit();
+  await tick();
+  const saved = normalizeSettings(storage.stored);
+  assert.equal(saved.xMinimumViews, 3000);
+  assert.equal(saved.youtubeMinimumViews, 4000);
+  // nasa stays removed; the first page's addition survives the second page's save.
+  assert.deepEqual(saved.xWhitelist, ['first']);
+  assert.equal(second.document.querySelector('#x-whitelist').value, '@first');
+});
+
+test('Settings applies a change stored while its first read is still pending', async (t) => {
+  const storage = createSyncStorage({xMinimumViews: 1000});
+  let releaseRead;
+  const get = () => {
+    const snapshot = {...storage.stored};
+    return new Promise((resolve) => { releaseRead = () => resolve(snapshot); });
+  };
+  const {document} = openPage(t, 'options.html', 'browser', {}, {storage, get});
+  await storage.sync.set({xMinimumViews: 7000});
+  releaseRead();
+  await tick();
+  assert.equal(document.querySelector('#x-minimum-views').value, '7000');
+});
+
+test('Settings shows a change stored during its own save once the save finishes', async (t) => {
+  const storage = createSyncStorage({});
+  const {document, submit} = openPage(t, 'options.html', 'browser', {}, {storage,
+    beforeUpdate: () => storage.sync.set({youtubeMinimumViews: 6000, xWhitelist: ['spacex']})});
+  await tick();
+  document.querySelector('#x-minimum-views').value = '2500';
+  document.querySelector('#x-whitelist').value = '@nasa';
+  submit();
+  await tick();
+  const saved = normalizeSettings(storage.stored);
+  assert.deepEqual([saved.xMinimumViews, saved.youtubeMinimumViews, saved.xWhitelist], [2500, 6000, ['spacex', 'nasa']]);
+  assert.equal(document.querySelector('#youtube-minimum-views').value, '6000');
+  assert.equal(document.querySelector('#x-whitelist').value, '@spacex\n@nasa');
+  assert.match(document.querySelector('#status').textContent, /Saved/);
+});
+
+test('an unsaved edit outlasts a change elsewhere to the same setting and wins when saved', async (t) => {
+  const storage = createSyncStorage({});
+  const {document, submit} = openPage(t, 'options.html', 'browser', {}, {storage});
+  await tick();
+  document.querySelector('#x-minimum-views').value = '2000';
+  await storage.sync.set({xMinimumViews: 3000});
+  assert.equal(document.querySelector('#x-minimum-views').value, '2000');
+  assert.match(document.querySelector('#status').textContent, /unsaved edits are kept/);
+  submit();
+  await tick();
+  assert.equal(storage.stored.xMinimumViews, 2000);
 });

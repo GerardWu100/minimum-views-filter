@@ -420,3 +420,39 @@ test('every class named by an adapter selector is a decision class', () => {
   assert.deepEqual([...named].filter((name) => !core.getDecisionClassNames('youtube').includes(name)), []);
   assert.deepEqual(core.getDecisionClassNames('x'), []);
 });
+
+// Audit 2026-10-24: a channel named like a count must not supply the count.
+test('a YouTube channel name inside the title label never becomes the view count', () => {
+  const card = ({label, channel = '10 views', visible = '100K views'}) => `<ytd-video-renderer><a id="video-title" href="/watch?v=1" title="Example video" aria-label="${label}">Example video</a><ytd-channel-name><a href="/@counted">${channel}</a></ytd-channel-name><div id="metadata-line">${visible ? `<span>${visible}</span>` : ''}<span>3 days ago</span></div></ytd-video-renderer>`;
+  // The real rounded counter decides; without it the count is unknown.
+  assert.equal(readFirst(card({label: 'Example video by 10 views 3 days ago 5 minutes'})), 100_000);
+  assert.equal(readFirst(card({label: 'Example video by 10 views 3 days ago 5 minutes', visible: null})), null);
+  const decision = core.getFilterDecision(readFirst(card({label: 'Example video by 10 views 3 days ago 5 minutes', visible: null})), 'youtube', require('../src/settings.js').normalizeSettings());
+  assert.equal(decision.reason, null, 'an unknown count stays visible by default');
+  // A genuine exact count still outranks the rounded counter, low or high.
+  assert.equal(readFirst(card({label: 'Example video by 10 views 100,000 views 3 days ago 5 minutes'})), 100_000);
+  assert.equal(readFirst(card({label: 'Example video by 10 views 999 views 3 days ago', visible: '999 views'})), 999);
+  assert.equal(readFirst(card({label: 'Example video by Creator 123,456 views 3 days ago', channel: 'Creator', visible: '123K views'})), 123_456);
+  // Two counts besides the channel name contradict each other.
+  assert.equal(readFirst(card({label: 'Example video by 10 views 5 views 7 views', visible: null})), null);
+  // A name that is a prefix of the count's digits is not removed from it.
+  assert.equal(readFirst(card({label: 'Example video by 1 1,000 views', channel: '1', visible: null})), 1000);
+  const french = `<ytd-video-renderer><a id="video-title" href="/watch?v=1" title="Vidéo" aria-label="Vidéo de 10 vues 1 234 vues il y a 3 jours">Vidéo</a><ytd-channel-name><a href="/@chaine">10 vues</a></ytd-channel-name></ytd-video-renderer>`;
+  assert.equal(readFirst(french, 'youtube', 'fr'), 1234);
+});
+
+test('YouTube decision IDs list every ID the adapter selectors name', () => {
+  const source = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'src', 'filter-core.js'), 'utf8');
+  // Selector strings such as 'a#video-title' or '#metadata-line > span'.
+  const named = new Set([...source.matchAll(/'[^'\n]*'/g)].flatMap(([literal]) => [...literal.matchAll(/#([a-z][a-z-]*)/g)].map(([, id]) => id)));
+  assert.deepEqual([...named].sort(), [...core.getDecisionIds('youtube')].sort());
+  assert.deepEqual(core.getDecisionIds('x'), []);
+});
+
+test('X thread-line positions are the incoming chain end and the avatar\'s later siblings', () => {
+  const document = documentOf('<article data-testid="tweet"><div><div id="line"></div></div><div><div data-testid="Tweet-User-Avatar"></div><div id="out"></div></div><div id="body"><div id="inner"></div></div></article>');
+  const card = document.querySelector('article');
+  for (const [id, expected] of [['line', true], ['out', true], ['inner', false]]) {
+    assert.equal(core.isXThreadLinePosition(document.getElementById(id), card), expected, id);
+  }
+});

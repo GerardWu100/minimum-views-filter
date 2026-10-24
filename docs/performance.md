@@ -1,5 +1,31 @@
 # Performance measurements
 
+## Audit repairs, v1.15.4 (2026-10-24)
+
+Compared with v1.15.3 commit `3a216e3` (Node.js v22.17.0, jsdom 29.1.1), using
+operation counts only. All expected hiding marks pass in both runs.
+
+One joined X thread; every post's views change from 2,000 to 2,001 in one
+mutation batch, statistics off:
+
+| Changed posts | View reads | Card lookups | Thread checks | Computed widths |
+| ---: | ---: | ---: | ---: | ---: |
+| 10 | 10 → 10 | 110 → 20 | 100 → 10 | 90 → 9 |
+| 20 | 20 → 20 | 420 → 40 | 400 → 20 | 380 → 19 |
+| 30 | 30 → 30 | 930 → 60 | 900 → 30 | 870 → 29 |
+
+Each joined group is now walked once per pass, with a pass-only memo of each
+cell's join. Statistics with 1,000 Hidden X rows: a change to only the
+highlighted total created 20,040 elements per refresh and now creates 0; the
+rows stay the same nodes.
+
+The 200-card `npm run benchmark` workload is unchanged except: X new-card batches
+need 160 instead of 220 card lookups, and X hover restyles wake the observer 20
+times (0 reads), because `class`/`style` are now observed to catch thread-line
+restyles. YouTube counts are unchanged. The two benchmarks could not run on
+v1.15.1 to v1.15.3 (their mocks lacked `runtime.id`); the sections below
+describe the versions they name.
+
 ## X thread context, v1.14.0 (2026-10-10)
 
 Compared with v1.13.1 commit `55217d1` (Node.js v22.17.0, jsdom 29.1.1, 200
