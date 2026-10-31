@@ -442,7 +442,7 @@ See [compatibility evidence and references](docs/compatibility.md).
 - A brief flash is still possible during startup or navigation, or when a card's
   count loads after the card itself (it stays visible while unknown by default).
 - Site markup changes, custom CSS priority, or removed/replaced metadata can
-  reduce coverage. See the guide for how to investigate safely.
+  reduce coverage.
 
 ## Develop
 
@@ -468,4 +468,4 @@ when Firefox restarts; use the signed release XPI for normal installation.
 For a manual Chrome, Brave, or Firefox fixture check, serve the project locally and open
 `tests/browser-fixture.html`. It runs the production parser and controller with
 synthetic cards and a test-only adapter/storage shim, without installing the
-extension. See [GUIDE_ROOT.md](GUIDE_ROOT.md) for architecture and verification.
+extension.

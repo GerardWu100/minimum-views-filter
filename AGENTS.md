@@ -100,8 +100,8 @@ Origin 1.75.0, and Violentmonkey 2.49.0. Playback/keyboard extensions also
 include Global Speed 3.4.122, h264ify 2.0.1, Disable YouTube Number Keyboard
 Shortcuts 1.0, Picture-in-Picture 1.14, and Volume Master 2.4.0.
 
-Do not modify, disable, or reset those extensions to make this one work. Read
-`GUIDE_ROOT.md` for verified compatibility observations and remaining limits.
+Do not modify, disable, or reset those extensions to make this one work. See
+`docs/compatibility.md` for verified compatibility observations.
 
 ## Project workflow
 
@@ -118,7 +118,9 @@ Do not modify, disable, or reset those extensions to make this one work. Read
 - Add behavior tests for meaningful filtering changes. Cover 999/1,000 boundaries,
   hidden/removed counts, new and recycled cards, count increases, and preservation
   of other extensions' DOM changes.
-- Update the README and guide when behavior, installation, or limits change.
+- Update the README and the GitHub wiki when behavior, installation, or limits change.
+- Before reporting a release done, check that the Mozilla-signed XPI matches the
+  build and that the downloaded release assets match their SHA-256 checksums.
 - Do not commit dependencies, credentials, browser profiles, personal feed content,
   logs, or packaged distribution archives.
 - Verify, review the staged diff, commit with plain `git commit`, and push.
