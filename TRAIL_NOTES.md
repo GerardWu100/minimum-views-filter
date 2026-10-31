@@ -3,7 +3,7 @@
 ## Decisions
 
 - 2026-09-27: Settings live in `storage.sync`. The Chromium build carries a public `key` so its ID stays `lbjagemindgbhajfhagehgodegndnnhi` (private key discarded; only needed for a .crx). The 1.4.0 → 1.5.0 reset is accepted; no migration code by design.
-- 2026-09-27: Keep the Firefox gecko ID `minimum-views-filter@gerardwu100.local` and bump the version each release, so the signed XPI updates in place. No `update_url`; updates are manual.
+- 2026-09-27: Keep the Firefox gecko ID `minimum-views-filter@gerardwu100.local` and bump the version each release, so the signed XPI updates in place. No `update_url`; updates are manual. Each GitHub release carries both browser ZIPs, the signed XPI, a source ZIP built from the tagged commit, and SHA-256 checksums, uploaded against an explicit tag and target commit; GitHub publication alone does not sign the XPI.
 - 2026-09-27: Content scripts match the whole X/YouTube site and check the route themselves, so silent navigation into Home works and the right-click menu works everywhere. Do not narrow the manifest matches.
 - 2026-09-27: The settings copy/paste transfer exists because Brave does not sync extension storage. Exports from older versions must still load (missing keys take defaults), so an older signed XPI can hand settings to a newer one.
 - 2026-09-29: Mutations are applied at the end of each mutation batch with no delay (X 1.11.1, YouTube 1.11.2 at the user's request). This costs extra reads when a card hydrates in steps; do not reintroduce a batching timer.
@@ -19,12 +19,14 @@
 
 ## Gotchas
 
-- 2026-09-27: Chromium caches content scripts apart from the popup. After replacing unpacked files, reload the extension and then every X/YouTube tab. Two "threshold ignored" reports were this, not the parser; check `html[data-minimum-views-active]` and the hide marks before changing selectors.
+- 2026-09-27: Chromium caches content scripts apart from the popup. After replacing unpacked files, reload the extension and then every X/YouTube tab. Two "threshold ignored" reports were this, not the parser; check `html[data-minimum-views-active]` and the hide marks before changing selectors. Since 1.15.1 the background re-injects into open tabs, but that is unverified live (see Assumptions), so still reload the tabs.
 - 2026-09-27: Browser automation cannot open Brave's extension-management page. Do not bypass it through other URLs, raw protocol commands or profile files; ask the user to reload the extension.
 - 2026-09-27: Firefox: a temporary copy with the same ID masks the signed XPI, and removing it left the six host permissions off. A working popup does not prove the content scripts run; reload a supported page after granting access.
+- 2026-10-10: If the shared npm cache is not writable, pass a command-local `--cache <writable dir>` to `npm ci`; do not change global npm config.
 - 2026-09-28: Node's `fetch` in the agent sandbox cannot reach AMO. Run `npm run sign:firefox` from a normal terminal; it reads the AMO keys from `.env`.
 - 2026-09-29: X can add a post to `seenTweetIds` before the local hide lands (1 of 39 posts, hidden 45 ms after first seen). Hiding cannot fix this; do not intercept or rewrite requests. Method: `docs/x-seen-list-check.md`.
 - 2026-10-24: A YouTube title link's `aria-label` contains the channel name; a channel named "10 views" was once read as the count (audit F3). Strip creator names before parsing.
+- 2026-09-27: For an unfiltered live card (new layout, locale, PocketTube Deck), capture only sanitized card structure, reproduce it in a fixture, then extend selectors. Never take counts from arbitrary title or body text.
 - 2026-10-24: Benchmark and test mocks must give `runtime.id` a value, or the liveness guard stops the script (both benchmarks were silently broken until audit F7).
 - 2026-09-27: jsdom can miss repeated YouTube IDs with compound ID selectors; use attribute selectors in tests. Dispatch `pagehide` before closing jsdom.
 - 2026-09-27: The GitHub wiki is a separate repo (`minimum-views-filter.wiki.git`), not part of this checkout.
