@@ -8,6 +8,7 @@
 - 2026-09-27: The settings copy/paste transfer exists because Brave does not sync extension storage. Exports from older versions must still load (missing keys take defaults), so an older signed XPI can hand settings to a newer one.
 - 2026-09-29: Mutations are applied at the end of each mutation batch with no delay (X 1.11.1, YouTube 1.11.2 at the user's request). This costs extra reads when a card hydrates in steps; do not reintroduce a batching timer.
 - 2026-10-24: All settings writes (Settings page and right-click menu) go through the background's serialized writer, sending only changed keys and whitelist additions/removals. A whole-form write from an old Settings tab erased newer whitelist entries (audit F1/F5).
+- 2026-11-01: `docs/images/x-highlight-example.png` is a user-supplied Home screenshot, cropped to one public post (sidebar and neighboring posts removed). The user's request overrides the no-personal-feed-content rule for this image only; do not add other feed captures.
 
 ## Assumptions
 

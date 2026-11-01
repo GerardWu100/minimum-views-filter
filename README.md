@@ -13,8 +13,9 @@ view minimum.
 It never clicks anything or requests platform data. Hidden items become eligible
 again when their displayed counts meet your rules.
 
-X posts with both high bookmarks/views (default **above 1%**) and high
-likes/views (default **above 2%**) get a thin amber edge on their left side; the
+X posts with high bookmarks/views (default **above 1%**), high likes/views
+(default **above 2%**) and high replies/views (default **above 0.1%**) get a thin
+amber edge on their left side ([example](#subtle-engagement-highlighting)); the
 background behind the text is unchanged, with no animation or layout change. It
 works in X's light, Dim, and Lights out themes, and can be hidden while
 Statistics keeps recording those posts.
@@ -231,6 +232,20 @@ Settings → **Highlight** has these switches:
 | **Also require high likes/views** | The post must also have likes divided by views **strictly above** its percentage (default 2%) |
 | **Also require high replies/views** | The post must also have replies (comments) divided by views **strictly above** its percentage (default 0.1%) |
 | **Show highlight in feed** | Draws a 3px amber edge on the post's left side, leaving the post background unchanged |
+
+<img src="docs/images/x-highlight-example.png" alt="An X Home post with a thin amber edge on its left side and no background tint; it shows 329 replies, 4.4K likes and 158K views" width="520">
+
+This example, worked through at the default thresholds:
+
+| Condition | Displayed counts | Result | Default rule |
+|---|---|---|---|
+| Likes/views | 4.4K / 158K | about 2.8% | above 2% |
+| Replies/views | 329 / 158K | about 0.21% | above 0.1% |
+| Bookmarks/views | no number on the button | needs more than about 1,580 bookmarks | above 1% |
+
+The extension reads exact counts from the post's accessibility labels when X
+provides them, so a bookmark count can qualify a post even if the button shows
+no number.
 
 Every enabled condition must hold. For example, with 1,000 views, 11 bookmarks,
 21 likes and 2 replies highlights; the same with 1 reply (exactly 0.1%) or 20 likes
