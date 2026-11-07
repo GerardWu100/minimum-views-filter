@@ -1784,3 +1784,28 @@ test('YouTube releases and refilters cards when an ancestor gains or loses the S
   await Promise.resolve();
   assert.equal(work.getCards - before.getCards, 0, 'unrelated IDs read nothing');
 });
+
+test('X high ratios on fewer views than the engagement minimum stay hidden until the setting allows them', async (t) => {
+  // 10 views with 2 likes (20%), 2 bookmarks (20%) and 1 reply (10%) pass every keep ratio.
+  const {window, document, storage, work} = openContent(t, {
+    html: xEngagementCard(1, '10', 2, 2, 1) + xEngagementCard(2, '100', 20, 20, 10),
+    stored: {xLowLikeRatioEnabled: false, xBookmarkHighlightEnabled: false},
+  });
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  assertVisible(window, '#cell-2', true);
+  // Below the sample, no rule can use engagement, so it is not read.
+  assert.equal(work.getXEngagement, 1);
+  assert.equal(historyItems(storage).at(-1).reason, 'low-views');
+  assert.equal(keptItems(storage).length, 1);
+  storage.change({xEngagementMinimumViews: 10});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  storage.change({xEngagementMinimumViewsEnabled: false, xEngagementMinimumViews: 100});
+  await wait();
+  assertVisible(window, '#cell-1', true);
+  storage.change({xEngagementMinimumViewsEnabled: true});
+  await wait();
+  assertVisible(window, '#cell-1', false);
+  assert.ok(document.querySelector('#post-1'));
+});

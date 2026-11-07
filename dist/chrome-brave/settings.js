@@ -16,6 +16,10 @@
     statisticsEnabled: true,
     xLowLikeRatioEnabled: true,
     xMinimumLikePercent: 0.5,
+    // High ratios on fewer views are noise (2 likes on 10 views = 20%), so
+    // below this sample size they can neither keep nor highlight a post.
+    xEngagementMinimumViewsEnabled: true,
+    xEngagementMinimumViews: 100,
     xHighLikeRatioEnabled: true,
     xKeepLikePercent: 2,
     xHighBookmarkRatioEnabled: true,
@@ -35,6 +39,7 @@
   const MAXIMUM_VIEWS = 1_000_000_000_000;
   const X_SETTING_KEYS = Object.freeze([
     "xLowLikeRatioEnabled", "xMinimumLikePercent",
+    "xEngagementMinimumViewsEnabled", "xEngagementMinimumViews",
     "xHighLikeRatioEnabled", "xKeepLikePercent",
     "xHighBookmarkRatioEnabled", "xKeepBookmarkPercent",
     "xBookmarkHighlightEnabled", "xHighlightBookmarkPercent", "xBookmarkHighlightShown",
@@ -43,12 +48,14 @@
     "xHighlightReplyRequired", "xHighlightReplyPercent",
     "xThreadContextEnabled",
   ]);
+  // Whole view counts from 0 to MAXIMUM_VIEWS.
+  const VIEW_COUNT_SETTING_KEYS = Object.freeze(["xMinimumViews", "youtubeMinimumViews", "xEngagementMinimumViews"]);
   const PERCENT_SETTING_KEYS = Object.freeze([
     "xMinimumLikePercent", "xKeepLikePercent", "xKeepBookmarkPercent", "xHighlightBookmarkPercent",
     "xHighlightLikePercent", "xKeepReplyPercent", "xHighlightReplyPercent",
   ]);
   const X_TOGGLE_KEYS = Object.freeze([
-    "xLowLikeRatioEnabled", "xHighLikeRatioEnabled", "xHighBookmarkRatioEnabled", "xBookmarkHighlightEnabled", "xBookmarkHighlightShown",
+    "xLowLikeRatioEnabled", "xEngagementMinimumViewsEnabled", "xHighLikeRatioEnabled", "xHighBookmarkRatioEnabled", "xBookmarkHighlightEnabled", "xBookmarkHighlightShown",
     "xHighlightLikeRequired", "xHighReplyRatioEnabled", "xHighlightReplyRequired",
     "xThreadContextEnabled",
   ]);
@@ -141,11 +148,12 @@
   /** Validate stored settings; malformed or missing fields use safe defaults. */
   function normalizeSettings(value = {}) {
     const settings = {...DEFAULTS};
-    for (const site of ["x", "youtube"]) {
-      const minimumKey = site + "MinimumViews";
+    for (const minimumKey of VIEW_COUNT_SETTING_KEYS) {
       if (Number.isSafeInteger(value[minimumKey]) && value[minimumKey] >= 0 && value[minimumKey] <= MAXIMUM_VIEWS) {
         settings[minimumKey] = value[minimumKey];
       }
+    }
+    for (const site of ["x", "youtube"]) {
       const whitelistKey = site + "Whitelist";
       settings[whitelistKey] = Array.isArray(value[whitelistKey])
         ? [...new Set(value[whitelistKey].map((entry) => normalizeAccountIdentifier(entry, site)).filter(Boolean))]
@@ -284,7 +292,7 @@
   }
 
   const api = {
-    DEFAULTS, MAXIMUM_VIEWS, X_SETTING_KEYS, PERCENT_SETTING_KEYS,
+    DEFAULTS, MAXIMUM_VIEWS, X_SETTING_KEYS, VIEW_COUNT_SETTING_KEYS, PERCENT_SETTING_KEYS,
     STORAGE_AREA, SITE_PAGE_PATTERNS, WHITELIST_CREATOR_MESSAGE, UPDATE_SETTINGS_MESSAGE,
     normalizeAccountIdentifier, parseWhitelistInput, normalizeSettings,
     oversizedSyncKeys, formatSettingsTransfer, parseSettingsTransfer, applySettingsUpdate,

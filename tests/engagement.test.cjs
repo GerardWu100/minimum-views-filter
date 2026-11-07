@@ -204,3 +204,26 @@ test('default keep and highlight rules also need replies/views; each replies swi
   assert.equal(highlight(21, 11, null), false);
   assert.equal(highlight(21, 11, null, {xHighlightReplyRequired: false}), true);
 });
+
+test('high ratios below the engagement view minimum never keep or highlight a post', () => {
+  const settings = normalizeSettings();
+  const decide = (views, likes, bookmarks, replies, override = {}) => ({...core.getFilterDecision(views, 'x', {...settings, ...override}, {likes, bookmarks, replies})});
+  // 10 views, 2 likes (20%), 2 bookmarks (20%), 1 reply (10%): every keep ratio passes,
+  // but 10 views is below the default 100-view sample, so the 1,000-view floor hides it.
+  assert.deepEqual(decide(10, 2, 2, 1), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  // 99/100 boundary with ratios that pass at both counts.
+  assert.deepEqual(decide(99, 50, 50, 50), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(100, 50, 50, 50), {reason: null, keptBy: 'high-engagement', bypassedReason: 'low-views'});
+  // A low like ratio is still a hide reason below the sample, and is not rescued.
+  assert.deepEqual(decide(10, 0, 5, 5, {xMinimumViewsEnabled: false}), {reason: 'low-like-ratio', keptBy: null, bypassedReason: null});
+  // The minimum is adjustable, and its switch restores ratio rescue at any view count.
+  assert.deepEqual(decide(150, 50, 50, 50, {xEngagementMinimumViews: 200}), {reason: 'low-views', keptBy: null, bypassedReason: null});
+  assert.deepEqual(decide(10, 2, 2, 1, {xEngagementMinimumViewsEnabled: false}), {reason: null, keptBy: 'high-engagement', bypassedReason: 'low-views'});
+  // Highlight follows the same sample rule (whitelisted posts can be visible at any count).
+  const highlight = (views, override = {}) => core.shouldHighlightX(views, {likes: 50, bookmarks: 50, replies: 50}, {...settings, ...override});
+  assert.equal(highlight(99), false);
+  assert.equal(highlight(100), true);
+  assert.equal(highlight(99, {xEngagementMinimumViewsEnabled: false}), true);
+  assert.equal(core.hasEngagementSample(99, settings), false);
+  assert.equal(core.hasEngagementSample(100, settings), true);
+});

@@ -9,7 +9,8 @@ do, and your feed fills up with posts that have a few dozen views. Clicking
 This extension hides posts and videos below a view count you pick (1,000 by
 default). On X, it also filters low likes-to-views ratios and keeps posts with
 high likes-, saves- and comments-to-views ratios all at once, even below your
-view minimum.
+view minimum — but only once a post has at least 100 views (adjustable), because
+ratios on a handful of views are noise.
 It never clicks anything or requests platform data. Hidden items become eligible
 again when their displayed counts meet your rules.
 
@@ -134,7 +135,8 @@ Official instructions: [Chrome unpacked extensions](https://developer.chrome.com
 | --- | --- |
 | Whitelisted creator | Kept by this extension, even with low/unknown views |
 | X likes/views below 0.5% | Hidden unless whitelisted or rescued by a high ratio |
-| X likes/views ≥ 2% AND saves/views ≥ 0.5% AND comments/views ≥ 0.1% | Kept, even below the view minimum or low-like threshold |
+| X likes/views ≥ 2% AND saves/views ≥ 0.5% AND comments/views ≥ 0.1%, with ≥ 100 views | Kept, even below the view minimum or low-like threshold |
+| Fewer than 100 X views, however high the ratios | Never kept or highlighted by ratios (2 likes on 10 views stays hidden) |
 | 0–999 views, without an X ratio exception | Hidden |
 | Exactly 1,000 or more | Kept unless the X low-like rule applies |
 | Count missing, unsupported, or ambiguous | Kept |
@@ -144,7 +146,7 @@ Official instructions: [Chrome unpacked extensions](https://developer.chrome.com
 
 “Hide unknown view counts” is optional and off by default. Every behavior has an
 off switch: each site's master switch, view minimum, whitelist, each X engagement
-rule, X thread context, bookmark highlight detection and its feed edge,
+rule, the X engagement view minimum, X thread context, bookmark highlight detection and its feed edge,
 unknown-count hiding, and statistics collection.
 Switches preserve their thresholds and lists for later use. Disabling a view
 minimum leaves the other rules active. For example, set **X to 10,000** and
@@ -189,11 +191,12 @@ shown post would run into the next, unrelated post.
 
 ## X engagement rules
 
-The Settings page has three independent filtering switches and percentage thresholds. All three
+The Settings page has these independent filtering switches and thresholds. All
 are on by default, including after an update:
 
 | Setting | Default | Example |
 | --- | --- | --- |
+| Keep and highlight need enough views | 100 views | 2 likes / 10 views (20%) is not kept; 50 likes / 100 views can be |
 | Minimum likes as % of views | 0.5% | 49 likes / 10,000 views is hidden; 50 meets the minimum |
 | Keep: require likes at this % of views | 2% | 10 likes / 500 views meets it |
 | Keep: require saves at this % of views | 0.5% | 3 bookmarks / 500 views meets it |
@@ -205,7 +208,17 @@ the post, but the same post with 0 replies does not, nor does 10 likes and 2
 bookmarks (0.4%), nor 500 bookmarks with 9 likes. Switch a keep rule off to drop
 that condition; switch all three off to disable the exception.
 
-The creator whitelist wins first. Then the high-engagement exception wins.
+**Why a minimum sample.** A ratio from a few views says almost nothing. With 10
+views, one extra like moves likes/views by 10 percentage points, so 2 likes reads
+as 20%, ten times the 2% keep threshold. With 100 views, one like moves it by 1
+point. Below **Keep and highlight need enough views** (default 100), high ratios
+can neither keep nor highlight a post, however high they are; the post is judged
+by the view minimum alone. The low-like hiding rule still applies at any count,
+so this setting can only hide more, never show more. Switch it off to let ratios
+rescue posts at any view count.
+
+The creator whitelist wins first. Then the high-engagement exception wins, if
+the post has enough views.
 Otherwise, the low-like rule or view minimum can hide the post. Equal-to-threshold
 ratios qualify. If both hiding rules fail, history reports the low-like reason.
 YouTube uses only its view-count rules.
@@ -219,8 +232,9 @@ exact accessibility counts to rounded ones. Saves means X bookmarks. The feature
 cannot use a bookmark count that X does not expose in the current card; it never
 opens posts to retrieve one. See [X's bookmark-count explanation](https://help.x.com/en/using-x/bookmark-counts).
 
-These are editable screening defaults, not evidence of quality. Ratios from very
-small view counts can swing sharply; this version has no minimum sample-size rule.
+These are editable screening defaults, not evidence of quality. Ratios from small
+view counts still swing more than ratios from large ones, even above the 100-view
+minimum.
 
 ## Subtle engagement highlighting
 
@@ -260,7 +274,8 @@ uses a system-colored outline instead.
 Detection has its own switch and threshold. It does not keep an otherwise
 hidden post visible; the filtering and keep rules decide that separately.
 Whitelisted posts can highlight, and so can a post kept visible by a joined
-reply ([X thread context](#x-thread-context)). Zero/unknown views or unknown bookmarks cannot
+reply ([X thread context](#x-thread-context)). Posts below the engagement view
+minimum (default 100 views), zero/unknown views or unknown bookmarks cannot
 highlight, nor can unknown likes while the likes condition is on, and quoted-post counts never qualify the containing post. Counts and
 settings changes remove or apply the edge automatically. X's master switch
 disables both filtering and highlighting. The feature operates on X Home only.

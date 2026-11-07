@@ -17,6 +17,9 @@ the platform through negative-feedback actions.
   percentage (default 0.1%) at the same time (user requests 2026-09-29;
   previously OR), overriding both hiding rules. Every enabled keep rule must
   pass; switching one off drops that condition.
+  Below an adjustable engagement view minimum (default 100 views; user request
+  2026-11-07), high ratios never keep or highlight a post, however high: tiny
+  samples are noise. The low-like hiding rule still applies. It has its own switch.
   Each ratio rule has its own switch. Ratios require known, positive views and
   a known numerator; missing likes/bookmarks/replies are unknown, never implicit zero.
 - Whitelisted X accounts bypass all filtering ratio rules as well as the view rules.

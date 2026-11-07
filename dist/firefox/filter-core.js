@@ -451,7 +451,9 @@
    *     bookmarks/views AND replies/views must reach their thresholds.
    *     keptBy is high-engagement only when the exception overrode
    *     bypassedReason (low-like-ratio or low-views); a card that passes
-   *     anyway has keptBy null. Whitelist exemptions are applied by the caller. No history is
+   *     anyway has keptBy null. While xEngagementMinimumViewsEnabled is on, a
+   *     card below xEngagementMinimumViews views is never kept by the
+   *     exception, however high its ratios: the sample is too small. Whitelist exemptions are applied by the caller. No history is
    *     consulted for this decision.
    */
   function getFilterDecision(views, site, settings, engagement = {likes: null, bookmarks: null, replies: null}) {
@@ -474,13 +476,18 @@
     // Each enabled keep rule is required. Short-circuiting avoids allocating
     // per-card rule arrays during frequent feed updates.
     const keepEnabled = settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled || settings.xHighReplyRatioEnabled;
-    const keptBy = keepEnabled
+    const keptBy = keepEnabled && hasEngagementSample(views, settings)
       && (!settings.xHighLikeRatioEnabled || reaches(engagement.likes, settings.xKeepLikePercent))
       && (!settings.xHighBookmarkRatioEnabled || reaches(engagement.bookmarks, settings.xKeepBookmarkPercent))
       && (!settings.xHighReplyRatioEnabled || reaches(engagement.replies ?? null, settings.xKeepReplyPercent))
       ? 'high-engagement' : null;
     if (keptBy) return lowReason ? {reason: null, keptBy, bypassedReason: lowReason} : kept;
     return {...kept, reason: lowReason};
+  }
+
+  /** True when views reach the minimum sample for high X ratios to keep or highlight a post. */
+  function hasEngagementSample(views, settings) {
+    return !settings.xEngagementMinimumViewsEnabled || views >= settings.xEngagementMinimumViews;
   }
 
   /** Return only the hide reason from getFilterDecision, or null to keep the card. */
@@ -507,11 +514,12 @@
    * boolean
    *     True only when enabled, bookmarks/views is strictly above its
    *     threshold, AND each required likes/views or replies/views ratio is
-   *     strictly above its threshold. Unknown counts cannot satisfy a condition.
+   *     strictly above its threshold. Unknown counts cannot satisfy a condition,
+   *     and views below the enabled xEngagementMinimumViews sample never highlight.
    *     The caller limits this presentation to visible X Home cards.
    */
   function shouldHighlightX(views, engagement, settings) {
-    if (!settings.xBookmarkHighlightEnabled || !(views > 0)) return false;
+    if (!settings.xBookmarkHighlightEnabled || !(views > 0) || !hasEngagementSample(views, settings)) return false;
     // For count c, views v and percent p: c/v > p/100 iff 100*c > p*v.
     // Treat floating-point rounding at equality as equality, not as a highlight.
     const exceeds = (count, percent) => {
@@ -843,7 +851,7 @@
     return articles.length === 1 && articles[0] === card ? cell : card;
   }
 
-  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getDecisionIds, isXThreadLinePosition, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, shouldHighlightX, getItemMetadata, getItemAuthor, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget, isXReplyToPreviousPost, getXIncomingThreadLine, getXOutgoingThreadLine };
+  const core = { parseViewCount, isSupportedPage, getCardSelector, getDecisionClassNames, getDecisionIds, isXThreadLinePosition, getCards, getViewCount, getXEngagement, getFilterDecision, getFilterReason, hasEngagementSample, shouldHighlightX, getItemMetadata, getItemAuthor, getCreatorIdentifiers, getLinkCreatorIdentifier, getHideTarget, isXReplyToPreviousPost, getXIncomingThreadLine, getXOutgoingThreadLine };
   root.MinimumViewsCore = core;
   if (typeof module === 'object' && module.exports) module.exports = core;
 })(typeof globalThis === 'object' ? globalThis : this);

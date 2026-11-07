@@ -3,7 +3,7 @@
 
   const extension = globalThis.browser || globalThis.chrome;
   const {
-    normalizeSettings, parseWhitelistInput, oversizedSyncKeys,
+    normalizeSettings, VIEW_COUNT_SETTING_KEYS, parseWhitelistInput, oversizedSyncKeys,
     formatSettingsTransfer, parseSettingsTransfer, MAXIMUM_VIEWS, STORAGE_AREA, UPDATE_SETTINGS_MESSAGE,
   } = globalThis.MinimumViewsSettings;
   const storage = extension.storage[STORAGE_AREA];
@@ -26,6 +26,8 @@
   const xFields = [
     {key: "xLowLikeRatioEnabled", input: document.getElementById("x-low-like-ratio-enabled")},
     {key: "xMinimumLikePercent", input: document.getElementById("x-minimum-like-percent")},
+    {key: "xEngagementMinimumViewsEnabled", input: document.getElementById("x-engagement-minimum-views-enabled")},
+    {key: "xEngagementMinimumViews", input: document.getElementById("x-engagement-minimum-views")},
     {key: "xHighLikeRatioEnabled", input: document.getElementById("x-high-like-ratio-enabled")},
     {key: "xKeepLikePercent", input: document.getElementById("x-keep-like-percent")},
     {key: "xHighBookmarkRatioEnabled", input: document.getElementById("x-high-bookmark-ratio-enabled")},
@@ -51,6 +53,7 @@
   ];
   const ratioThresholds = [
     ["x-low-like-ratio-enabled", "x-minimum-like-percent", "xMinimumLikePercent"],
+    ["x-engagement-minimum-views-enabled", "x-engagement-minimum-views", "xEngagementMinimumViews"],
     ["x-high-like-ratio-enabled", "x-keep-like-percent", "xKeepLikePercent"],
     ["x-high-bookmark-ratio-enabled", "x-keep-bookmark-percent", "xKeepBookmarkPercent"],
     ["x-high-reply-ratio-enabled", "x-keep-reply-percent", "xKeepReplyPercent"],
@@ -70,6 +73,11 @@
   function validPercent(input) {
     const value = Number(input.value);
     return input.value.trim() !== "" && Number.isFinite(value) && value >= 0 && value <= 100;
+  }
+
+  /** Validate an X rule threshold: a whole view count or a percentage. */
+  function validThreshold(input, key) {
+    return VIEW_COUNT_SETTING_KEYS.includes(key) ? validMinimum(input) : validPercent(input);
   }
 
   /** Show the number of valid, distinct whitelist entries. */
@@ -101,7 +109,7 @@
       toggle.disabled = !xActive;
       const threshold = document.getElementById(thresholdId);
       threshold.disabled = !xActive || !toggle.checked;
-      if (threshold.disabled && !validPercent(threshold)) threshold.value = baseline[settingKey];
+      if (threshold.disabled && !validThreshold(threshold, settingKey)) threshold.value = baseline[settingKey];
     }
     threadContext.disabled = !xActive;
     // Showing the edge and the likes condition depend on detection;
@@ -128,7 +136,8 @@
       [fields.site + "WhitelistEnabled", {input: fields.whitelistEnabled, kind: "boolean"}],
       [fields.site + "Whitelist", {input: fields.whitelist, kind: "whitelist", fields}],
     ]),
-    ...xFields.map(({key, input}) => [key, {input, kind: typeof DEFAULT_SETTINGS[key] === "boolean" ? "boolean" : "percent"}]),
+    ...xFields.map(({key, input}) => [key, {input, kind: typeof DEFAULT_SETTINGS[key] === "boolean" ? "boolean"
+      : VIEW_COUNT_SETTING_KEYS.includes(key) ? "minimum" : "percent"}]),
   ]);
 
   function formatWhitelist(site, identifiers) {
@@ -202,14 +211,15 @@
         settings[key] = input.checked;
         continue;
       }
-      const percent = Number(input.value);
-      if (!validPercent(input)) {
-        status.textContent = "Enter a percentage from 0 to 100.";
+      if (!validThreshold(input, key)) {
+        status.textContent = VIEW_COUNT_SETTING_KEYS.includes(key)
+          ? "Enter a whole number of views from 0 to 1,000,000,000,000."
+          : "Enter a percentage from 0 to 100.";
         input.closest("details").open = true;
         input.focus();
         return null;
       }
-      settings[key] = percent;
+      settings[key] = Number(input.value);
     }
     return settings;
   }

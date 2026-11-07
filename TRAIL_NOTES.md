@@ -10,6 +10,8 @@
 - 2026-10-24: All settings writes (Settings page and right-click menu) go through the background's serialized writer, sending only changed keys and whitelist additions/removals. A whole-form write from an old Settings tab erased newer whitelist entries (audit F1/F5).
 - 2026-11-01: `docs/images/x-highlight-example.png` is a user-supplied Home screenshot, cropped to one public post (sidebar and neighboring posts removed). The user's request overrides the no-personal-feed-content rule for this image only; do not add other feed captures.
 
+- 2026-11-07: The engagement view minimum (default 100) gates only the keep exception and the highlight, not the low-like hiding rule. Gating hiding too would show a 10-view, 0-like post when the view floor is off, which contradicts the user's aim (never show tiny-sample posts on ratio grounds).
+
 ## Assumptions
 
 - 2026-10-18: X thread-line detection (empty div, width >0 and ≤3px), the outgoing-line position, and the per-theme divider colors come from X's known layout, not a live signed-in page. Check: inspect a joined reply on live X Home in Default, Dim and Lights out.
@@ -42,4 +44,3 @@
 
 ## Untried ideas
 
-- 2026-10-31: Minimum sample size for X ratio rules. Ratios on tiny view counts swing sharply (1 reply on 50 views passes 0.1%); a floor such as 100 views is a small settings and decision change.

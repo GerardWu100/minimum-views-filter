@@ -466,7 +466,7 @@
         const engagement = SITE === 'x' && views > 0 && (
           highlightDetected
           || (settings.xLowLikeRatioEnabled && settings.xMinimumLikePercent > 0)
-          || (settings.xMinimumViewsEnabled && views < settings.xMinimumViews
+          || (settings.xMinimumViewsEnabled && views < settings.xMinimumViews && core.hasEngagementSample(views, settings)
             && (settings.xHighLikeRatioEnabled || settings.xHighBookmarkRatioEnabled || settings.xHighReplyRatioEnabled))
         )
           ? core.getXEngagement(card, locale) : {likes: null, bookmarks: null, replies: null};

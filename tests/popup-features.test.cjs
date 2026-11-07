@@ -87,9 +87,15 @@ for (const namespace of ['browser', 'chrome']) {
       xMinimumViews: 1200, xMinimumLikePercent: 1.25,
       xHighLikeRatioEnabled: false, xKeepLikePercent: 4.5,
       xBookmarkHighlightEnabled: false, xHighlightBookmarkPercent: 1.8, xBookmarkHighlightShown: false,
-      xThreadContextEnabled: false,
+      xThreadContextEnabled: false, xEngagementMinimumViews: 250,
     });
     await tick();
+    assert.equal(document.querySelector('#x-engagement-minimum-views').value, '250');
+    assert.equal(document.querySelector('#x-engagement-minimum-views-enabled').checked, true);
+    change('#x-engagement-minimum-views-enabled', false);
+    assert.equal(document.querySelector('#x-engagement-minimum-views').disabled, true);
+    change('#x-engagement-minimum-views-enabled', true);
+    document.querySelector('#x-engagement-minimum-views').value = '150';
     assert.equal(document.title, 'Settings · Minimum Views Filter');
     assert.equal(document.querySelector('#stats-total'), null);
     assert.equal(document.querySelector('nav a').getAttribute('href'), 'history.html');
@@ -145,6 +151,8 @@ for (const namespace of ['browser', 'chrome']) {
     assert.equal(saved.xHighReplyRatioEnabled, false);
     assert.equal(saved.xKeepReplyPercent, 0.1);
     assert.equal(saved.xThreadContextEnabled, true);
+    assert.equal(saved.xEngagementMinimumViewsEnabled, true);
+    assert.equal(saved.xEngagementMinimumViews, 150);
     assert.match(document.querySelector('#status').textContent, /Saved/);
   });
 }
