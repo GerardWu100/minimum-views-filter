@@ -2,7 +2,8 @@
 title: "Minimum Views Filter : masquer les publications peu vues sur X et YouTube"
 description: "Une extension pour Chrome, Brave et Firefox qui masque les publications et vidéos peu vues en lisant les compteurs déjà affichés, avec des règles de mentions J'aime par vue qui attendent assez de vues avant de faire confiance à un ratio."
 date: 2026-09-29
-image: images/decision-map.png
+image: images/banner.png
+repo: https://github.com/GerardWu100/minimum-views-filter
 categories: ["Informatique", "Divers"]
 ---
 # Minimum Views Filter : masquer les publications peu vues sur X et YouTube
@@ -11,7 +12,9 @@ X et YouTube testent d'abord les nouvelles publications auprès d'un petit publi
 
 [Minimum Views Filter](https://github.com/GerardWu100/minimum-views-filter) est une extension de navigateur qui prend l'autre chemin. Elle masque les publications et les vidéos sous un nombre de vues que vous choisissez (1 000 par défaut) et ne clique jamais sur rien. Sur X, elle regarde aussi les mentions J'aime, les signets et les réponses par vue. Elle fonctionne dans Chrome, Brave (Chromium 109 ou plus récent) et Firefox (142 ou plus récent, sous forme de module signé par Mozilla). Le code est libre, sous licence MIT.
 
-Le graphique en haut de l'article représente les règles X par défaut selon les vues et les mentions J'aime par vue. La suite explique sa forme.
+![Quelles publications X restent visibles avec les règles par défaut](images/decision-map.png)
+
+Le graphique représente les règles X par défaut selon les vues et les mentions J'aime par vue. Les zones grise et orange sont masquées. Les publications en bleu clair dépassent le minimum de 1 000 vues. Le bloc bleu foncé est l'exception : une publication qui a entre 100 et 1 000 vues reste visible si ses mentions J'aime, ses signets et ses réponses par vue sont tous élevés. La suite explique cette forme.
 
 ## Ce qu'elle filtre, et où
 

@@ -6,7 +6,9 @@ Run from any directory:
 
 Outputs (PNG, written to ``blog/images/``):
 
-- ``decision-map.png``: cover image. The X keep/hide regions in the
+- ``banner.png``: cover image. The extension's funnel icon, its name, and a
+  three-post feed where the low-view post is hidden.
+- ``decision-map.png``: the X keep/hide regions in the
   (views, likes/views) plane at the extension's default settings, assuming the
   saves/views and replies/views keep rules also pass.
 - ``ratio-noise.png``: how much a likes/views ratio can move at a given view
@@ -27,7 +29,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import Patch
+from matplotlib.patches import FancyBboxPatch, Patch
 
 BLOG_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BLOG_DIR.parent
@@ -56,6 +58,18 @@ REGION_KEPT = "#b9d3f2"
 REGION_RESCUED = "#2a78d6"
 
 FIGURE_DPI = 200
+
+# Banner (cover image). The icon copies the extension's own icon in
+# ``dist/*/icons/filter-*.png``: a blue square with three white bars.
+BANNER_BACKGROUND = "#1f1e1d"
+BANNER_ICON_BLUE = "#1f6fd1"
+BANNER_CARD = "#34332f"
+BANNER_CARD_HIDDEN = "#1f1e1d"
+BANNER_TEXT = "#ffffff"
+BANNER_TEXT_HIDDEN = "#6b6a66"
+BANNER_HIDDEN_TAG = "#eb6834"
+# (view count shown on the card, kept on screen?) for the three example posts.
+BANNER_FEED = (("48K views", True), ("23 views", False), ("3.1K views", True))
 
 
 def style_axes(axes: plt.Axes) -> None:
@@ -199,9 +213,59 @@ def plot_history_batching() -> None:
     plt.close(figure)
 
 
+def draw_banner() -> None:
+    """Cover image: funnel icon, extension name, and a feed with one post hidden.
+
+    Data units run x 0..16 and y 0..6, matching the 16x6-inch figure saved at
+    100 dpi as a 1600x600 PNG.
+    """
+    figure, axes = plt.subplots(figsize=(16, 6))
+    figure.subplots_adjust(0, 0, 1, 1)
+    figure.patch.set_facecolor(BANNER_BACKGROUND)
+    axes.set_xlim(0, 16)
+    axes.set_ylim(0, 6)
+    axes.axis("off")
+
+    # Funnel icon: rounded blue square holding three white bars that get shorter.
+    axes.add_patch(FancyBboxPatch((1.0, 1.35), 3.3, 3.3, boxstyle="round,pad=0,rounding_size=0.45",
+                                  facecolor=BANNER_ICON_BLUE, edgecolor="none"))  # fmt: skip
+    for half_width, centre_y in ((1.15, 3.75), (0.72, 3.0), (0.32, 2.25)):
+        axes.add_patch(FancyBboxPatch((2.65 - half_width, centre_y - 0.2), 2 * half_width, 0.4,
+                                      boxstyle="round,pad=0,rounding_size=0.06",
+                                      facecolor="white", edgecolor="none"))  # fmt: skip
+
+    axes.text(5.2, 4.15, "Minimum Views Filter", fontsize=44, fontweight="bold",
+              color=BANNER_TEXT, va="center", family="DejaVu Sans")  # fmt: skip
+
+    # Feed: three post cards; the low-view one is a dashed, faded outline tagged "Hidden".
+    card_width, card_gap = 3.1, 0.35
+    for index, (views_label, kept) in enumerate(BANNER_FEED):
+        left = 5.25 + index * (card_width + card_gap)
+        axes.add_patch(FancyBboxPatch((left, 1.25), card_width, 1.75,
+                                      boxstyle="round,pad=0,rounding_size=0.2",
+                                      facecolor=BANNER_CARD if kept else BANNER_CARD_HIDDEN,
+                                      edgecolor="none" if kept else BANNER_TEXT_HIDDEN,
+                                      linestyle="--", linewidth=2))  # fmt: skip
+        text_colour = BANNER_TEXT if kept else BANNER_TEXT_HIDDEN
+        # Two grey lines stand in for the post's text.
+        for line_index, line_length in enumerate((2.4, 1.7)):
+            axes.plot([left + 0.3, left + 0.3 + line_length], [2.6 - 0.3 * line_index] * 2,
+                      color=text_colour, linewidth=6, alpha=0.35 if kept else 0.3,
+                      solid_capstyle="round")  # fmt: skip
+        axes.text(left + 0.3, 1.62, views_label, fontsize=19, fontweight="bold",
+                  color=text_colour, va="center", family="DejaVu Sans")  # fmt: skip
+        if not kept:
+            axes.text(left + card_width - 0.3, 1.62, "Hidden", fontsize=17, fontweight="bold",
+                      color=BANNER_HIDDEN_TAG, va="center", ha="right", family="DejaVu Sans")  # fmt: skip
+
+    figure.savefig(IMAGES_DIR / "banner.png", dpi=100, facecolor=figure.get_facecolor())
+    plt.close(figure)
+
+
 def main() -> None:
     """Generate every chart used by the post."""
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    draw_banner()
     plot_decision_map()
     plot_ratio_noise()
     plot_history_batching()

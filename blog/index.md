@@ -2,7 +2,8 @@
 title: "Minimum Views Filter: Hiding Low-View Posts on X and YouTube"
 description: "A browser extension for Chrome, Brave and Firefox that hides low-view posts and videos by reading the counts already on the page, with likes-per-view rules that wait for enough views before trusting a ratio."
 date: 2026-09-29
-image: images/decision-map.png
+image: images/banner.png
+repo: https://github.com/GerardWu100/minimum-views-filter
 categories: ["Computer Science", "Random Stuff"]
 ---
 # Minimum Views Filter: hiding low-view posts on X and YouTube
@@ -11,7 +12,9 @@ X and YouTube try out new posts on a small audience first. If you are part of th
 
 [Minimum Views Filter](https://github.com/GerardWu100/minimum-views-filter) is a browser extension that takes the other route. It hides posts and videos below a view count you choose (1,000 by default) and never clicks anything on the site. On X it also looks at likes, bookmarks and replies per view. It works in Chrome, Brave (Chromium 109 or later) and Firefox (142 or later, as a Mozilla-signed add-on). The code is open source under the MIT License.
 
-The chart at the top maps the default X rules over views and likes per view. The rest of this post explains its shape.
+![Which X posts stay on screen under the default rules](images/decision-map.png)
+
+The chart maps the default X rules over views and likes per view. Grey and orange areas are hidden. Light blue posts pass the 1,000-view minimum. The dark blue block is the exception: a post with 100 to 1,000 views stays if its likes, bookmarks and replies per view are all high. The rest of this post explains this shape.
 
 ## What it filters, and where
 
