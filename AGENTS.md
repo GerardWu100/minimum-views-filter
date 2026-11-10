@@ -110,7 +110,7 @@ Do not modify, disable, or reset those extensions to make this one work. See
 
 - Repository: `GerardWu100/minimum-views-filter`, public under the MIT License
   (the user requested publication on 2026-09-27).
-- Keep the local checkout under `one-time-projects/minimum-views-filter` within the existing projects root.
+- Keep the local checkout under `public/minimum-views-filter` within the existing projects root.
 - Publish downloadable browser ZIPs and signed XPIs as GitHub release assets.
   Label Firefox packages unsigned until Mozilla signing is complete.
 - Commit the unpacked extensions in `dist/chrome-brave/` and `dist/firefox/`.
